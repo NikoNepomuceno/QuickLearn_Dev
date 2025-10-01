@@ -1,0 +1,1 @@
+QuickLearn helps students and educators instantly convert uploaded files into interactive quizzes. With support for multiple-choice, true/false, identification, enumeration, or mixed formats, QuickLearn makes reviewing faster, smarter, and more engaging.

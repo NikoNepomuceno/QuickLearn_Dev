@@ -1,0 +1,11 @@
+{
+  "scripts": {
+    "dev": "concurrently \"npm run dev --prefix QuickLearn-Frontend\" \"npm run dev --prefix QuickLearn-Backend\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  },
+  "dependencies": {
+    "sweetalert2": "^11.23.0"
+  }
+}
