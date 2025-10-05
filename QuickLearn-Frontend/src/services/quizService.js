@@ -110,6 +110,42 @@ export function getQuizById(quizId) {
   return quizData ? JSON.parse(quizData) : null
 }
 
+export function saveQuizToHistory(quiz) {
+  // Ensure quiz has an ID and createdAt
+  const hasId = typeof quiz?.id === 'string' && quiz.id.length > 0
+  const quizId = hasId ? quiz.id : generateQuizId()
+  const quizToSave = {
+    ...quiz,
+    id: quizId,
+    createdAt: quiz.createdAt || new Date().toISOString()
+  }
+
+  // Save full quiz by id
+  localStorage.setItem(`quiz_${quizId}`, JSON.stringify(quizToSave))
+
+  // Update history list (store only ids, most recent first)
+  const historyKey = 'quiz_history'
+  const existing = JSON.parse(localStorage.getItem(historyKey) || '[]')
+  const filtered = existing.filter((id) => id !== quizId)
+  const updated = [quizId, ...filtered].slice(0, 20)
+  localStorage.setItem(historyKey, JSON.stringify(updated))
+
+  return quizToSave
+}
+
+export function getQuizHistory() {
+  const historyKey = 'quiz_history'
+  const ids = JSON.parse(localStorage.getItem(historyKey) || '[]')
+  return ids
+}
+
+export function getQuizHistoryDetailed() {
+  const ids = getQuizHistory()
+  return ids
+    .map((id) => getQuizById(id))
+    .filter(Boolean)
+}
+
 function generateQuizId() {
   // Generate a simple unique ID (in production, use a proper UUID library)
   return Math.random().toString(36).substr(2, 9) + Date.now().toString(36)

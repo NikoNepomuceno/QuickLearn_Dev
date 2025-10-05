@@ -53,7 +53,8 @@ onMounted(() => {
     quizData = getQuizById(route.params.quizId)
   } else {
     // Get from localStorage (for direct navigation from upload)
-    quizData = JSON.parse(localStorage.getItem('currentQuiz') || 'null')
+    const currentId = localStorage.getItem('currentQuizId')
+    quizData = currentId ? getQuizById(currentId) : JSON.parse(localStorage.getItem('currentQuiz') || 'null')
   }
   
   if (quizData) {
@@ -63,6 +64,7 @@ onMounted(() => {
     // Redirect to home if no quiz data
     router.push('/')
   }
+
 })
 
 function startTimer() {
@@ -110,7 +112,7 @@ function restartQuiz() {
 }
 
 function goHome() {
-  router.push('/')
+  router.push('/upload')
 }
 
 function goToUpload() {
@@ -120,8 +122,9 @@ function goToUpload() {
 
 <template>
   <div class="quiz-page">
-    <div class="quiz-header">
-      <button class="back-btn" @click="goHome">← Back to Home</button>
+    <div class="quiz-main">
+        <div class="quiz-header">
+      <button class="back-btn pill" @click="goHome">← Back to Home</button>
       <div class="quiz-title">
         <h1>{{ quiz?.title || 'Quiz' }}</h1>
         <p class="description">{{ quiz?.description }}</p>
@@ -130,13 +133,15 @@ function goToUpload() {
         <div class="timer">⏱️ {{ timeFormatted }}</div>
         <div class="progress-info">{{ currentQuestionIndex + 1 }} of {{ totalQuestions }}</div>
       </div>
-    </div>
+        </div>
 
-    <div class="progress-bar">
-      <div class="progress-fill" :style="{ width: progress + '%' }"></div>
-    </div>
+        
 
-    <div v-if="!showResults" class="quiz-content">
+        <div class="progress-bar">
+          <div class="progress-fill" :style="{ width: progress + '%' }"></div>
+        </div>
+
+        <div v-if="!showResults" class="quiz-content">
       <div class="question-section">
         <div class="question-header">
           <span class="question-number">Question {{ currentQuestionIndex + 1 }}</span>
@@ -208,9 +213,9 @@ function goToUpload() {
           Submit Quiz
         </button>
       </div>
-    </div>
+        </div>
 
-    <div v-else class="results-section">
+        <div v-else class="results-section">
       <div class="results-header">
         <h2>🎉 Quiz Complete!</h2>
         <div class="score-display">
@@ -271,6 +276,7 @@ function goToUpload() {
           </div>
         </div>
       </div>
+        </div>
     </div>
   </div>
 </template>
@@ -284,6 +290,10 @@ function goToUpload() {
     radial-gradient(1000px 600px at 20% -10%, rgba(102,126,234,0.12), transparent 60%),
     radial-gradient(900px 500px at 120% 10%, rgba(118,75,162,0.10), transparent 60%);
   min-height: 100vh;
+}
+
+.quiz-main {
+  min-width: 0;
 }
 
 .quiz-header {
@@ -301,6 +311,13 @@ function goToUpload() {
   cursor: pointer;
   font-size: 14px;
   padding: 8px 0;
+}
+
+.back-btn.pill {
+  background: #f3f4ff;
+  color: #4b53c5;
+  padding: 8px 12px;
+  border-radius: 9999px;
 }
 
 .quiz-title h1 {
@@ -692,5 +709,45 @@ function goToUpload() {
   .results-actions {
     flex-direction: column;
   }
+}
+
+.recent-quizzes {
+  margin-bottom: 16px;
+}
+
+.recent-hint {
+  margin: 4px 0 8px;
+  color: #6b7280;
+}
+
+.recent-list {
+  display: grid;
+  gap: 8px;
+}
+
+.recent-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  cursor: pointer;
+}
+
+.recent-item:hover {
+  background: #f8faff;
+  border-color: #667eea;
+}
+
+.rq-title {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.rq-meta {
+  color: #6b7280;
+  font-size: 12px;
 }
 </style>
