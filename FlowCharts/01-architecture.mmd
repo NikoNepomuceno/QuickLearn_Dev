@@ -1,0 +1,52 @@
+flowchart TD
+  subgraph Client ["Frontend (Vue 3 + Pinia + Vite)"]
+    LP[LandingPage.vue]
+    LG[Login.vue]
+    RG[Register.vue]
+    UQ[UploadQuiz.vue]
+    TQ[TakeQuiz.vue]
+    RT["vue-router<br/>auth guards"]
+    ASvcFE[services/authService.js]
+    QSvcFE[services/quizService.js]
+  end
+
+  subgraph Server ["Backend (Express)"]
+    SRV["server.js<br/>helmet, CORS, cookies, JSON"]
+    AR[authRoutes.js]
+    QR[quizRoutes.js]
+    ASvcBE[services/authService.js]
+    QSvcBE[services/quizService.js]
+    PF[utils/parseFile.js]
+    CORS["CORS: allow origin + creds"]
+  end
+
+  subgraph Infra ["External Services"]
+    DB[("MySQL via mysql2/knex")]
+    Mail["Nodemailer (email OTP)"]
+    Cloudinary[Cloudinary]
+    AI["DeepSeek via openai client"]
+  end
+
+  LP --> RT
+  LG --> RT
+  RG --> RT
+  UQ --> RT
+  TQ --> RT
+
+  RT -->|"/api/auth/me via cookies"| ASvcFE --> SRV
+  ASvcFE -->|"/api/auth/*"| AR
+  QSvcFE -->|"/api/quiz/*"| QR
+
+  SRV --> CORS
+  AR --> ASvcBE --> DB
+  AR --> Mail
+  AR -->|"set httpOnly cookie"| Client
+
+  QR --> PF
+  QR --> QSvcBE --> AI
+  QSvcBE --> Cloudinary
+  QSvcBE --> DB
+
+  Client <-->|"httpOnly access_token cookie"| Server
+
+

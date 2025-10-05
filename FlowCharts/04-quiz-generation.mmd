@@ -1,0 +1,18 @@
+sequenceDiagram
+  participant UQ as UploadQuiz.vue
+  participant FEQ as Frontend quizService
+  participant BEQ as Backend /api/quiz
+  participant PF as parseFile (mammoth/pdf-parse)
+  participant AI as DeepSeek (openai client)
+  participant DB as MySQL (optional)
+
+  UQ->>FEQ: upload(file, options)
+  FEQ->>BEQ: POST /api/quiz/from-file?count=&difficulty=&types=&focus (FormData)
+  BEQ->>PF: parseUploadedFile(buffer)
+  PF-->>BEQ: extracted text
+  BEQ->>AI: generateAIPoweredQuiz(text, options)
+  AI-->>BEQ: quiz items
+  BEQ-->>FEQ: { quiz, metadata }
+  FEQ-->>UQ: render or navigate to TakeQuiz
+
+

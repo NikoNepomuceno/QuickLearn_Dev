@@ -1,0 +1,23 @@
+sequenceDiagram
+  participant V as Vue Router Guard
+  participant FE as Frontend authService
+  participant BE as Backend /api/auth
+  participant JWT as httpOnly access_token
+  participant DB as MySQL
+
+  V->>FE: getCurrentUser() -> GET /api/auth/me (with credentials)
+  FE->>BE: /api/auth/me
+  alt has valid cookie
+    BE-->>FE: 200 { user }
+    FE-->>V: user present
+    V-->>V: allow or redirect based on route meta
+  else no/invalid cookie
+    BE-->>FE: 401 Unauthorized
+    FE-->>V: user = null
+    V-->>V: redirect to /login if requiresAuth
+    Note over FE,BE: Login flow
+    FE->>BE: POST /api/auth/login {identifier,password}
+    BE->>DB: verify credentials
+    BE-->>FE: 200 Set-Cookie access_token HttpOnly
+    V-->>V: proceed to protected route
+  end
