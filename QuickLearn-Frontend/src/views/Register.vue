@@ -1,9 +1,11 @@
 <script setup>
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { registerUser, verifyEmail } from '../services/authService'
+import PrivacyPolicyModal from '../components/PrivacyPolicyModal.vue'
 
 const router = useRouter()
+const route = useRoute()
 const step = ref(1)
 const username = ref('')
 const email = ref('')
@@ -12,6 +14,8 @@ const confirmPassword = ref('')
 const otp = ref('')
 const isLoading = ref(false)
 const error = ref('')
+const showPrivacy = ref(false)
+const acceptedPrivacy = ref(false)
 
 async function onRegister(e) {
   e.preventDefault()
@@ -46,6 +50,10 @@ async function onVerify(e) {
 }
 
 function goHome() { router.push('/') }
+
+if (route.query.pp === '1') {
+  showPrivacy.value = true
+}
 </script>
 
 <template>
@@ -63,7 +71,7 @@ function goHome() { router.push('/') }
         </label>
         <label>
           <span>Email</span>
-          <input v-model="email" type="email" required placeholder="jane@doe.com" />
+          <input v-model="email" type="email" required placeholder="janedoe@gmail.com" />
         </label>
         <label>
           <span>Password</span>
@@ -73,7 +81,16 @@ function goHome() { router.push('/') }
           <span>Confirm Password</span>
           <input v-model="confirmPassword" type="password" required />
         </label>
-        <button class="primary" type="submit" :disabled="isLoading">
+        <label class="pp-row">
+          <div class="pp-check">
+            <input id="pp-accept" v-model="acceptedPrivacy" type="checkbox" required />
+          </div>
+          <div class="pp-text">
+            <span>I agree to the</span>
+            <button type="button" class="link inline" @click="showPrivacy = true">Privacy Policy</button>
+          </div>
+        </label>
+        <button class="primary" type="submit" :disabled="isLoading || !acceptedPrivacy">
           {{ isLoading ? 'Creating…' : 'Create Account' }}
         </button>
         <p v-if="error" class="error">{{ error }}</p>
@@ -95,6 +112,7 @@ function goHome() { router.push('/') }
         <p v-if="error" class="error">{{ error }}</p>
       </form>
     </div>
+    <PrivacyPolicyModal v-model="showPrivacy" @accept="acceptedPrivacy = true" />
   </div>
 </template>
 
@@ -106,6 +124,7 @@ function goHome() { router.push('/') }
 @keyframes wave { 0% { top: -30%; border-radius: 42% 58% 37% 63% / 42% 34% 66% 58%; } 25% { top: -20%; border-radius: 58% 42% 62% 38% / 37% 63% 37% 63%; } 50% { top: -35%; border-radius: 52% 48% 55% 45% / 52% 48% 55% 45%; } 75% { top: -25%; border-radius: 60% 40% 40% 60% / 45% 55% 45% 55%; } 100% { top: -30%; border-radius: 42% 58% 37% 63% / 42% 34% 66% 58%; } }
 .card { width:100%; max-width:480px; background:#fff; border:1px solid #e6e8ec; border-radius:12px; padding:24px; box-shadow:0 10px 25px rgba(50,50,93,0.05); }
 .link { background:none; border:none; color:#5562ea; cursor:pointer; padding:0; margin-bottom:8px; }
+.link.inline { margin: 0 0 0 4px; }
 h1 { margin:6px 0 4px; font-size:26px; }
 .subtitle { color:#6b7280; margin:0 0 16px; }
 .form { display:grid; gap:12px; }
@@ -116,6 +135,9 @@ input:focus { outline:none; border-color:#7b86f2; box-shadow:0 0 0 3px rgba(123,
 .error { color:#b00020; margin:6px 0 0; }
 .hint-row { margin-top:12px; font-size:14px; color:#6b7280; display:flex; gap:6px; }
 .hint-row a { color:#5562ea; }
+.pp-row { display:flex; align-items:center; gap:10px; }
+.pp-check { display:flex; align-items:center; }
+.pp-text { display:flex; align-items:center; gap:4px; color:#6b7280; }
 </style>
 
 

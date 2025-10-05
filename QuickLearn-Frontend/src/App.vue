@@ -1,7 +1,4 @@
 <script setup>
-</script>
-
-<script setup>
 import Swal from 'sweetalert2'
 
 // Configure a Toast instance
@@ -28,10 +25,23 @@ if (typeof window !== 'undefined') {
       Swal.fire({ title, text, icon: 'question', showCancelButton: true, confirmButtonText })
   }
 }
+
+function toggleTheme() {
+  try {
+    if (window.$theme && typeof window.$theme.toggle === 'function') {
+      window.$theme.toggle()
+      return
+    }
+    // Fallback: toggle class directly and persist
+    const isDark = document.body.classList.toggle('dark')
+    localStorage.setItem('theme', isDark ? 'dark' : 'light')
+  } catch {}
+}
 </script>
 
 <template>
   <router-view />
+  <button class="theme-floating-toggle" @click="toggleTheme" aria-label="Toggle theme">🌓</button>
 </template>
 
 <style scoped></style>

@@ -1,9 +1,11 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import PrivacyPolicyModal from '../components/PrivacyPolicyModal.vue'
 
 const router = useRouter()
 const isMenuOpen = ref(false)
+const showPrivacy = ref(false)
 
 const navigateToUpload = () => {
   router.push('/upload')
@@ -14,7 +16,8 @@ const toggleMenu = () => {
 }
 
 function goLogin() { router.push('/login') }
-function goRegister() { router.push('/register') }
+function goRegister() { router.push({ path: '/register', query: { pp: '1' } }) }
+function onAcceptPrivacy() {}
 </script>
 
 <template>
@@ -282,6 +285,7 @@ function goRegister() { router.push('/register') }
       </div>
     </footer>
   </div>
+  <PrivacyPolicyModal v-model="showPrivacy" @accept="onAcceptPrivacy" />
 </template>
 
 <style scoped>
