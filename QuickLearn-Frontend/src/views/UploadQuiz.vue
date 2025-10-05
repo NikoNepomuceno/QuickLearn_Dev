@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import QuizConfirmationModal from '../components/QuizConfirmationModal.vue'
 import Sidebar from '../components/Sidebar.vue'
-import { downloadQuizAsPDF, generateShareableLink, copyToClipboard } from '../services/quizService'
+import { downloadQuizAsPDF, generateShareableLink, copyToClipboard, saveQuizToHistory } from '../services/quizService'
 
 const router = useRouter()
 const selectedFile = ref(null)
@@ -63,7 +63,9 @@ function onDrop(event) {
       selectedFile.value = file
       errorMessage.value = ''
     } else {
-      errorMessage.value = 'Please upload a PDF, DOCX, or TXT file.'
+      const message = 'Please upload a PDF, DOCX, or TXT file.'
+      errorMessage.value = message
+      window.$toast?.error(message)
     }
   }
 }
@@ -93,7 +95,9 @@ async function uploadFile() {
   showAnswers.value = {}
 
   if (!selectedFile.value) {
-    errorMessage.value = 'Please choose a .txt, .pdf, or .docx file.'
+    const message = 'Please choose a .txt, .pdf, or .docx file.'
+    errorMessage.value = message
+    window.$toast?.error(message)
     return
   }
 
@@ -116,6 +120,12 @@ async function uploadFile() {
 
     const data = await response.json()
     quiz.value = data.quiz || null
+    if (quiz.value) {
+      // Persist to history so it appears in Take Quiz
+      quiz.value = saveQuizToHistory(quiz.value)
+      // Keep a pointer to the latest quiz id for quick resume
+      localStorage.setItem('currentQuizId', quiz.value.id)
+    }
     
     // Show confirmation modal after successful quiz generation
     if (quiz.value) {
@@ -215,6 +225,7 @@ function copyShareLink() {
         <div class="progress" v-show="isLoading || progressPercent > 0">
           <div class="bar" :style="{ width: progressPercent + '%' }"></div>
         </div>
+        
         <div
           class="dropzone"
           :class="{ over: isDragOver, ready: selectedFile }"
@@ -256,7 +267,7 @@ function copyShareLink() {
           </button>
         </div>
 
-        <p v-if="errorMessage" class="error">{{ errorMessage }}</p>
+        
 
         <div v-if="isLoading" class="loading">
           <div class="spinner"></div>
@@ -392,6 +403,8 @@ function copyShareLink() {
   position: relative;
 }
 
+
+
 .progress {
   position: absolute;
   left: 16px;
@@ -442,6 +455,8 @@ function copyShareLink() {
   font-size: 38px;
   margin-bottom: 8px;
 }
+
+
 
 .browse {
   color: #5562ea;
@@ -500,6 +515,8 @@ function copyShareLink() {
   border-radius: 8px;
   transition: box-shadow .2s ease, border-color .2s ease;
 }
+
+
 
 .controls input[type="number"]:focus {
   outline: none;
@@ -571,6 +588,8 @@ function copyShareLink() {
 .sidebar {
   background: #ffffff;
 }
+
+
 
 .sidebar h3 {
   margin-top: 0;

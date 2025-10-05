@@ -40,7 +40,7 @@ function goHome() {
       <form @submit="onSubmit" class="form">
         <label>
           <span>Email or Username</span>
-          <input v-model="identifier" type="text" required placeholder="jane@doe.com" />
+          <input v-model="identifier" type="text" required placeholder="janedoe@gmail.com" />
         </label>
         <label>
           <span>Password</span>

@@ -18,8 +18,8 @@
     "format": "prettier --write src/"
   },
   "dependencies": {
-    "sweetalert2": "^11.14.5",
     "pinia": "^3.0.3",
+    "sweetalert2": "^11.14.5",
     "vue": "^3.5.18",
     "vue-router": "^4.5.1"
   },
@@ -44,7 +44,7 @@
     "oxlint": "~1.8.0",
     "prettier": "3.6.2",
     "ts-node": "^10.9.2",
-    "vite": "^7.0.6",
+    "vite": "^7.1.8",
     "vite-plugin-nightwatch": "^0.4.6",
     "vite-plugin-vue-devtools": "^8.0.0",
     "vitest": "^3.2.4"

@@ -27,7 +27,7 @@ async function confirmLogout() {
 
     <nav class="nav">
       <router-link class="nav-item" to="/upload">Upload</router-link>
-      <router-link class="nav-item" to="/quiz">Take Quiz</router-link>
+      <router-link class="nav-item" to="/quiz">My Quizzes</router-link>
     </nav>
 
     <button class="logout" @click="requestLogout">Logout</button>
@@ -82,6 +82,7 @@ async function confirmLogout() {
   color: #4b53c5;
   font-weight: 600;
 }
+
 
 .logout {
   padding: 10px 12px;
