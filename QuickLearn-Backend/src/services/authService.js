@@ -1,8 +1,9 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
 const { getPool } = require('../config/db');
-const { sendOtpEmail, sendLoginAlertEmail } = require('../config/email');
+const { sendOtpEmail, sendLoginAlertEmail, sendPasswordResetEmail } = require('../config/email');
 const { getCookieOptions } = require('../middleware/auth');
 
 const PASSWORD_REGEX = /^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
@@ -95,6 +96,40 @@ async function verifyEmail({ email, otp }) {
 	}
 }
 
+async function resendOtp({ email }) {
+	const pool = await getPool();
+	const conn = await pool.getConnection();
+	try {
+		await conn.beginTransaction();
+		const [users] = await conn.execute('SELECT id, username, is_email_verified FROM users WHERE email = ? LIMIT 1', [email]);
+		if (!users.length) throw new Error('User not found');
+		const user = users[0];
+		if (user.is_email_verified) {
+			await conn.commit();
+			return { message: 'Email already verified' };
+		}
+
+		// Generate new OTP
+		const otp = generateOtp();
+		const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+		
+		// Insert new OTP record
+		await conn.execute(
+			'INSERT INTO email_verifications (user_id, otp_code, expires_at, attempt_count) VALUES (?, ?, ?, 0)',
+			[user.id, otp, expiresAt]
+		);
+		await conn.commit();
+
+		await sendOtpEmail({ to: email, username: user.username, otp });
+		return { message: 'OTP resent successfully' };
+	} catch (err) {
+		await conn.rollback();
+		throw err;
+	} finally {
+		conn.release();
+	}
+}
+
 // Refresh-token sessions removed
 
 async function login({ identifier, password, ip, userAgent }) {
@@ -131,6 +166,86 @@ async function logout() {
     return { success: true };
 }
 
-module.exports = { register, verifyEmail, login, logout };
+async function forgotPassword({ email }) {
+	const pool = await getPool();
+	const conn = await pool.getConnection();
+	try {
+		await conn.beginTransaction();
+		const [users] = await conn.execute('SELECT id, username, email FROM users WHERE email = ? LIMIT 1', [email]);
+		if (!users.length) {
+			await conn.commit();
+			throw new Error('Invalid Email');
+		}
+		const user = users[0];
+
+		// Generate secure reset token
+		const resetToken = crypto.randomBytes(32).toString('hex');
+		const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+		// Invalidate any existing reset tokens for this user
+		await conn.execute('UPDATE password_reset_tokens SET consumed_at = NOW() WHERE user_id = ? AND consumed_at IS NULL', [user.id]);
+
+		// Insert new reset token
+		await conn.execute(
+			'INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)',
+			[user.id, resetToken, expiresAt]
+		);
+		await conn.commit();
+
+		// Send reset email
+		await sendPasswordResetEmail({ to: user.email, username: user.username, resetToken });
+		return { message: 'Password reset link has been sent to your email.' };
+	} catch (err) {
+		await conn.rollback();
+		throw err;
+	} finally {
+		conn.release();
+	}
+}
+
+async function resetPassword({ token, password, confirmPassword }) {
+	if (!token || !password || !confirmPassword) throw new Error('Missing required fields');
+	if (password !== confirmPassword) throw new Error('Passwords do not match');
+	if (!PASSWORD_REGEX.test(password)) throw new Error('Password does not meet complexity requirements');
+
+	const pool = await getPool();
+	const conn = await pool.getConnection();
+	try {
+		await conn.beginTransaction();
+		
+		// Find valid reset token
+		const [tokens] = await conn.execute(
+			'SELECT id, user_id, expires_at, consumed_at FROM password_reset_tokens WHERE token = ? LIMIT 1',
+			[token]
+		);
+		if (!tokens.length) throw new Error('Invalid or expired reset token');
+		const tokenRecord = tokens[0];
+		
+		if (tokenRecord.consumed_at) throw new Error('Reset token has already been used');
+		if (new Date(tokenRecord.expires_at) < new Date()) throw new Error('Reset token has expired');
+
+		// Hash new password
+		const passwordHash = await bcrypt.hash(password, 12);
+
+		// Update user password
+		await conn.execute('UPDATE users SET password_hash = ? WHERE id = ?', [passwordHash, tokenRecord.user_id]);
+
+		// Mark token as consumed
+		await conn.execute('UPDATE password_reset_tokens SET consumed_at = NOW() WHERE id = ?', [tokenRecord.id]);
+
+		// Invalidate all other reset tokens for this user
+		await conn.execute('UPDATE password_reset_tokens SET consumed_at = NOW() WHERE user_id = ? AND id != ? AND consumed_at IS NULL', [tokenRecord.user_id, tokenRecord.id]);
+
+		await conn.commit();
+		return { message: 'Password reset successfully' };
+	} catch (err) {
+		await conn.rollback();
+		throw err;
+	} finally {
+		conn.release();
+	}
+}
+
+module.exports = { register, verifyEmail, resendOtp, login, logout, forgotPassword, resetPassword };
 
 

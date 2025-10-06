@@ -15,7 +15,7 @@ const toggleMenu = () => {
   isMenuOpen.value = !isMenuOpen.value
 }
 
-function goLogin() { router.push('/login') }
+// function goLogin() { router.push('/login') }
 function goRegister() { router.push({ path: '/register', query: { pp: '1' } }) }
 function onAcceptPrivacy() {}
 </script>
@@ -48,11 +48,11 @@ function onAcceptPrivacy() {}
       <div class="hero-container">
         <div class="hero-content">
           <h1 class="hero-title">
-            Transform Your Learning Experience with 
+            Transform Your Learning Experience with
             <span class="gradient-text">QuickLearn</span>
           </h1>
           <p class="hero-subtitle">
-            Create accurate study materials from your course content in seconds. 
+            Create accurate study materials from your course content in seconds.
             Upload any document and get instant quizzes, flashcards, and personalized study tools powered by AI.
           </p>
           <div class="hero-actions">
@@ -302,6 +302,11 @@ function onAcceptPrivacy() {}
   color: #333;
 }
 
+/* Dark mode landing page */
+body.dark .landing-page {
+  color: #e5e7eb;
+}
+
 .container {
   max-width: 1200px;
   margin: 0 auto;
@@ -318,6 +323,12 @@ function onAcceptPrivacy() {}
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
   z-index: 1000;
   transition: all 0.3s ease;
+}
+
+/* Dark mode navigation */
+body.dark .navbar {
+  background: rgba(15, 23, 42, 0.95);
+  border-bottom: 1px solid rgba(31, 42, 68, 0.3);
 }
 
 .nav-container {
@@ -356,6 +367,15 @@ function onAcceptPrivacy() {}
   color: #667eea;
 }
 
+/* Dark mode navigation links */
+body.dark .nav-link {
+  color: #e5e7eb;
+}
+
+body.dark .nav-link:hover {
+  color: #a5b4fc;
+}
+
 .nav-cta {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
@@ -385,6 +405,11 @@ function onAcceptPrivacy() {}
   transition: 0.3s;
 }
 
+/* Dark mode hamburger menu */
+body.dark .bar {
+  background: #e5e7eb;
+}
+
 /* Hero Section */
 .hero {
   padding: 120px 0 80px;
@@ -394,12 +419,16 @@ function onAcceptPrivacy() {}
   align-items: center;
 }
 
+/* Dark mode hero */
+body.dark .hero {
+  background: linear-gradient(135deg, #0b1222 0%, #1f2a44 100%);
+}
+
 .hero-container {
   max-width: 1200px;
   margin: 0 auto;
   padding: 0 20px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
   gap: 60px;
   align-items: center;
 }
@@ -410,6 +439,11 @@ function onAcceptPrivacy() {}
   line-height: 1.2;
   margin-bottom: 24px;
   color: #2d3748;
+}
+
+/* Dark mode hero title */
+body.dark .hero-title {
+  color: #e5e7eb;
 }
 
 .gradient-text {
@@ -424,6 +458,11 @@ function onAcceptPrivacy() {}
   color: #4a5568;
   margin-bottom: 32px;
   line-height: 1.6;
+}
+
+/* Dark mode hero subtitle */
+body.dark .hero-subtitle {
+  color: #9ca3af;
 }
 
 .hero-actions {
@@ -495,6 +534,11 @@ function onAcceptPrivacy() {}
   font-weight: 500;
 }
 
+/* Dark mode stats */
+body.dark .stat-label {
+  color: #9ca3af;
+}
+
 /* Hero Visual */
 .hero-visual {
   display: flex;
@@ -512,18 +556,31 @@ function onAcceptPrivacy() {}
   animation: float 6s ease-in-out infinite;
 }
 
+/* Dark mode demo card */
+body.dark .demo-card {
+  background: #0f172a;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+}
+
 @keyframes float {
   0%, 100% { transform: translateY(0px); }
   50% { transform: translateY(-20px); }
 }
 
 .demo-header {
+  width: 400px;
   background: #f8f9fa;
   padding: 16px 20px;
   display: flex;
   align-items: center;
   gap: 12px;
   border-bottom: 1px solid #e9ecef;
+}
+
+/* Dark mode demo header */
+body.dark .demo-header {
+  background: #1f2a44;
+  border-bottom: 1px solid #334155;
 }
 
 .demo-dots {
@@ -555,6 +612,11 @@ function onAcceptPrivacy() {}
   color: #495057;
 }
 
+/* Dark mode demo title */
+body.dark .demo-title {
+  color: #e5e7eb;
+}
+
 .demo-content {
   padding: 30px 20px;
 }
@@ -573,6 +635,17 @@ function onAcceptPrivacy() {}
   background: #f8f9ff;
 }
 
+/* Dark mode upload area */
+body.dark .upload-area {
+  border-color: #334155;
+  background: transparent;
+}
+
+body.dark .upload-area:hover {
+  border-color: #667eea;
+  background: rgba(102, 126, 234, 0.05);
+}
+
 .upload-icon {
   font-size: 2rem;
   margin-bottom: 8px;
@@ -588,12 +661,30 @@ function onAcceptPrivacy() {}
   color: #6c757d;
 }
 
+/* Dark mode upload area text */
+body.dark .upload-area p {
+  color: #e5e7eb;
+}
+
+body.dark .file-types {
+  color: #9ca3af;
+}
+
 .processing {
   text-align: center;
   padding: 20px;
   background: #f8f9ff;
   border-radius: 12px;
   margin-bottom: 20px;
+}
+
+/* Dark mode processing */
+body.dark .processing {
+  background: rgba(102, 126, 234, 0.1);
+}
+
+body.dark .processing p {
+  color: #e5e7eb;
 }
 
 .spinner {
@@ -627,6 +718,12 @@ function onAcceptPrivacy() {}
   font-weight: 500;
 }
 
+/* Dark mode result items */
+body.dark .result-item {
+  background: #1f2a44;
+  color: #e5e7eb;
+}
+
 .result-icon {
   font-size: 1.2rem;
 }
@@ -635,6 +732,11 @@ function onAcceptPrivacy() {}
 .features {
   padding: 100px 0;
   background: white;
+}
+
+/* Dark mode features */
+body.dark .features {
+  background: #0b1222;
 }
 
 .section-header {
@@ -654,9 +756,18 @@ function onAcceptPrivacy() {}
   color: #4a5568;
 }
 
+/* Dark mode section headers */
+body.dark .section-header h2 {
+  color: #e5e7eb;
+}
+
+body.dark .section-header p {
+  color: #9ca3af;
+}
+
 .features-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 40px;
 }
 
@@ -667,12 +778,25 @@ function onAcceptPrivacy() {}
   background: #f8f9ff;
   transition: all 0.3s ease;
   border: 1px solid #e9ecef;
+  flex: 1 1 350px;
+  min-width: 350px;
 }
 
 .feature-card:hover {
   transform: translateY(-10px);
   box-shadow: 0 20px 40px rgba(102, 126, 234, 0.1);
   background: white;
+}
+
+/* Dark mode feature cards */
+body.dark .feature-card {
+  background: #0f172a;
+  border: 1px solid #1f2a44;
+}
+
+body.dark .feature-card:hover {
+  background: #1f2a44;
+  box-shadow: 0 20px 40px rgba(102, 126, 234, 0.2);
 }
 
 .feature-icon {
@@ -692,6 +816,15 @@ function onAcceptPrivacy() {}
   line-height: 1.6;
 }
 
+/* Dark mode feature card text */
+body.dark .feature-card h3 {
+  color: #e5e7eb;
+}
+
+body.dark .feature-card p {
+  color: #9ca3af;
+}
+
 /* How It Works Section */
 .how-it-works {
   padding: 100px 0;
@@ -705,8 +838,8 @@ function onAcceptPrivacy() {}
 }
 
 .steps {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 40px;
   margin-top: 60px;
 }
@@ -714,6 +847,8 @@ function onAcceptPrivacy() {}
 .step {
   text-align: center;
   padding: 40px 20px;
+  flex: 1 1 300px;
+  min-width: 300px;
 }
 
 .step-number {
@@ -748,9 +883,14 @@ function onAcceptPrivacy() {}
   background: #f8f9fa;
 }
 
+/* Dark mode testimonials */
+body.dark .testimonials {
+  background: #0f172a;
+}
+
 .testimonials-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 40px;
   margin-top: 60px;
 }
@@ -761,10 +901,18 @@ function onAcceptPrivacy() {}
   border-radius: 20px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
   transition: transform 0.3s ease;
+  flex: 1 1 350px;
+  min-width: 350px;
 }
 
 .testimonial:hover {
   transform: translateY(-5px);
+}
+
+/* Dark mode testimonials */
+body.dark .testimonial {
+  background: #1f2a44;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 
 .testimonial-content {
@@ -776,6 +924,11 @@ function onAcceptPrivacy() {}
   line-height: 1.6;
   color: #4a5568;
   font-style: italic;
+}
+
+/* Dark mode testimonial content */
+body.dark .testimonial-content p {
+  color: #9ca3af;
 }
 
 .testimonial-author {
@@ -806,6 +959,15 @@ function onAcceptPrivacy() {}
   font-size: 0.9rem;
 }
 
+/* Dark mode author info */
+body.dark .author-info h4 {
+  color: #e5e7eb;
+}
+
+body.dark .author-info span {
+  color: #9ca3af;
+}
+
 /* CTA Section */
 .cta {
   padding: 100px 0;
@@ -834,8 +996,8 @@ function onAcceptPrivacy() {}
 }
 
 .footer-content {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 40px;
   margin-bottom: 40px;
 }
@@ -899,6 +1061,12 @@ function onAcceptPrivacy() {}
     transition: 0.3s;
     box-shadow: 0 10px 27px rgba(0, 0, 0, 0.05);
     padding: 20px 0;
+  }
+
+  /* Dark mode mobile menu */
+  body.dark .nav-menu {
+    background-color: #0f172a;
+    box-shadow: 0 10px 27px rgba(0, 0, 0, 0.3);
   }
 
   .nav-menu.active {

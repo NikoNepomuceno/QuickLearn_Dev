@@ -1,7 +1,8 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { getQuizById } from '../services/quizService'
+import { getQuizById, saveQuizAttempt } from '../services/quizService'
+import { Clock, CheckCircle, ArrowRight, ArrowLeft, RotateCcw } from 'lucide-vue-next'
 
 const router = useRouter()
 const route = useRoute()
@@ -47,7 +48,7 @@ const timeFormatted = computed(() => {
 onMounted(() => {
   // Get quiz data from route params, localStorage, or quiz ID
   let quizData = null
-  
+
   if (route.params.quizId) {
     // Try to get quiz by ID from localStorage
     quizData = getQuizById(route.params.quizId)
@@ -56,7 +57,7 @@ onMounted(() => {
     const currentId = localStorage.getItem('currentQuizId')
     quizData = currentId ? getQuizById(currentId) : JSON.parse(localStorage.getItem('currentQuiz') || 'null')
   }
-  
+
   if (quizData) {
     quiz.value = quizData
     startTimer()
@@ -100,6 +101,15 @@ function submitQuiz() {
   if (timer) {
     clearInterval(timer)
   }
+  // persist attempt result
+  try {
+    const elapsed = typeof timeElapsed.value === 'number' ? timeElapsed.value : 0
+    if (quiz.value?.id) {
+      // capture user answers in order of questions
+      const userAnswers = (quiz.value.questions || []).map((_, idx) => answers.value[idx] || null)
+      saveQuizAttempt(quiz.value.id, { score: score.value, timeSeconds: elapsed, userAnswers })
+    }
+  } catch {}
 }
 
 function restartQuiz() {
@@ -122,155 +132,361 @@ function goToUpload() {
 
 <template>
   <div class="quiz-page">
+    <!-- Floating Progress Indicator -->
+    <div class="floating-progress">
+      <div class="progress-circle">
+        <svg class="progress-ring" width="60" height="60">
+          <circle
+            class="progress-ring-circle"
+            stroke="#e5e7eb"
+            stroke-width="4"
+            fill="transparent"
+            r="26"
+            cx="30"
+            cy="30"
+          />
+          <circle
+            class="progress-ring-circle progress-ring-fill"
+            stroke="url(#gradient)"
+            stroke-width="4"
+            fill="transparent"
+            r="26"
+            cx="30"
+            cy="30"
+            :stroke-dasharray="163.36"
+            :stroke-dashoffset="163.36 - (163.36 * progress) / 100"
+          />
+          <defs>
+            <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+              <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+            </linearGradient>
+          </defs>
+        </svg>
+        <div class="progress-text">{{ currentQuestionIndex + 1 }}/{{ totalQuestions }}</div>
+      </div>
+    </div>
+
     <div class="quiz-main">
         <div class="quiz-header">
-      <button class="back-btn pill" @click="goHome">← Back to Home</button>
+      <button class="back-btn" @click="goHome">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="m12 19-7-7 7-7"/>
+          <path d="m19 12H5"/>
+        </svg>
+        Back to Home
+      </button>
       <div class="quiz-title">
         <h1>{{ quiz?.title || 'Quiz' }}</h1>
         <p class="description">{{ quiz?.description }}</p>
       </div>
       <div class="quiz-meta">
-        <div class="timer">⏱️ {{ timeFormatted }}</div>
-        <div class="progress-info">{{ currentQuestionIndex + 1 }} of {{ totalQuestions }}</div>
+        <div class="timer">
+          <Clock :size="16" />
+          {{ timeFormatted }}
+        </div>
+        <div class="question-counter">
+          <span class="current">{{ currentQuestionIndex + 1 }}</span>
+          <span class="separator">of</span>
+          <span class="total">{{ totalQuestions }}</span>
+        </div>
       </div>
         </div>
 
-        
-
         <div class="progress-bar">
           <div class="progress-fill" :style="{ width: progress + '%' }"></div>
+          <div class="progress-markers">
+            <div
+              v-for="(_, index) in quiz?.questions"
+              :key="index"
+              class="marker"
+              :class="{
+                active: index <= currentQuestionIndex,
+                current: index === currentQuestionIndex
+              }"
+              :style="{ left: `${(index / (totalQuestions - 1)) * 100}%` }"
+            ></div>
+          </div>
         </div>
 
         <div v-if="!showResults" class="quiz-content">
       <div class="question-section">
-        <div class="question-header">
-          <span class="question-number">Question {{ currentQuestionIndex + 1 }}</span>
-          <span class="question-total">of {{ totalQuestions }}</span>
-        </div>
-        
-        <div class="question-text">
-          {{ currentQuestion?.question }}
-        </div>
+        <div class="question-card">
+          <div class="question-badge">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+              <path d="M12 17h.01"/>
+            </svg>
+            Question {{ currentQuestionIndex + 1 }}
+          </div>
 
-        <div class="choices">
-          <label 
-            v-for="(choice, index) in currentQuestion?.choices" 
-            :key="index"
-            class="choice"
-            :class="{ selected: answers[currentQuestionIndex] === choice }"
-          >
-            <input 
-              type="radio" 
-              :name="`question-${currentQuestionIndex}`"
-              :value="choice"
-              @change="selectAnswer(choice)"
-              :checked="answers[currentQuestionIndex] === choice"
-            />
-            <span class="choice-text">{{ choice }}</span>
-          </label>
+          <div class="question-text">
+            {{ currentQuestion?.question }}
+          </div>
+
+          <div class="choices">
+            <div
+              v-for="(choice, index) in currentQuestion?.choices"
+              :key="index"
+              class="choice-option"
+              :class="{ selected: answers[currentQuestionIndex] === choice }"
+              @click="selectAnswer(choice)"
+            >
+              <div class="choice-radio">
+                <input
+                  type="radio"
+                  :name="`question-${currentQuestionIndex}`"
+                  :value="choice"
+                  :checked="answers[currentQuestionIndex] === choice"
+                  @change="selectAnswer(choice)"
+                />
+                <div class="radio-custom">
+                  <div class="radio-dot"></div>
+                </div>
+              </div>
+              <div class="choice-content">
+                <span class="choice-letter">{{ String.fromCharCode(65 + index) }}</span>
+                <span class="choice-text">{{ choice }}</span>
+              </div>
+              <div class="choice-indicator">
+                <svg v-if="answers[currentQuestionIndex] === choice" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="20,6 9,17 4,12"/>
+                </svg>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
       <div class="navigation">
-        <button 
-          class="nav-btn secondary" 
-          @click="previousQuestion"
-          :disabled="currentQuestionIndex === 0"
-        >
-          ← Previous
-        </button>
-        
-        <div class="question-dots">
-          <button 
-            v-for="(question, index) in quiz?.questions" 
-            :key="index"
-            class="dot"
-            :class="{ 
-              active: index === currentQuestionIndex,
-              answered: answers[index],
-              current: index === currentQuestionIndex
-            }"
-            @click="goToQuestion(index)"
+        <div class="nav-controls">
+          <button
+            class="nav-btn secondary"
+            @click="previousQuestion"
+            :disabled="currentQuestionIndex === 0"
           >
-            {{ index + 1 }}
+            <ArrowLeft :size="16" />
+            Previous
+          </button>
+
+          <div class="question-navigator">
+            <div class="nav-label">Questions</div>
+            <div class="question-dots">
+              <button
+                v-for="(question, index) in quiz?.questions"
+                :key="index"
+                class="dot"
+                :class="{
+                  active: index === currentQuestionIndex,
+                  answered: answers[index] !== undefined,
+                  current: index === currentQuestionIndex
+                }"
+                @click="goToQuestion(index)"
+                :title="`Question ${index + 1}${answers[index] ? ' (Answered)' : ''}`"
+              >
+                <span v-if="answers[index] !== undefined" class="dot-check">✓</span>
+                <span v-else>{{ index + 1 }}</span>
+              </button>
+            </div>
+          </div>
+
+          <button
+            v-if="currentQuestionIndex < totalQuestions - 1"
+            class="nav-btn primary"
+            @click="nextQuestion"
+          >
+            Next
+            <ArrowRight :size="16" />
+          </button>
+
+          <button
+            v-else
+            class="nav-btn submit"
+            @click="submitQuiz"
+            :disabled="Object.keys(answers).length === 0"
+          >
+            <CheckCircle :size="16" />
+            Submit Quiz
           </button>
         </div>
-
-        <button 
-          v-if="currentQuestionIndex < totalQuestions - 1"
-          class="nav-btn primary" 
-          @click="nextQuestion"
-        >
-          Next →
-        </button>
-        
-        <button 
-          v-else
-          class="nav-btn primary submit" 
-          @click="submitQuiz"
-          :disabled="!answers[currentQuestionIndex]"
-        >
-          Submit Quiz
-        </button>
       </div>
         </div>
 
         <div v-else class="results-section">
       <div class="results-header">
-        <h2>🎉 Quiz Complete!</h2>
+        <div class="celebration-icon">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M9 12l2 2 4-4"/>
+            <path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z"/>
+          </svg>
+        </div>
+        <h2>Quiz Complete!</h2>
+        <p class="results-subtitle">Great job! Here's how you performed</p>
+
         <div class="score-display">
           <div class="score-circle">
-            <span class="score-number">{{ score }}%</span>
-            <span class="score-label">Score</span>
+            <svg class="score-ring" width="140" height="140">
+              <circle
+                class="score-ring-bg"
+                stroke="#e5e7eb"
+                stroke-width="8"
+                fill="transparent"
+                r="62"
+                cx="70"
+                cy="70"
+              />
+              <circle
+                class="score-ring-fill"
+                stroke="url(#scoreGradient)"
+                stroke-width="8"
+                fill="transparent"
+                r="62"
+                cx="70"
+                cy="70"
+                :stroke-dasharray="389.56"
+                :stroke-dashoffset="389.56 - (389.56 * score) / 100"
+              />
+              <defs>
+                <linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" :style="`stop-color:${score >= 80 ? '#10b981' : score >= 60 ? '#f59e0b' : '#ef4444'};stop-opacity:1`" />
+                  <stop offset="100%" :style="`stop-color:${score >= 80 ? '#059669' : score >= 60 ? '#d97706' : '#dc2626'};stop-opacity:1`" />
+                </linearGradient>
+              </defs>
+            </svg>
+            <div class="score-content">
+              <span class="score-number">{{ score }}%</span>
+              <span class="score-label">{{ score >= 80 ? 'Excellent!' : score >= 60 ? 'Good Job!' : 'Keep Trying!' }}</span>
+            </div>
           </div>
         </div>
       </div>
 
       <div class="results-stats">
-        <div class="stat">
-          <span class="stat-value">{{ Object.values(answers).filter((answer, index) => answer === quiz.questions[index].answer).length }}</span>
-          <span class="stat-label">Correct</span>
+        <div class="stat-card correct">
+          <div class="stat-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="20,6 9,17 4,12"/>
+            </svg>
+          </div>
+          <div class="stat-content">
+            <span class="stat-value">{{ Object.values(answers).filter((answer, index) => answer === quiz.questions[index].answer).length }}</span>
+            <span class="stat-label">Correct</span>
+          </div>
         </div>
-        <div class="stat">
-          <span class="stat-value">{{ Object.values(answers).filter((answer, index) => answer !== quiz.questions[index].answer).length }}</span>
-          <span class="stat-label">Incorrect</span>
+        <div class="stat-card incorrect">
+          <div class="stat-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </div>
+          <div class="stat-content">
+            <span class="stat-value">{{ Object.values(answers).filter((answer, index) => answer !== quiz.questions[index].answer).length }}</span>
+            <span class="stat-label">Incorrect</span>
+          </div>
         </div>
-        <div class="stat">
-          <span class="stat-value">{{ timeFormatted }}</span>
-          <span class="stat-label">Time</span>
+        <div class="stat-card time">
+          <div class="stat-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12,6 12,12 16,14"/>
+            </svg>
+          </div>
+          <div class="stat-content">
+            <span class="stat-value">{{ timeFormatted }}</span>
+            <span class="stat-label">Time Taken</span>
+          </div>
         </div>
       </div>
 
       <div class="results-actions">
         <button class="action-btn secondary" @click="restartQuiz">
-          🔄 Retake Quiz
+          <RotateCcw :size="16" />
+          Retake Quiz
         </button>
         <button class="action-btn primary" @click="goToUpload">
-          📝 Create New Quiz
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14,2 14,8 20,8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+            <polyline points="10,9 9,9 8,9"/>
+          </svg>
+          Create New Quiz
         </button>
       </div>
 
       <div class="detailed-results">
-        <h3>Review Your Answers</h3>
+        <div class="review-header">
+          <h3>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 11l3 3L22 4"/>
+              <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+            </svg>
+            Review Your Answers
+          </h3>
+          <p class="review-subtitle">See how you performed on each question</p>
+        </div>
+
         <div class="answer-review">
-          <div 
-            v-for="(question, index) in quiz.questions" 
+          <div
+            v-for="(question, index) in quiz.questions"
             :key="index"
             class="review-item"
             :class="{ correct: answers[index] === question.answer, incorrect: answers[index] !== question.answer }"
           >
-            <div class="review-question">
-              <strong>Q{{ index + 1 }}:</strong> {{ question.question }}
+            <div class="review-header-item">
+              <div class="question-number">
+                <span class="q-num">{{ index + 1 }}</span>
+              </div>
+              <div class="result-indicator">
+                <svg v-if="answers[index] === question.answer" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="20,6 9,17 4,12"/>
+                </svg>
+                <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </div>
             </div>
+
+            <div class="review-question">
+              {{ question.question }}
+            </div>
+
             <div class="review-answers">
-              <div class="your-answer">
-                <strong>Your answer:</strong> {{ answers[index] || 'Not answered' }}
+              <div class="answer-row your-answer">
+                <div class="answer-label">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                  </svg>
+                  Your answer:
+                </div>
+                <div class="answer-value">{{ answers[index] || 'Not answered' }}</div>
               </div>
-              <div class="correct-answer">
-                <strong>Correct answer:</strong> {{ question.answer }}
+
+              <div class="answer-row correct-answer">
+                <div class="answer-label">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="20,6 9,17 4,12"/>
+                  </svg>
+                  Correct answer:
+                </div>
+                <div class="answer-value">{{ question.answer }}</div>
               </div>
+
               <div v-if="question.explanation" class="explanation">
-                <strong>Explanation:</strong> {{ question.explanation }}
+                <div class="explanation-label">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                    <path d="M12 17h.01"/>
+                  </svg>
+                  Explanation:
+                </div>
+                <div class="explanation-text">{{ question.explanation }}</div>
               </div>
             </div>
           </div>
@@ -287,9 +503,44 @@ function goToUpload() {
   margin: 0 auto;
   padding: 24px;
   background:
-    radial-gradient(1000px 600px at 20% -10%, rgba(102,126,234,0.12), transparent 60%),
-    radial-gradient(900px 500px at 120% 10%, rgba(118,75,162,0.10), transparent 60%);
+    radial-gradient(1000px 600px at 20% -10%, rgba(102,126,234,0.08), transparent 60%),
+    radial-gradient(900px 500px at 120% 10%, rgba(118,75,162,0.06), transparent 60%);
   min-height: 100vh;
+  position: relative;
+}
+
+/* Floating Progress Indicator */
+.floating-progress {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 1000;
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  padding: 8px;
+}
+
+.progress-circle {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.progress-ring {
+  transform: rotate(-90deg);
+}
+
+.progress-ring-circle {
+  transition: stroke-dashoffset 0.5s ease-in-out;
+}
+
+.progress-text {
+  position: absolute;
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
 }
 
 .quiz-main {
@@ -300,185 +551,409 @@ function goToUpload() {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 24px;
+  margin-bottom: 32px;
   gap: 20px;
 }
 
 .back-btn {
-  background: none;
-  border: none;
-  color: #667eea;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  color: #374151;
   cursor: pointer;
   font-size: 14px;
-  padding: 8px 0;
+  font-weight: 500;
+  padding: 10px 16px;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
-.back-btn.pill {
-  background: #f3f4ff;
-  color: #4b53c5;
-  padding: 8px 12px;
-  border-radius: 9999px;
+.back-btn:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
 .quiz-title h1 {
   margin: 0 0 8px;
-  font-size: 28px;
+  font-size: 32px;
+  font-weight: 700;
   color: #1f2937;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .description {
   color: #6b7280;
   margin: 0;
+  font-size: 16px;
+  line-height: 1.5;
 }
 
 .quiz-meta {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 8px;
+  gap: 12px;
 }
 
-.timer, .progress-info {
-  background: #f3f4f6;
-  padding: 6px 12px;
-  border-radius: 20px;
+.timer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  padding: 8px 16px;
+  border-radius: 12px;
   font-size: 14px;
-  font-weight: 500;
-  color: #4b5563;
+  font-weight: 600;
+  color: #374151;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.question-counter {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 14px;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.question-counter .current {
+  font-size: 16px;
+}
+
+.question-counter .separator {
+  opacity: 0.8;
+  margin: 0 4px;
+}
+
+.question-counter .total {
+  opacity: 0.9;
 }
 
 .progress-bar {
-  height: 8px;
+  height: 12px;
   background: #e5e7eb;
-  border-radius: 4px;
+  border-radius: 8px;
   overflow: hidden;
   margin-bottom: 32px;
+  position: relative;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .progress-fill {
   height: 100%;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  transition: width 0.3s ease;
+  transition: width 0.5s ease;
+  border-radius: 8px;
+}
+
+.progress-markers {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.marker {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: white;
+  border: 2px solid #e5e7eb;
+  transition: all 0.3s ease;
+}
+
+.marker.active {
+  border-color: #667eea;
+  background: #667eea;
+}
+
+.marker.current {
+  width: 12px;
+  height: 12px;
+  border-color: #764ba2;
+  background: #764ba2;
+  box-shadow: 0 0 0 4px rgba(118, 75, 162, 0.2);
 }
 
 .quiz-content {
   background: white;
-  border-radius: 16px;
-  padding: 32px;
-  box-shadow: 0 10px 25px rgba(50, 50, 93, 0.05);
+  border-radius: 20px;
+  padding: 40px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+  border: 1px solid #f1f5f9;
 }
 
 .question-section {
-  margin-bottom: 32px;
+  margin-bottom: 40px;
 }
 
-.question-header {
-  display: flex;
+.question-card {
+  background: linear-gradient(135deg, #f8faff 0%, #f0f4ff 100%);
+  border-radius: 16px;
+  padding: 32px;
+  border: 1px solid #e0e7ff;
+}
+
+.question-badge {
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 20px;
-}
-
-.question-number {
-  background: #667eea;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
-  padding: 6px 12px;
-  border-radius: 20px;
+  padding: 8px 16px;
+  border-radius: 12px;
   font-weight: 600;
   font-size: 14px;
-}
-
-.question-total {
-  color: #6b7280;
-  font-size: 14px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
 }
 
 .question-text {
-  font-size: 20px;
-  font-weight: 600;
+  font-size: 24px;
+  font-weight: 700;
   color: #1f2937;
-  margin-bottom: 24px;
-  line-height: 1.5;
+  margin-bottom: 32px;
+  line-height: 1.4;
 }
 
 .choices {
   display: grid;
-  gap: 12px;
+  gap: 16px;
 }
 
-.choice {
+.choice-option {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 16px 20px;
+  gap: 16px;
+  padding: 20px 24px;
   border: 2px solid #e5e7eb;
-  border-radius: 12px;
+  border-radius: 16px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
+  background: white;
+  position: relative;
+  overflow: hidden;
+}
+
+.choice-option::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.choice-option:hover::before {
+  opacity: 1;
+}
+
+.choice-option:hover {
+  border-color: #667eea;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.15);
+}
+
+.choice-option.selected {
+  border-color: #667eea;
+  background: linear-gradient(135deg, #f0f3ff 0%, #e0e7ff 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.2);
+}
+
+.choice-option.selected::before {
+  opacity: 1;
+}
+
+.choice-radio {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.choice-radio input[type="radio"] {
+  opacity: 0;
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+}
+
+.radio-custom {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #d1d5db;
+  border-radius: 50%;
+  position: relative;
+  transition: all 0.3s ease;
   background: white;
 }
 
-.choice:hover {
+.choice-option.selected .radio-custom {
   border-color: #667eea;
-  background: #f8faff;
+  background: #667eea;
 }
 
-.choice.selected {
-  border-color: #667eea;
-  background: #f0f3ff;
+.radio-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: white;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  transition: transform 0.3s ease;
 }
 
-.choice input[type="radio"] {
-  margin: 0;
-  width: 18px;
-  height: 18px;
-  accent-color: #667eea;
+.choice-option.selected .radio-dot {
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.choice-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.choice-letter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: #f3f4f6;
+  color: #6b7280;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+.choice-option.selected .choice-letter {
+  background: #667eea;
+  color: white;
 }
 
 .choice-text {
   font-size: 16px;
   color: #374151;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.choice-indicator {
+  flex-shrink: 0;
+  color: #667eea;
+  opacity: 0;
+  transform: scale(0.8);
+  transition: all 0.3s ease;
+}
+
+.choice-option.selected .choice-indicator {
+  opacity: 1;
+  transform: scale(1);
 }
 
 .navigation {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+  border: 1px solid #f1f5f9;
+}
+
+.nav-controls {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 20px;
+  gap: 24px;
 }
 
 .nav-btn {
-  padding: 12px 24px;
-  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 24px;
+  border-radius: 12px;
   border: none;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
+  font-size: 14px;
 }
 
 .nav-btn.primary {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
 }
 
 .nav-btn.primary:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
 }
 
 .nav-btn.secondary {
-  background: #f3f4f6;
-  color: #374151;
-  border: 1px solid #d1d5db;
+  background: #f8fafc;
+  color: #475569;
+  border: 1px solid #e2e8f0;
 }
 
 .nav-btn.secondary:hover:not(:disabled) {
-  background: #e5e7eb;
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
+}
+
+.nav-btn.submit {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.nav-btn.submit:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
 }
 
 .nav-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  transform: none !important;
+}
+
+.question-navigator {
+  flex: 1;
+  text-align: center;
+}
+
+.nav-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .question-dots {
@@ -486,32 +961,38 @@ function goToUpload() {
   gap: 8px;
   flex-wrap: wrap;
   justify-content: center;
+  max-width: 400px;
+  margin: 0 auto;
 }
 
 .dot {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   border: 2px solid #e5e7eb;
   background: white;
   color: #6b7280;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 12px;
+  position: relative;
 }
 
 .dot:hover {
   border-color: #667eea;
   background: #f8faff;
+  transform: scale(1.1);
 }
 
 .dot.active {
   border-color: #667eea;
   background: #667eea;
   color: white;
+  transform: scale(1.1);
 }
 
 .dot.answered {
@@ -520,234 +1001,521 @@ function goToUpload() {
   color: white;
 }
 
+.dot.answered:hover {
+  border-color: #059669;
+  background: #059669;
+}
+
+.dot-check {
+  font-size: 14px;
+}
+
 .results-section {
   background: white;
-  border-radius: 16px;
-  padding: 32px;
-  box-shadow: 0 10px 25px rgba(50, 50, 93, 0.05);
+  border-radius: 20px;
+  padding: 48px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+  border: 1px solid #f1f5f9;
 }
 
 .results-header {
   text-align: center;
-  margin-bottom: 32px;
+  margin-bottom: 48px;
+}
+
+.celebration-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border-radius: 50%;
+  color: white;
+  margin-bottom: 24px;
+  box-shadow: 0 8px 32px rgba(16, 185, 129, 0.3);
 }
 
 .results-header h2 {
-  margin: 0 0 24px;
-  font-size: 32px;
+  margin: 0 0 8px;
+  font-size: 36px;
+  font-weight: 800;
   color: #1f2937;
+}
+
+.results-subtitle {
+  color: #6b7280;
+  font-size: 18px;
+  margin: 0 0 32px;
 }
 
 .score-display {
   display: flex;
   justify-content: center;
+  margin-bottom: 16px;
 }
 
 .score-circle {
-  width: 120px;
-  height: 120px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.score-ring {
+  transform: rotate(-90deg);
+}
+
+.score-ring-bg {
+  opacity: 0.1;
+}
+
+.score-ring-fill {
+  transition: stroke-dashoffset 1s ease-in-out;
+}
+
+.score-content {
+  position: absolute;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: white;
 }
 
 .score-number {
-  font-size: 32px;
-  font-weight: 700;
+  font-size: 36px;
+  font-weight: 800;
+  color: #1f2937;
+  margin-bottom: 4px;
 }
 
 .score-label {
   font-size: 14px;
-  opacity: 0.9;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .results-stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
-  margin-bottom: 32px;
+  gap: 24px;
+  margin-bottom: 40px;
 }
 
-.stat {
-  text-align: center;
-  padding: 20px;
-  background: #f9fafb;
+.stat-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 24px;
+  background: #f8fafc;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+.stat-card.correct {
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  border-color: #bbf7d0;
+}
+
+.stat-card.incorrect {
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  border-color: #fecaca;
+}
+
+.stat-card.time {
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border-color: #bae6fd;
+}
+
+.stat-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
   border-radius: 12px;
+  flex-shrink: 0;
+}
+
+.stat-card.correct .stat-icon {
+  background: #10b981;
+  color: white;
+}
+
+.stat-card.incorrect .stat-icon {
+  background: #ef4444;
+  color: white;
+}
+
+.stat-card.time .stat-icon {
+  background: #3b82f6;
+  color: white;
+}
+
+.stat-content {
+  flex: 1;
 }
 
 .stat-value {
   display: block;
-  font-size: 24px;
-  font-weight: 700;
+  font-size: 28px;
+  font-weight: 800;
   color: #1f2937;
   margin-bottom: 4px;
+  line-height: 1;
 }
 
 .stat-label {
   font-size: 14px;
+  font-weight: 600;
   color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .results-actions {
   display: flex;
   gap: 16px;
   justify-content: center;
-  margin-bottom: 32px;
+  margin-bottom: 40px;
 }
 
 .action-btn {
-  padding: 12px 24px;
-  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 28px;
+  border-radius: 12px;
   border: none;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
+  font-size: 14px;
 }
 
 .action-btn.primary {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
 }
 
 .action-btn.primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
 }
 
 .action-btn.secondary {
-  background: #f3f4f6;
-  color: #374151;
-  border: 1px solid #d1d5db;
+  background: #f8fafc;
+  color: #475569;
+  border: 1px solid #e2e8f0;
 }
 
 .action-btn.secondary:hover {
-  background: #e5e7eb;
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
 }
 
-.detailed-results h3 {
-  margin: 0 0 20px;
+.detailed-results {
+  background: #f8fafc;
+  border-radius: 16px;
+  padding: 32px;
+  border: 1px solid #e2e8f0;
+}
+
+.review-header {
+  margin-bottom: 32px;
+}
+
+.review-header h3 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 8px;
+  font-size: 24px;
+  font-weight: 700;
   color: #1f2937;
+}
+
+.review-subtitle {
+  color: #6b7280;
+  font-size: 16px;
+  margin: 0;
 }
 
 .answer-review {
   display: grid;
-  gap: 16px;
+  gap: 20px;
 }
 
 .review-item {
-  padding: 20px;
-  border-radius: 12px;
+  background: white;
+  padding: 24px;
+  border-radius: 16px;
   border: 2px solid #e5e7eb;
+  transition: all 0.3s ease;
+}
+
+.review-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
 }
 
 .review-item.correct {
   border-color: #10b981;
-  background: #f0fdf4;
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
 }
 
 .review-item.incorrect {
   border-color: #ef4444;
-  background: #fef2f2;
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+}
+
+.review-header-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.question-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.result-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+}
+
+.review-item.correct .result-indicator {
+  background: #10b981;
+  color: white;
+}
+
+.review-item.incorrect .result-indicator {
+  background: #ef4444;
+  color: white;
 }
 
 .review-question {
-  margin-bottom: 12px;
+  font-size: 18px;
+  font-weight: 600;
   color: #1f2937;
+  margin-bottom: 20px;
+  line-height: 1.5;
 }
 
 .review-answers {
   display: grid;
+  gap: 16px;
+}
+
+.answer-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.answer-label {
+  display: flex;
+  align-items: center;
   gap: 8px;
-}
-
-.your-answer, .correct-answer, .explanation {
+  font-weight: 600;
   font-size: 14px;
+  color: #374151;
+  min-width: 120px;
+  flex-shrink: 0;
 }
 
-.your-answer {
+.answer-value {
+  font-size: 14px;
+  color: #1f2937;
+  line-height: 1.5;
+}
+
+.your-answer .answer-label {
   color: #6b7280;
 }
 
-.correct-answer {
+.correct-answer .answer-label {
   color: #059669;
 }
 
 .explanation {
+  background: rgba(102, 126, 234, 0.05);
+  border: 1px solid rgba(102, 126, 234, 0.1);
+}
+
+.explanation-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  color: #667eea;
+  min-width: 120px;
+  flex-shrink: 0;
+}
+
+.explanation-text {
+  font-size: 14px;
   color: #4b5563;
+  line-height: 1.6;
   font-style: italic;
 }
 
 @media (max-width: 768px) {
+  .quiz-page {
+    padding: 16px;
+  }
+
+  .floating-progress {
+    top: 16px;
+    right: 16px;
+    transform: scale(0.9);
+  }
+
   .quiz-header {
     flex-direction: column;
     align-items: stretch;
+    gap: 16px;
   }
-  
+
   .quiz-meta {
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
   }
-  
-  .navigation {
-    flex-direction: column;
-    gap: 16px;
+
+  .quiz-title h1 {
+    font-size: 24px;
   }
-  
-  .question-dots {
+
+  .quiz-content {
+    padding: 24px;
+  }
+
+  .question-card {
+    padding: 24px;
+  }
+
+  .question-text {
+    font-size: 20px;
+  }
+
+  .nav-controls {
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .question-navigator {
     order: -1;
   }
-  
+
+  .nav-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .question-dots {
+    max-width: none;
+  }
+
+  .results-section {
+    padding: 32px 24px;
+  }
+
   .results-stats {
     grid-template-columns: 1fr;
+    gap: 16px;
   }
-  
+
+  .stat-card {
+    padding: 20px;
+  }
+
   .results-actions {
     flex-direction: column;
+    gap: 12px;
+  }
+
+  .action-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .detailed-results {
+    padding: 24px;
+  }
+
+  .review-item {
+    padding: 20px;
+  }
+
+  .answer-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .answer-label {
+    min-width: auto;
   }
 }
 
-.recent-quizzes {
-  margin-bottom: 16px;
+@media (max-width: 480px) {
+  .choice-option {
+    padding: 16px;
+  }
+
+  .choice-content {
+    gap: 8px;
+  }
+
+  .choice-letter {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+  }
+
+  .choice-text {
+    font-size: 14px;
+  }
+
+  .question-dots {
+    gap: 6px;
+  }
+
+  .dot {
+    width: 32px;
+    height: 32px;
+    font-size: 11px;
+  }
 }
 
-.recent-hint {
-  margin: 4px 0 8px;
-  color: #6b7280;
-}
 
-.recent-list {
-  display: grid;
-  gap: 8px;
-}
-
-.recent-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid #e5e7eb;
-  background: #fff;
-  cursor: pointer;
-}
-
-.recent-item:hover {
-  background: #f8faff;
-  border-color: #667eea;
-}
-
-.rq-title {
-  font-weight: 600;
-  color: #1f2937;
-}
-
-.rq-meta {
-  color: #6b7280;
-  font-size: 12px;
-}
 </style>

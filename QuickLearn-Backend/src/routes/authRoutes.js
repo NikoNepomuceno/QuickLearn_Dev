@@ -1,5 +1,5 @@
 const express = require('express');
-const { register, verifyEmail, login, logout } = require('../services/authService');
+const { register, verifyEmail, resendOtp, login, logout, forgotPassword, resetPassword } = require('../services/authService');
 const { getCookieOptions } = require('../middleware/auth');
 const jwt = require('jsonwebtoken');
 
@@ -22,6 +22,16 @@ router.post('/verify-email', async (req, res) => {
 		return res.json({ message: 'Email verified', ...result });
 	} catch (err) {
 		return res.status(400).json({ error: err.message || 'Verification failed' });
+	}
+});
+
+router.post('/resend-otp', async (req, res) => {
+	try {
+		const { email } = req.body || {};
+		const result = await resendOtp({ email });
+		return res.json({ message: 'OTP resent successfully', ...result });
+	} catch (err) {
+		return res.status(400).json({ error: err.message || 'Resend failed' });
 	}
 });
 
@@ -84,6 +94,26 @@ router.get('/me', (req, res) => {
     } catch (err) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
+});
+
+router.post('/forgot-password', async (req, res) => {
+	try {
+		const { email } = req.body || {};
+		const result = await forgotPassword({ email });
+		return res.json(result);
+	} catch (err) {
+		return res.status(400).json({ error: err.message || 'Forgot password failed' });
+	}
+});
+
+router.post('/reset-password', async (req, res) => {
+	try {
+		const { token, password, confirmPassword } = req.body || {};
+		const result = await resetPassword({ token, password, confirmPassword });
+		return res.json(result);
+	} catch (err) {
+		return res.status(400).json({ error: err.message || 'Password reset failed' });
+	}
 });
 
 module.exports = router;

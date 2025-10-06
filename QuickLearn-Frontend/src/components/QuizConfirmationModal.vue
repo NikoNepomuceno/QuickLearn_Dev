@@ -1,5 +1,6 @@
 <script setup>
 import { defineEmits } from 'vue'
+import { PartyPopper, FileText, Save, Share2, X } from 'lucide-vue-next'
 
 const emit = defineEmits(['close', 'takeQuiz', 'downloadQuiz', 'shareQuiz'])
 
@@ -35,10 +36,15 @@ function handleClose() {
   <div v-if="isVisible" class="modal-overlay" @click="handleClose">
     <div class="modal-content" @click.stop>
       <div class="modal-header">
-        <h2>🎉 Quiz Generated Successfully!</h2>
-        <button class="close-btn" @click="handleClose" aria-label="Close modal">✕</button>
+        <h2>
+          <PartyPopper :size="24" />
+          Quiz Generated Successfully!
+        </h2>
+        <button class="close-btn" @click="handleClose" aria-label="Close modal">
+          <X :size="20" />
+        </button>
       </div>
-      
+
       <div class="modal-body">
         <div class="quiz-info">
           <h3>{{ quiz.title }}</h3>
@@ -48,26 +54,32 @@ function handleClose() {
             <span class="stat">Multiple choice</span>
           </div>
         </div>
-        
+
         <div class="action-buttons">
           <button class="action-btn primary" @click="handleTakeQuiz">
-            <span class="icon">📝</span>
+            <span class="icon">
+              <FileText :size="20" />
+            </span>
             <span class="text">
               <strong>Take Quiz</strong>
               <small>Start answering questions</small>
             </span>
           </button>
-          
+
           <button class="action-btn secondary" @click="handleDownloadQuiz">
-            <span class="icon">💾</span>
+            <span class="icon">
+              <Save :size="20" />
+            </span>
             <span class="text">
               <strong>Download Quiz</strong>
               <small>Save as PDF</small>
             </span>
           </button>
-          
+
           <button class="action-btn tertiary" @click="handleShareQuiz">
-            <span class="icon">🔗</span>
+            <span class="icon">
+              <Share2 :size="20" />
+            </span>
             <span class="text">
               <strong>Share Quiz</strong>
               <small>Generate shareable link</small>
@@ -130,22 +142,28 @@ function handleClose() {
   margin: 0;
   font-size: 24px;
   color: #1f2937;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .close-btn {
   background: none;
   border: none;
-  font-size: 20px;
   color: #6b7280;
   cursor: pointer;
-  padding: 8px;
+  padding: 6px 8px;
   border-radius: 8px;
   transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .close-btn:hover {
   background: #f3f4f6;
   color: #374151;
+  transform: scale(1.05);
 }
 
 .modal-body {
@@ -236,8 +254,11 @@ function handleClose() {
 }
 
 .icon {
-  font-size: 24px;
+  color: inherit;
   min-width: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .text {

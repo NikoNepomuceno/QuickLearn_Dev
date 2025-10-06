@@ -62,6 +62,31 @@ async function sendLoginAlertEmail({ to, username, ip, userAgent, time }) {
 	await transporter.sendMail({ to, from, subject: `${appName} - New Login Detected`, html });
 }
 
-module.exports = { sendOtpEmail, sendLoginAlertEmail };
+async function sendPasswordResetEmail({ to, username, resetToken }) {
+	const transporter = createTransport();
+	const appName = process.env.APP_NAME || 'QuickLearn';
+	const fromAddress = process.env.MAIL_FROM_ADDRESS || process.env.MAIL_FROM || `no-reply@${(process.env.DOMAIN || 'quicklearn.local')}`;
+	const fromName = process.env.MAIL_FROM_NAME || appName;
+	const from = `${fromName} <${fromAddress}>`;
+	const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+	const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
+	const html = `
+		<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto">
+			<h2>${appName} Password Reset</h2>
+			<p>Hi ${username || 'there'},</p>
+			<p>You requested to reset your password. Click the button below to reset your password:</p>
+			<div style="text-align:center;margin:30px 0">
+				<a href="${resetUrl}" style="background:#007bff;color:white;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold">Reset Password</a>
+			</div>
+			<p>Or copy and paste this link into your browser:</p>
+			<p style="word-break:break-all;background:#f5f5f5;padding:10px;border-radius:4px">${resetUrl}</p>
+			<p>This link will expire in 1 hour. If you did not request this password reset, you can safely ignore this email.</p>
+			<p style="color:#888">Sent by ${appName}</p>
+		</div>
+	`;
+	await transporter.sendMail({ to, from, subject: `${appName} - Reset your password`, html });
+}
+
+module.exports = { sendOtpEmail, sendLoginAlertEmail, sendPasswordResetEmail };
 
 

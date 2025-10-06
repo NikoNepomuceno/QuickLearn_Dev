@@ -2,10 +2,24 @@ const OpenAI = require('openai');
 
 class DeepSeekService {
     constructor() {
-        this.client = new OpenAI({
-            baseURL: 'https://api.deepseek.com',
-            apiKey: process.env.DEEPSEEK_API_KEY
-        });
+        this.client = null;
+        this.initialized = false;
+    }
+
+    initializeClient() {
+        if (!this.initialized) {
+            if (!process.env.DEEPSEEK_API_KEY) {
+                throw new Error('DEEPSEEK_API_KEY environment variable is not set');
+            }
+            this.client = new OpenAI({
+                baseURL: 'https://api.deepseek.com',
+                apiKey: process.env.DEEPSEEK_API_KEY,
+                timeout: 60000, // 60 seconds timeout
+                maxRetries: 3
+            });
+            this.initialized = true;
+        }
+        return this.client;
     }
 
     async generateQuizFromText(text, options = {}) {
@@ -17,6 +31,9 @@ class DeepSeekService {
         } = options;
 
         try {
+            // Initialize client if not already done
+            this.initializeClient();
+            
             const prompt = this.buildQuizPrompt(text, {
                 numQuestions,
                 difficulty,
@@ -24,7 +41,7 @@ class DeepSeekService {
                 focusAreas
             });
 
-            const response = await this.client.chat.completions.create({
+            const response = await this.makeApiCallWithRetry({
                 model: 'deepseek-chat',
                 messages: [
                     {
@@ -45,8 +62,33 @@ class DeepSeekService {
             return this.parseQuizResponse(quizContent, text);
         } catch (error) {
             console.error('DeepSeek API Error:', error);
-            throw new Error('Failed to generate quiz with AI. Please try again.');
+            // Return fallback quiz instead of throwing error
+            console.log('Falling back to simple quiz generation...');
+            return this.createFallbackQuiz(text);
         }
+    }
+
+    async makeApiCallWithRetry(requestData, maxRetries = 3) {
+        let lastError;
+        
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                console.log(`DeepSeek API attempt ${attempt}/${maxRetries}`);
+                const response = await this.client.chat.completions.create(requestData);
+                return response;
+            } catch (error) {
+                lastError = error;
+                console.error(`DeepSeek API attempt ${attempt} failed:`, error.message);
+                
+                if (attempt < maxRetries) {
+                    const delay = Math.pow(2, attempt) * 1000; // Exponential backoff
+                    console.log(`Retrying in ${delay}ms...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+        }
+        
+        throw lastError;
     }
 
     buildQuizPrompt(text, options) {
@@ -157,27 +199,77 @@ Please ensure the JSON is valid and properly formatted.`;
         // Simple fallback quiz generation
         const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 20);
         const questions = [];
+        const words = text.toLowerCase().match(/\b\w{4,}\b/g) || [];
+        const commonWords = {};
+        
+        // Count word frequency
+        words.forEach(word => {
+            commonWords[word] = (commonWords[word] || 0) + 1;
+        });
+        
+        // Get most common words
+        const topWords = Object.entries(commonWords)
+            .sort(([,a], [,b]) => b - a)
+            .slice(0, 10)
+            .map(([word]) => word);
 
-        for (let i = 0; i < Math.min(3, sentences.length); i++) {
+        // Generate questions based on content
+        for (let i = 0; i < Math.min(5, sentences.length); i++) {
             const sentence = sentences[i].trim();
-            if (sentence.length > 50) {
+            if (sentence.length > 30) {
+                const words = sentence.split(' ');
+                const keyWord = words.find(w => w.length > 4) || words[Math.floor(words.length/2)];
+                
                 questions.push({
                     id: i + 1,
                     type: 'multiple_choice',
-                    question: `Based on the content: "${sentence.substring(0, 100)}...", what is the main topic?`,
-                    choices: ['General concept', 'Specific detail', 'Method or process', 'Theory or principle'],
-                    answer: 'General concept',
-                    explanation: 'This is a fallback question generated when AI parsing fails.',
+                    question: `What is mentioned in this context: "${sentence.substring(0, 80)}..."?`,
+                    choices: [
+                        keyWord,
+                        'A different concept',
+                        'An alternative approach',
+                        'A related topic'
+                    ],
+                    answer: keyWord,
+                    explanation: `This question is based on the content: "${sentence.substring(0, 50)}..."`,
                     difficulty: 'easy',
-                    topic: 'General'
+                    topic: 'Content Analysis'
                 });
             }
         }
 
+        // Add a question about key terms if we have them
+        if (topWords.length > 0) {
+            questions.push({
+                id: questions.length + 1,
+                type: 'multiple_choice',
+                question: `Which of these terms appears most frequently in the content?`,
+                choices: [
+                    topWords[0],
+                    topWords[1] || 'Alternative term',
+                    topWords[2] || 'Different term',
+                    'None of the above'
+                ],
+                answer: topWords[0],
+                explanation: `The term "${topWords[0]}" appears most frequently in the content.`,
+                difficulty: 'medium',
+                topic: 'Content Analysis'
+            });
+        }
+
         return {
-            title: 'Fallback Quiz',
-            description: 'Basic quiz generated due to AI processing issues',
-            questions
+            title: 'Content-Based Quiz',
+            description: 'Quiz generated from content analysis (AI service temporarily unavailable)',
+            questions: questions.length > 0 ? questions : [{
+                id: 1,
+                type: 'multiple_choice',
+                question: 'What type of content was uploaded?',
+                choices: ['Educational material', 'Technical document', 'General text', 'Other'],
+                answer: 'Educational material',
+                explanation: 'This is a basic fallback question.',
+                difficulty: 'easy',
+                topic: 'General'
+            }]
         };
     }
 
@@ -190,6 +282,9 @@ Please ensure the JSON is valid and properly formatted.`;
         } = options;
 
         try {
+            // Initialize client if not already done
+            this.initializeClient();
+            
             const prompt = `You are an expert quiz creator. Create a comprehensive quiz from this text:
 
 ${text.substring(0, 10000)} ${text.length > 10000 ? '...[truncated]' : ''}

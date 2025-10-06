@@ -18,6 +18,15 @@ export async function verifyEmail(payload) {
   });
 }
 
+export async function resendOtp(payload) {
+  return request('/api/auth/resend-otp', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    credentials: 'include',
+  });
+}
+
 export async function loginUser(payload) {
   return request('/api/auth/login', {
     method: 'POST',
@@ -42,6 +51,24 @@ export async function getCurrentUser() {
     method: 'GET',
     credentials: 'include',
   }).then(res => res.user);
+}
+
+export async function forgotPassword(payload) {
+  return request('/api/auth/forgot-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    credentials: 'include',
+  });
+}
+
+export async function resetPassword(payload) {
+  return request('/api/auth/reset-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    credentials: 'include',
+  });
 }
 
 async function request(path, options = {}) {

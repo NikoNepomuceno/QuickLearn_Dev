@@ -177,6 +177,38 @@ body.dark .error {
   color: #fca5a5;
 }
 
+/* Dark mode support for floating sidebar */
+@media (max-width: 1024px) {
+  body.dark .sidebar {
+    background: rgba(15, 23, 42, 0.95) !important;
+    border-color: rgba(31, 42, 68, 0.5) !important;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
+  }
+
+  body.dark .nav-item {
+    color: #e5e7eb !important;
+  }
+
+  body.dark .nav-item:hover {
+    background: rgba(102, 126, 234, 0.15) !important;
+    color: #a5b4fc !important;
+  }
+
+  body.dark .nav-item.router-link-active {
+    background: rgba(102, 126, 234, 0.25) !important;
+    color: #a5b4fc !important;
+  }
+
+  body.dark .logout {
+    background: rgba(31, 42, 68, 0.8) !important;
+    color: #fca5a5 !important;
+  }
+
+  body.dark .logout:hover {
+    background: rgba(31, 42, 68, 1) !important;
+  }
+}
+
 /* Floating theme toggle at top-right */
 .theme-floating-toggle {
   position: fixed;
