@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { getQuizById, saveQuizAttempt } from '../services/quizService'
+import cloudQuizService from '../services/cloudQuizService'
 import { Clock, CheckCircle, ArrowRight, ArrowLeft, RotateCcw } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -45,27 +45,27 @@ const timeFormatted = computed(() => {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`
 })
 
-onMounted(() => {
-  // Get quiz data from route params, localStorage, or quiz ID
-  let quizData = null
-
+onMounted(async () => {
+  // Get quiz data from route params (UUID)
   if (route.params.quizId) {
-    // Try to get quiz by ID from localStorage
-    quizData = getQuizById(route.params.quizId)
+    try {
+      const quizData = await cloudQuizService.getQuizByUuid(route.params.quizId)
+      if (quizData) {
+        quiz.value = quizData
+        startTimer()
+      } else {
+        window.$toast?.error('Quiz not found')
+        router.push('/')
+      }
+    } catch (error) {
+      console.error('Error loading quiz:', error)
+      window.$toast?.error('Failed to load quiz')
+      router.push('/')
+    }
   } else {
-    // Get from localStorage (for direct navigation from upload)
-    const currentId = localStorage.getItem('currentQuizId')
-    quizData = currentId ? getQuizById(currentId) : JSON.parse(localStorage.getItem('currentQuiz') || 'null')
-  }
-
-  if (quizData) {
-    quiz.value = quizData
-    startTimer()
-  } else {
-    // Redirect to home if no quiz data
+    // No quiz ID provided, redirect to home
     router.push('/')
   }
-
 })
 
 function startTimer() {
@@ -95,21 +95,29 @@ function goToQuestion(index) {
   currentQuestionIndex.value = index
 }
 
-function submitQuiz() {
+async function submitQuiz() {
   isSubmitted.value = true
   showResults.value = true
   if (timer) {
     clearInterval(timer)
   }
+
   // persist attempt result
   try {
     const elapsed = typeof timeElapsed.value === 'number' ? timeElapsed.value : 0
-    if (quiz.value?.id) {
+    if (quiz.value?.id && (await cloudQuizService.isAuthenticated())) {
       // capture user answers in order of questions
       const userAnswers = (quiz.value.questions || []).map((_, idx) => answers.value[idx] || null)
-      saveQuizAttempt(quiz.value.id, { score: score.value, timeSeconds: elapsed, userAnswers })
+      await cloudQuizService.saveQuizAttempt(quiz.value.id, {
+        score: score.value,
+        timeSeconds: elapsed,
+        userAnswers
+      })
     }
-  } catch {}
+  } catch (error) {
+    console.error('Error saving quiz attempt:', error)
+    // Don't show error to user, just log it
+  }
 }
 
 function restartQuiz() {

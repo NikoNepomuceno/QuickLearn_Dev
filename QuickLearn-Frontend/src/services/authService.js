@@ -96,4 +96,63 @@ export function clearLegacyTokens() {
   } catch {}
 }
 
+// Token management for API requests
+export function getToken() {
+  try {
+    // Try to get from localStorage first (for development/testing)
+    const token = localStorage.getItem('accessToken')
+    if (token) return token
+
+    // In production, tokens should be in httpOnly cookies
+    // For now, we'll rely on cookie-based auth
+    return null
+  } catch {
+    return null
+  }
+}
+
+export function setToken(token) {
+  try {
+    localStorage.setItem('accessToken', token)
+  } catch {}
+}
+
+export function removeToken() {
+  try {
+    localStorage.removeItem('accessToken')
+  } catch {}
+}
+
+export async function isAuthenticated() {
+  // Check if we have a token in localStorage first (for development/testing)
+  const token = getToken()
+  if (token) return true
+
+  // For cookie-based auth, check with the server
+  try {
+    await getCurrentUser()
+    return true
+  } catch {
+    // If getCurrentUser fails, user is not authenticated
+    return false
+  }
+}
+
+// Create authService object for easier imports
+export const authService = {
+  registerUser,
+  verifyEmail,
+  resendOtp,
+  loginUser,
+  logoutUser,
+  getCurrentUser,
+  forgotPassword,
+  resetPassword,
+  getToken,
+  setToken,
+  removeToken,
+  isAuthenticated,
+  clearLegacyTokens
+}
+
 

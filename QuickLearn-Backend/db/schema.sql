@@ -93,4 +93,49 @@ CREATE TABLE IF NOT EXISTS `files` (
     KEY `idx_files_public_id` (`public_id`),
     CONSTRAINT `fk_files_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+-- Quizzes table: stores quiz data and metadata
+CREATE TABLE IF NOT EXISTS `quizzes` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `user_id` BIGINT UNSIGNED NOT NULL,
+    `uuid` CHAR(36) NOT NULL,
+    `title` VARCHAR(255) NOT NULL,
+    `description` TEXT NULL,
+    `questions` JSON NOT NULL,
+    `source_file_id` BIGINT UNSIGNED NULL,
+    `source_file_name` VARCHAR(255) NULL,
+    `source_file_type` VARCHAR(50) NULL,
+    `source_file_size` INT NULL,
+    `text_length` INT NULL,
+    `difficulty` VARCHAR(20) NULL DEFAULT 'medium',
+    `question_count` INT NOT NULL DEFAULT 0,
+    `generated_with_ai` TINYINT(1) NOT NULL DEFAULT 1,
+    `processing_time` DATETIME NULL,
+    `metadata` JSON NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uniq_quizzes_uuid` (`uuid`),
+    KEY `idx_quizzes_user_id` (`user_id`),
+    KEY `idx_quizzes_source_file_id` (`source_file_id`),
+    KEY `idx_quizzes_created_at` (`created_at`),
+    CONSTRAINT `fk_quizzes_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT `fk_quizzes_source_file_id` FOREIGN KEY (`source_file_id`) REFERENCES `files` (`id`) ON DELETE
+    SET NULL ON UPDATE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+-- Quiz attempts table: stores user quiz attempt results
+CREATE TABLE IF NOT EXISTS `quiz_attempts` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `quiz_id` BIGINT UNSIGNED NOT NULL,
+    `user_id` BIGINT UNSIGNED NOT NULL,
+    `score` INT NOT NULL DEFAULT 0,
+    `time_seconds` INT NULL,
+    `user_answers` JSON NULL,
+    `taken_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_quiz_attempts_quiz_id` (`quiz_id`),
+    KEY `idx_quiz_attempts_user_id` (`user_id`),
+    KEY `idx_quiz_attempts_taken_at` (`taken_at`),
+    CONSTRAINT `fk_quiz_attempts_quiz_id` FOREIGN KEY (`quiz_id`) REFERENCES `quizzes` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT `fk_quiz_attempts_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 SET FOREIGN_KEY_CHECKS = 1;

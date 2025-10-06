@@ -4,7 +4,8 @@ import { useRouter } from 'vue-router'
 import QuizConfirmationModal from '../components/QuizConfirmationModal.vue'
 import QuizConfigModal from '../components/QuizConfigModal.vue'
 import Sidebar from '../components/Sidebar.vue'
-import { downloadQuizAsPDF, generateShareableLink, copyToClipboard, saveQuizToHistory } from '../services/quizService'
+import { downloadQuizAsPDF } from '../services/quizService'
+import cloudQuizService from '../services/cloudQuizService'
 import { Upload, FileText, X, Lightbulb, Target, Copy } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -118,34 +119,28 @@ async function uploadFile(options = {}) {
     return
   }
 
-  const form = new FormData()
-  form.append('file', selectedFile.value)
+  // Check if user is authenticated
+  if (!(await cloudQuizService.isAuthenticated())) {
+    window.$toast?.error('Please log in to create quizzes')
+    router.push('/login')
+    return
+  }
 
   isLoading.value = true
   startProgress()
   try {
-    const backendUrl = import.meta.env.VITE_API_BASE || 'http://localhost:3000'
-    const effectiveCount = options.count || count.value
-    const typesParam = options.type ? options.type : 'multiple_choice'
-    const url = `${backendUrl}/api/quiz/from-file?count=${encodeURIComponent(effectiveCount)}&types=${encodeURIComponent(typesParam)}`
-    const response = await fetch(url, {
-      method: 'POST',
-      body: form
-    })
-
-    if (!response.ok) {
-      const msg = await response.text().catch(() => '')
-      throw new Error(msg || `Upload failed with status ${response.status}`)
+    const quizOptions = {
+      count: options.count || count.value,
+      difficulty: options.difficulty || 'medium',
+      types: options.type || 'multiple_choice',
+      focus: options.focus || '',
+      isAdvanced: options.isAdvanced || false,
+      includeReasoning: options.includeReasoning !== false,
+      customInstructions: options.customInstructions || ''
     }
 
-    const data = await response.json()
-    quiz.value = data.quiz || null
-    if (quiz.value) {
-      // Persist to history so it appears in Take Quiz
-      quiz.value = saveQuizToHistory(quiz.value)
-      // Keep a pointer to the latest quiz id for quick resume
-      localStorage.setItem('currentQuizId', quiz.value.id)
-    }
+    const result = await cloudQuizService.createQuizFromFile(selectedFile.value, quizOptions)
+    quiz.value = result.quiz || null
 
     // Show confirmation modal after successful quiz generation
     if (quiz.value) {
@@ -200,7 +195,7 @@ function handleDownloadQuiz() {
 
 function handleShareQuiz() {
   if (quiz.value) {
-    shareLink.value = generateShareableLink(quiz.value)
+    shareLink.value = cloudQuizService.generateShareableLink(quiz.value)
     showShareSuccess.value = true
     window.$toast?.success('Share link generated')
 
@@ -229,7 +224,7 @@ function handleConfigConfirm(payload) {
 
 function copyShareLink() {
   if (shareLink.value) {
-    copyToClipboard(shareLink.value).then(() => {
+    cloudQuizService.copyToClipboard(shareLink.value).then(() => {
       // You could show a toast notification here
       console.log('Link copied to clipboard!')
     }).catch(err => {

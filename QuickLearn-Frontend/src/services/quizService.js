@@ -65,22 +65,26 @@ function generateQuizHTML(quiz) {
           font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
           max-width: 800px;
           margin: 0 auto;
-          padding: 40px 20px;
-          line-height: 1.6;
+          padding: 20px 15px;
+          line-height: 1.4;
           color: #333;
           background: #fff;
         }
+        .questions-container {
+          position: relative;
+          z-index: 1;
+        }
         .header {
           text-align: center;
-          margin-bottom: 40px;
-          padding-bottom: 30px;
-          border-bottom: 3px solid #667eea;
+          margin-bottom: 20px;
+          padding-bottom: 15px;
+          border-bottom: 2px solid #667eea;
         }
         h1 {
           color: #1f2937;
-          font-size: 32px;
+          font-size: 24px;
           font-weight: 700;
-          margin: 0 0 16px;
+          margin: 0 0 8px;
           background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
@@ -88,7 +92,7 @@ function generateQuizHTML(quiz) {
         }
         .description {
           color: #6b7280;
-          font-size: 18px;
+          font-size: 14px;
           margin: 0;
           font-style: italic;
         }
@@ -96,113 +100,221 @@ function generateQuizHTML(quiz) {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin: 20px 0;
-          padding: 15px;
+          margin: 10px 0;
+          padding: 8px 12px;
           background: #f8fafc;
-          border-radius: 8px;
-          font-size: 14px;
+          border-radius: 6px;
+          font-size: 12px;
           color: #6b7280;
         }
         .question {
-          margin-bottom: 35px;
-          padding: 25px;
-          border: 2px solid #e5e7eb;
-          border-radius: 16px;
+          margin-bottom: 18px;
+          padding: 16px;
+          border: 1px solid #e5e7eb;
+          border-radius: 8px;
           background: #fff;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+          box-shadow: 0 1px 3px rgba(0,0,0,0.05);
           page-break-inside: avoid;
+          position: relative;
+          overflow: hidden;
+          clear: both;
         }
         .question-header {
           display: flex;
           align-items: center;
-          gap: 12px;
-          margin-bottom: 16px;
+          gap: 8px;
+          margin-bottom: 10px;
         }
         .question-number {
           background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
           color: white;
-          padding: 8px 16px;
-          border-radius: 20px;
+          padding: 4px 10px;
+          border-radius: 12px;
           font-weight: 600;
-          font-size: 14px;
+          font-size: 12px;
         }
         .question-text {
-          font-size: 18px;
+          font-size: 15px;
           font-weight: 600;
           color: #1f2937;
-          margin-bottom: 20px;
+          margin-bottom: 12px;
+          line-height: 1.3;
         }
         .choices {
-          margin: 20px 0;
+          margin: 12px 0;
           display: grid;
-          gap: 8px;
+          gap: 4px;
         }
         .choice {
-          padding: 12px 16px;
+          padding: 6px 10px;
           background: #f8fafc;
           border: 1px solid #e2e8f0;
-          border-radius: 8px;
+          border-radius: 4px;
           display: flex;
           align-items: center;
-          gap: 12px;
+          gap: 8px;
+          font-size: 13px;
         }
         .choice-letter {
           display: flex;
           align-items: center;
           justify-content: center;
-          width: 24px;
-          height: 24px;
+          width: 18px;
+          height: 18px;
           background: #e2e8f0;
           color: #6b7280;
           border-radius: 50%;
           font-weight: 600;
-          font-size: 12px;
+          font-size: 10px;
           flex-shrink: 0;
         }
         .answer {
-          margin-top: 20px;
-          padding: 16px;
+          margin-top: 12px;
+          padding: 10px;
           background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
           border: 1px solid #bbf7d0;
-          border-radius: 12px;
+          border-radius: 6px;
         }
         .answer-label {
           font-weight: 600;
           color: #059669;
-          margin-bottom: 8px;
+          margin-bottom: 4px;
+          font-size: 12px;
         }
         .answer-value {
           color: #1f2937;
           font-weight: 500;
+          font-size: 13px;
         }
         .explanation {
-          margin-top: 12px;
-          padding: 16px;
+          margin-top: 8px;
+          padding: 10px;
           background: rgba(102, 126, 234, 0.08);
           border: 1px solid rgba(102, 126, 234, 0.2);
-          border-radius: 8px;
+          border-radius: 6px;
         }
         .explanation-label {
           font-weight: 600;
           color: #667eea;
-          margin-bottom: 8px;
+          margin-bottom: 4px;
+          font-size: 12px;
         }
         .explanation-text {
           font-style: italic;
           color: #4b5563;
-          line-height: 1.6;
-        }
-        .footer {
-          margin-top: 60px;
-          text-align: center;
-          padding-top: 30px;
-          border-top: 1px solid #e5e7eb;
-          color: #9ca3af;
+          line-height: 1.4;
           font-size: 12px;
         }
+        .footer {
+          margin-top: 20px;
+          text-align: center;
+          padding-top: 15px;
+          border-top: 1px solid #e5e7eb;
+          color: #9ca3af;
+          font-size: 10px;
+        }
         @media print {
-          body { margin: 0; padding: 20px; }
-          .question { page-break-inside: avoid; }
+          body {
+            margin: 0;
+            padding: 15px;
+            background: #fff !important;
+            line-height: 1.3 !important;
+          }
+          .header {
+            margin-bottom: 15px !important;
+            padding-bottom: 10px !important;
+          }
+          h1 {
+            font-size: 20px !important;
+            margin-bottom: 6px !important;
+          }
+          .description {
+            font-size: 12px !important;
+          }
+          .quiz-meta {
+            margin: 8px 0 !important;
+            padding: 6px 10px !important;
+            font-size: 10px !important;
+          }
+          .questions-container {
+            position: relative !important;
+            z-index: 1 !important;
+          }
+          .question {
+            page-break-inside: avoid;
+            position: relative;
+            z-index: 2;
+            margin-bottom: 15px !important;
+            padding: 12px !important;
+            border: 1px solid #e5e7eb !important;
+            border-radius: 6px !important;
+            background: #fff !important;
+            box-shadow: none !important;
+            overflow: visible !important;
+            clear: both !important;
+          }
+          .question-header {
+            display: flex !important;
+            align-items: center !important;
+            gap: 6px !important;
+            margin-bottom: 8px !important;
+          }
+          .question-number {
+            padding: 3px 8px !important;
+            font-size: 10px !important;
+          }
+          .question-text {
+            font-size: 14px !important;
+            font-weight: 600 !important;
+            color: #1f2937 !important;
+            margin-bottom: 10px !important;
+            line-height: 1.2 !important;
+          }
+          .choices {
+            margin: 10px 0 !important;
+            display: grid !important;
+            gap: 3px !important;
+          }
+          .choice {
+            padding: 4px 8px !important;
+            font-size: 11px !important;
+          }
+          .choice-letter {
+            width: 16px !important;
+            height: 16px !important;
+            font-size: 9px !important;
+          }
+          .answer {
+            margin-top: 10px !important;
+            padding: 8px !important;
+            background: #f0fdf4 !important;
+            border: 1px solid #bbf7d0 !important;
+            border-radius: 4px !important;
+          }
+          .answer-label {
+            font-size: 10px !important;
+            margin-bottom: 3px !important;
+          }
+          .answer-value {
+            font-size: 11px !important;
+          }
+          .explanation {
+            margin-top: 6px !important;
+            padding: 8px !important;
+          }
+          .explanation-label {
+            font-size: 10px !important;
+            margin-bottom: 3px !important;
+          }
+          .explanation-text {
+            font-size: 10px !important;
+            line-height: 1.3 !important;
+          }
+          .footer {
+            margin-top: 15px !important;
+            padding-top: 10px !important;
+            font-size: 8px !important;
+          }
         }
       </style>
     </head>
@@ -216,32 +328,34 @@ function generateQuizHTML(quiz) {
         </div>
       </div>
 
-      ${quiz.questions.map((question, index) => `
-        <div class="question">
-          <div class="question-header">
-            <div class="question-number">Question ${index + 1}</div>
+      <div class="questions-container">
+        ${quiz.questions.map((question, index) => `
+          <div class="question">
+            <div class="question-header">
+              <div class="question-number">Question ${index + 1}</div>
+            </div>
+            <div class="question-text">${question.question || ''}</div>
+            <div class="choices">
+              ${question.choices.map((choice, choiceIndex) => `
+                <div class="choice">
+                  <div class="choice-letter">${String.fromCharCode(65 + choiceIndex)}</div>
+                  <div>${choice || ''}</div>
+                </div>
+              `).join('')}
+            </div>
+            <div class="answer">
+              <div class="answer-label">Correct Answer:</div>
+              <div class="answer-value">${question.answer}</div>
+              ${question.explanation ? `
+                <div class="explanation">
+                  <div class="explanation-label">Explanation:</div>
+                  <div class="explanation-text">${question.explanation}</div>
+                </div>
+              ` : ''}
+            </div>
           </div>
-          <div class="question-text">${question.question}</div>
-          <div class="choices">
-            ${question.choices.map((choice, choiceIndex) => `
-              <div class="choice">
-                <div class="choice-letter">${String.fromCharCode(65 + choiceIndex)}</div>
-                <div>${choice}</div>
-              </div>
-            `).join('')}
-          </div>
-          <div class="answer">
-            <div class="answer-label">Correct Answer:</div>
-            <div class="answer-value">${question.answer}</div>
-            ${question.explanation ? `
-              <div class="explanation">
-                <div class="explanation-label">Explanation:</div>
-                <div class="explanation-text">${question.explanation}</div>
-              </div>
-            ` : ''}
-          </div>
-        </div>
-      `).join('')}
+        `).join('')}
+      </div>
 
       <div class="footer">
         Generated by QuickLearn • ${new Date().toLocaleDateString()}

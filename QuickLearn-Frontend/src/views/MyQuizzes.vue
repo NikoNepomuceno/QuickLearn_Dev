@@ -1,22 +1,58 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import Sidebar from '../components/Sidebar.vue'
-import { getQuizHistoryDetailed, getQuizSummary, generateShareableLink, copyToClipboard, downloadQuizAsPDF } from '../services/quizService'
+import { downloadQuizAsPDF } from '../services/quizService'
+import cloudQuizService from '../services/cloudQuizService'
 import { useRouter } from 'vue-router'
-import { FolderOpen, Plus, MoreVertical, Share2, Download, Play, BarChart3 } from 'lucide-vue-next'
+import { FolderOpen, Plus, MoreVertical, Share2, Download, Play, BarChart3, FileText, Trash2 } from 'lucide-vue-next'
 
 const router = useRouter()
 const quizzes = ref([])
 const openMenuId = ref(null)
+const isLoading = ref(false)
+const error = ref(null)
 
-onMounted(() => {
-  quizzes.value = getQuizHistoryDetailed()
+onMounted(async () => {
+  await loadQuizzes()
   document.addEventListener('click', onOutsideClick)
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', onOutsideClick)
 })
+
+async function loadQuizzes() {
+  try {
+    isLoading.value = true
+    error.value = null
+
+    if (!(await cloudQuizService.isAuthenticated())) {
+      // Try to migrate localStorage data first
+      try {
+        const migrationResult = await cloudQuizService.migrateLocalStorageData()
+        if (migrationResult.migrated > 0) {
+          window.$toast?.success(migrationResult.message)
+        }
+      } catch (migrationError) {
+        console.warn('Migration failed:', migrationError)
+      }
+
+      // If still not authenticated, redirect to login
+      if (!(await cloudQuizService.isAuthenticated())) {
+        router.push('/login')
+        return
+      }
+    }
+
+    quizzes.value = await cloudQuizService.getUserQuizzes()
+  } catch (err) {
+    console.error('Error loading quizzes:', err)
+    error.value = err.message || 'Failed to load quizzes'
+    window.$toast?.error(error.value)
+  } finally {
+    isLoading.value = false
+  }
+}
 
 function onOutsideClick() {
   openMenuId.value = null
@@ -30,8 +66,8 @@ function getBarColor(score) {
 }
 
 function getPrimaryCtaText(quiz) {
-  const { attemptsCount } = getQuizSummary(quiz)
-  return attemptsCount > 0 ? 'Retake Quiz' : 'Take Quiz'
+  const summary = cloudQuizService.getQuizSummary(quiz)
+  return summary.attemptsCount > 0 ? 'Retake Quiz' : 'Take Quiz'
 }
 
 function openQuiz(quiz) {
@@ -40,8 +76,8 @@ function openQuiz(quiz) {
 
 async function shareQuiz(quiz) {
   try {
-    const link = generateShareableLink(quiz)
-    await copyToClipboard(link)
+    const link = cloudQuizService.generateShareableLink(quiz)
+    await cloudQuizService.copyToClipboard(link)
     window.$toast?.success('Share link copied to clipboard')
   } catch (e) {
     window.$toast?.error('Failed to generate share link')
@@ -52,9 +88,38 @@ function downloadQuiz(quiz) {
   downloadQuizAsPDF(quiz)
 }
 
+async function deleteQuiz(quiz) {
+  if (!confirm(`Are you sure you want to delete "${quiz.title}"? This action cannot be undone.`)) {
+    return
+  }
+
+  try {
+    await cloudQuizService.deleteQuiz(quiz.id)
+    window.$toast?.success('Quiz deleted successfully')
+    await loadQuizzes() // Reload the list
+  } catch (err) {
+    console.error('Error deleting quiz:', err)
+    window.$toast?.error('Failed to delete quiz')
+  }
+}
+
 function toggleMenu(quiz, event) {
   event?.stopPropagation?.()
   openMenuId.value = openMenuId.value === quiz.id ? null : quiz.id
+}
+
+function formatFileSize(bytes) {
+  return cloudQuizService.formatFileSize(bytes)
+}
+
+function getFileIcon(fileType) {
+  switch (fileType?.toLowerCase()) {
+    case 'pdf': return '📕'
+    case 'docx': return '📘'
+    case 'doc': return '📘'
+    case 'txt': return '📄'
+    default: return '📄'
+  }
 }
 </script>
 
@@ -67,7 +132,28 @@ function toggleMenu(quiz, event) {
         <p class="subtitle">Review your generated quizzes and track progress.</p>
       </div>
 
-      <div v-if="quizzes.length === 0" class="empty">
+      <!-- Loading State -->
+      <div v-if="isLoading" class="loading">
+        <div class="loading-spinner"></div>
+        <p>Loading your quizzes...</p>
+      </div>
+
+      <!-- Error State -->
+      <div v-else-if="error" class="error">
+        <div class="error-card">
+          <div class="icon">
+            <FolderOpen :size="48" />
+          </div>
+          <div class="title">Failed to load quizzes</div>
+          <div class="hint">{{ error }}</div>
+          <button class="primary" @click="loadQuizzes">
+            Try Again
+          </button>
+        </div>
+      </div>
+
+      <!-- Empty State -->
+      <div v-else-if="quizzes.length === 0" class="empty">
         <div class="empty-card">
           <div class="icon">
             <FolderOpen :size="48" />
@@ -81,6 +167,7 @@ function toggleMenu(quiz, event) {
         </div>
       </div>
 
+      <!-- Quiz Grid -->
       <div v-else class="grid">
         <div v-for="quiz in quizzes" :key="quiz.id" class="card">
           <div class="row">
@@ -101,6 +188,22 @@ function toggleMenu(quiz, event) {
                   <Download :size="16" />
                   Download
                 </button>
+                <button class="dropdown-item danger" @click="() => deleteQuiz(quiz)">
+                  <Trash2 :size="16" />
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- File Information -->
+          <div v-if="quiz.sourceFile && quiz.sourceFile.name" class="file-info">
+            <div class="file-icon">{{ getFileIcon(quiz.sourceFile.type) }}</div>
+            <div class="file-details">
+              <div class="file-name">{{ quiz.sourceFile.name }}</div>
+              <div class="file-meta">
+                {{ quiz.sourceFile.type?.toUpperCase() || 'FILE' }} •
+                {{ formatFileSize(quiz.sourceFile.size) }}
               </div>
             </div>
           </div>
@@ -110,17 +213,17 @@ function toggleMenu(quiz, event) {
             <div
               class="bar-fill"
               :style="{
-                width: (getQuizSummary(quiz).lastScore ?? 0) + '%',
-                background: getBarColor(getQuizSummary(quiz).lastScore)
+                width: (cloudQuizService.getQuizSummary(quiz).lastScore ?? 0) + '%',
+                background: getBarColor(cloudQuizService.getQuizSummary(quiz).lastScore)
               }"
             ></div>
           </div>
           <div class="progress-meta">
-            <span v-if="getQuizSummary(quiz).lastScore != null" class="score">
-              Last score: {{ getQuizSummary(quiz).lastScore }}%
+            <span v-if="cloudQuizService.getQuizSummary(quiz).lastScore != null" class="score">
+              Last score: {{ cloudQuizService.getQuizSummary(quiz).lastScore }}%
             </span>
             <span v-else class="score none">Not taken yet</span>
-            <span class="attempts">Attempts: {{ getQuizSummary(quiz).attemptsCount }}</span>
+            <span class="attempts">Attempts: {{ cloudQuizService.getQuizSummary(quiz).attemptsCount }}</span>
           </div>
 
           <div class="actions">
@@ -129,7 +232,7 @@ function toggleMenu(quiz, event) {
               {{ getPrimaryCtaText(quiz) }}
             </button>
             <button
-              v-if="getQuizSummary(quiz).attemptsCount > 0"
+              v-if="cloudQuizService.getQuizSummary(quiz).attemptsCount > 0"
               class="secondary"
               @click="() => router.push({ name: 'quiz-results', params: { quizId: quiz.id } })"
             >
@@ -164,16 +267,42 @@ function toggleMenu(quiz, event) {
 .header h1 { margin: 0 0 6px; }
 .subtitle { color: #6b7280; margin: 0 0 20px; }
 
-.empty { display: flex; justify-content: center; padding: 60px 0; }
-.empty-card { text-align: center; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; width: 520px; }
-.empty-card .icon {
+/* Loading State */
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 0;
+  color: #6b7280;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #e5e7eb;
+  border-top: 3px solid #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Empty and Error States */
+.empty, .error { display: flex; justify-content: center; padding: 60px 0; }
+.empty-card, .error-card { text-align: center; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; width: 520px; }
+.empty-card .icon, .error-card .icon {
   color: #9ca3af;
   margin-bottom: 16px;
   display: flex;
   justify-content: center;
 }
-.empty-card .title { font-weight: 700; color: #1f2937; margin-bottom: 6px; }
-.empty-card .hint { color: #6b7280; margin-bottom: 16px; }
+.empty-card .title, .error-card .title { font-weight: 700; color: #1f2937; margin-bottom: 6px; }
+.empty-card .hint, .error-card .hint { color: #6b7280; margin-bottom: 16px; }
 
 .grid { display: flex; flex-wrap: wrap; gap: 16px; }
 .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; box-shadow: 0 6px 18px rgba(0,0,0,0.03); display: flex; flex-direction: column; flex: 0 0 320px; min-width: 320px; }
@@ -214,6 +343,45 @@ function toggleMenu(quiz, event) {
   transition: all 0.2s ease;
 }
 .dropdown-item:hover { background: #f8faff; color: #4338ca; }
+.dropdown-item.danger { color: #dc2626; }
+.dropdown-item.danger:hover { background: #fef2f2; color: #dc2626; }
+
+/* File Information */
+.file-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  margin: 12px 0;
+}
+
+.file-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.file-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.file-name {
+  font-weight: 500;
+  color: #1f2937;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-meta {
+  color: #6b7280;
+  font-size: 11px;
+  margin-top: 2px;
+}
 
 .progress { position: relative; height: 10px; border-radius: 6px; margin: 14px 0 6px; }
 .bar-bg { position: absolute; inset: 0; background: #e5e7eb; border-radius: 6px; }

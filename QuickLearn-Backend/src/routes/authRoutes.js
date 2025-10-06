@@ -116,6 +116,60 @@ router.post('/reset-password', async (req, res) => {
 	}
 });
 
+// Development only: Create test user and get token
+if (process.env.NODE_ENV === 'development') {
+	router.post('/dev-create-test-user', async (req, res) => {
+		try {
+			const { getPool } = require('../config/db');
+			const bcrypt = require('bcrypt');
+			const { v4: uuidv4 } = require('uuid');
+
+			const pool = await getPool();
+			const testEmail = 'test@quicklearn.dev';
+			const testUsername = 'testuser';
+			const testPassword = 'password123';
+
+			// Check if user already exists
+			const [existing] = await pool.execute(
+				'SELECT id FROM users WHERE email = ? OR username = ?',
+				[testEmail, testUsername]
+			);
+
+			let userId;
+			if (existing.length > 0) {
+				userId = existing[0].id;
+			} else {
+				// Create test user
+				const passwordHash = await bcrypt.hash(testPassword, 10);
+				const userUuid = uuidv4();
+
+				const [result] = await pool.execute(
+					`INSERT INTO users (uuid, username, email, password_hash, is_email_verified)
+					 VALUES (?, ?, ?, ?, 1)`,
+					[userUuid, testUsername, testEmail, passwordHash]
+				);
+				userId = result.insertId;
+			}
+
+			// Generate token
+			const token = jwt.sign(
+				{ sub: userId, uuid: uuidv4(), username: testUsername },
+				process.env.JWT_ACCESS_SECRET,
+				{ expiresIn: '24h' }
+			);
+
+			res.json({
+				message: 'Test user created/found',
+				user: { id: userId, username: testUsername, email: testEmail },
+				token: token
+			});
+		} catch (err) {
+			console.error('Error creating test user:', err);
+			res.status(500).json({ error: 'Failed to create test user' });
+		}
+	});
+}
+
 module.exports = router;
 
 
