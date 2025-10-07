@@ -33,10 +33,16 @@ router.post('/from-file', authenticateToken, upload.single('file'), async (req, 
 		}
 
 		// Parse query parameters for AI options
-		const numQuestions = Math.min(20, Number(req.query.count) || 5);
+		const requestedCount = Number(req.query.count) || 5;
+		const numQuestions = Math.min(50, Math.max(5, requestedCount));
 		const difficulty = req.query.difficulty || 'medium';
-		const questionTypes = req.query.types ? req.query.types.split(',') : ['multiple_choice'];
+		let questionTypes = req.query.types ? req.query.types.split(',') : ['multiple_choice'];
 		const focusAreas = req.query.focus ? req.query.focus.split(',') : [];
+
+		// Normalize 'mixed' sentinel; actual expansion handled by service layer
+		if (questionTypes.length === 1 && questionTypes[0] === 'mixed') {
+			questionTypes = ['mixed'];
+		}
 
 		const quizOptions = {
 			numQuestions,

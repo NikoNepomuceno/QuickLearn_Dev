@@ -205,17 +205,17 @@ class CloudStorageService {
     static async deleteQuiz(quizUuid, userId) {
         try {
             const quiz = await Quiz.findByUuid(quizUuid);
-            if (!quiz || quiz.userId !== userId) {
+            if (!quiz || Number(quiz.userId) !== Number(userId)) {
                 return false;
             }
 
             // Delete associated file if exists
             if (quiz.sourceFileId) {
-                await File.delete(quiz.sourceFileId, userId);
+                await File.delete(quiz.sourceFileId, Number(userId));
             }
 
             // Delete quiz (attempts will be cascade deleted)
-            const deleted = await Quiz.delete(quiz.id, userId);
+            const deleted = await Quiz.delete(quiz.id, Number(userId));
             return deleted;
         } catch (error) {
             console.error('Error deleting quiz:', error);

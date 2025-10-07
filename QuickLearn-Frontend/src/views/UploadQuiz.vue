@@ -14,6 +14,7 @@ const isLoading = ref(false)
 const errorMessage = ref('')
 const quiz = ref(null)
 const count = ref(10)
+const selectedTypes = ref(['multiple_choice'])
 const isDragOver = ref(false)
 const showAnswers = ref({})
 const progressPercent = ref(0)
@@ -219,7 +220,19 @@ function handleConfigConfirm(payload) {
   showConfigModal.value = false
   // update local count so UI reflects selection
   if (typeof payload?.count === 'number') count.value = payload.count
-  uploadFile(payload)
+  // Normalize type payload from modal
+  // payload.type can be 'mixed' or comma-separated list
+  let typesParam = 'multiple_choice'
+  if (payload?.type === 'mixed') {
+    selectedTypes.value = ['multiple_choice', 'true_false', 'identification', 'enumeration']
+    typesParam = 'mixed'
+  } else if (typeof payload?.type === 'string' && payload.type.length > 0) {
+    const arr = payload.type.split(',').map(s => s.trim()).filter(Boolean)
+    selectedTypes.value = arr.length ? arr : ['multiple_choice']
+    typesParam = arr.join(',')
+  }
+
+  uploadFile({ ...payload, type: typesParam })
 }
 
 function copyShareLink() {

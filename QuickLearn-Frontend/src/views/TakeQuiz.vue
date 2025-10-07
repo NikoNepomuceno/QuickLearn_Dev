@@ -91,10 +91,6 @@ function previousQuestion() {
   }
 }
 
-function goToQuestion(index) {
-  currentQuestionIndex.value = index
-}
-
 async function submitQuiz() {
   isSubmitted.value = true
   showResults.value = true
@@ -277,27 +273,6 @@ function goToUpload() {
             <ArrowLeft :size="16" />
             Previous
           </button>
-
-          <div class="question-navigator">
-            <div class="nav-label">Questions</div>
-            <div class="question-dots">
-              <button
-                v-for="(question, index) in quiz?.questions"
-                :key="index"
-                class="dot"
-                :class="{
-                  active: index === currentQuestionIndex,
-                  answered: answers[index] !== undefined,
-                  current: index === currentQuestionIndex
-                }"
-                @click="goToQuestion(index)"
-                :title="`Question ${index + 1}${answers[index] ? ' (Answered)' : ''}`"
-              >
-                <span v-if="answers[index] !== undefined" class="dot-check">✓</span>
-                <span v-else>{{ index + 1 }}</span>
-              </button>
-            </div>
-          </div>
 
           <button
             v-if="currentQuestionIndex < totalQuestions - 1"

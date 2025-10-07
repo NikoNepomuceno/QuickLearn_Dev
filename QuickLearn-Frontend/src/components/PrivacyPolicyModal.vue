@@ -84,7 +84,7 @@ function accept() {
       </div>
     </transition>
   </teleport>
-  
+
 </template>
 
 <style scoped>
@@ -105,6 +105,8 @@ function accept() {
 .pp-fade-enter-active, .pp-fade-leave-active { transition: opacity 180ms ease, transform 180ms ease; }
 .pp-fade-enter-from, .pp-fade-leave-to { opacity: 0; }
 .pp-fade-enter-from .modal, .pp-fade-leave-to .modal { transform: scale(0.96); opacity: 0; }
+
+/* Dark mode styles are now in global styles.css */
 </style>
 
 

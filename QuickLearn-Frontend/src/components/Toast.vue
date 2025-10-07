@@ -12,7 +12,7 @@ defineEmits(['dismiss'])
       <button class="x" @click="$emit('dismiss', t.id)" aria-label="Dismiss">✕</button>
     </div>
   </div>
-  
+
 </template>
 
 <style scoped>
@@ -49,6 +49,8 @@ defineEmits(['dismiss'])
   cursor: pointer;
   font-size: 16px;
 }
+
+/* Dark mode styles are now in global styles.css */
 </style>
 
 

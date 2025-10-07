@@ -57,6 +57,8 @@ function confirm() {
 .btn { padding: 10px 14px; border-radius: 10px; cursor: pointer; }
 .ghost { background: #fff; border: 1px solid #e6e8ec; }
 .danger { background: #ef4444; color: #fff; border: none; }
+
+/* Dark mode styles are now in global styles.css */
 </style>
 
 

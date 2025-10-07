@@ -229,3 +229,222 @@ body.dark .theme-floating-toggle {
   color: #e5e7eb;
 }
 
+/* SweetAlert2 Dark Mode Styles */
+.swal2-dark-toast {
+  border: 1px solid #1f2a44 !important;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.3) !important;
+}
+
+.swal2-dark-progress {
+  background: #667eea !important;
+}
+
+.swal2-dark-modal {
+  border: 1px solid #1f2a44 !important;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.4) !important;
+}
+
+.swal2-dark-confirm {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  border: none !important;
+  color: #ffffff !important;
+}
+
+.swal2-dark-cancel {
+  background: #0f172a !important;
+  border: 1px solid #1f2a44 !important;
+  color: #e5e7eb !important;
+}
+
+.swal2-dark-cancel:hover {
+  background: #1f2a44 !important;
+}
+
+/* Modal Dark Mode Styles - Global to work with teleported modals */
+
+/* ConfirmModal Dark Mode */
+body.dark .modal-backdrop {
+  background: rgba(0,0,0,0.7) !important;
+}
+
+body.dark .modal {
+  background: #0f172a !important;
+  border-color: #1f2a44 !important;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.4) !important;
+}
+
+body.dark .modal .title {
+  color: #e5e7eb !important;
+}
+
+body.dark .modal .message {
+  color: #9ca3af !important;
+}
+
+body.dark .modal .btn.ghost {
+  background: #0f172a !important;
+  border-color: #1f2a44 !important;
+  color: #e5e7eb !important;
+}
+
+body.dark .modal .btn.ghost:hover {
+  background: #1f2a44 !important;
+}
+
+/* QuizConfigModal Dark Mode */
+body.dark .modal-head h3 {
+  color: #e5e7eb !important;
+}
+
+body.dark .icon-btn {
+  color: #9ca3af !important;
+}
+
+body.dark .icon-btn:hover {
+  background: #1f2a44 !important;
+  color: #e5e7eb !important;
+}
+
+body.dark .section-title {
+  color: #e5e7eb !important;
+}
+
+body.dark .source {
+  background: #0b1222 !important;
+  border-color: #1f2a44 !important;
+}
+
+body.dark .source .label {
+  color: #9ca3af !important;
+}
+
+body.dark .source .name {
+  color: #e5e7eb !important;
+}
+
+body.dark .type-card {
+  background: #0b1222 !important;
+  border-color: #1f2a44 !important;
+}
+
+body.dark .type-card:hover {
+  background: #131c35 !important;
+}
+
+body.dark .type-card.active {
+  border-color: #667eea !important;
+  background: #131c35 !important;
+}
+
+body.dark .t-title {
+  color: #e5e7eb !important;
+}
+
+body.dark .t-desc {
+  color: #9ca3af !important;
+}
+
+body.dark .count {
+  color: #e5e7eb !important;
+}
+
+/* QuizConfirmationModal Dark Mode */
+body.dark .modal-overlay {
+  background: rgba(0,0,0,0.8) !important;
+}
+
+body.dark .modal-content {
+  background: #0f172a !important;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5) !important;
+}
+
+body.dark .modal-header {
+  border-color: #1f2a44 !important;
+}
+
+body.dark .modal-header h2 {
+  color: #e5e7eb !important;
+}
+
+body.dark .close-btn {
+  color: #9ca3af !important;
+}
+
+body.dark .close-btn:hover {
+  background: #1f2a44 !important;
+  color: #e5e7eb !important;
+}
+
+body.dark .quiz-info h3 {
+  color: #e5e7eb !important;
+}
+
+body.dark .description {
+  color: #9ca3af !important;
+}
+
+body.dark .stat {
+  background: #1f2a44 !important;
+  color: #a5b4fc !important;
+}
+
+body.dark .action-btn {
+  background: #0b1222 !important;
+  color: #e5e7eb !important;
+}
+
+body.dark .action-btn.secondary {
+  border-color: #1f2a44 !important;
+  background: #0b1222 !important;
+  color: #e5e7eb !important;
+}
+
+body.dark .action-btn.secondary:hover {
+  border-color: #667eea !important;
+  background: #131c35 !important;
+}
+
+body.dark .action-btn.tertiary {
+  border-color: #1f2a44 !important;
+  background: #0b1222 !important;
+  color: #e5e7eb !important;
+}
+
+body.dark .action-btn.tertiary:hover {
+  border-color: #10b981 !important;
+  background: #0f2419 !important;
+}
+
+/* Toast Component Dark Mode */
+body.dark .toast {
+  background: #0f172a !important;
+  border-color: #1f2a44 !important;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.3) !important;
+}
+
+body.dark .toast .msg {
+  color: #e5e7eb !important;
+}
+
+body.dark .toast .x {
+  color: #9ca3af !important;
+}
+
+body.dark .toast .x:hover {
+  color: #e5e7eb !important;
+}
+
+/* PrivacyPolicyModal Dark Mode */
+body.dark .content {
+  color: #9ca3af !important;
+}
+
+body.dark .content h3,
+body.dark .content h4 {
+  color: #e5e7eb !important;
+}
+
+body.dark .content strong {
+  color: #e5e7eb !important;
+}
+

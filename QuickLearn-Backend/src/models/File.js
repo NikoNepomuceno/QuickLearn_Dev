@@ -26,11 +26,12 @@ class File {
         const fileExtension = originalFilename.split('.').pop().toLowerCase();
         const folder = `quicklearn/users/${userId}/documents`;
         
-        // Configure upload options with compression
+        // Configure upload options; let Cloudinary derive a safe public_id from filename
         const uploadOptions = {
             folder: folder,
             resource_type: 'auto',
-            public_id: `${Date.now()}_${originalFilename.replace(/\.[^/.]+$/, "")}`,
+            use_filename: true,
+            unique_filename: true,
             overwrite: false,
             ...options
         };
@@ -180,7 +181,7 @@ class File {
 
     static async delete(id, userId) {
         const file = await File.findById(id);
-        if (!file || file.userId !== userId) {
+        if (!file || Number(file.userId) !== Number(userId)) {
             return false;
         }
         

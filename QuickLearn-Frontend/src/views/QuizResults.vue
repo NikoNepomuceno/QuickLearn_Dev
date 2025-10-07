@@ -1,24 +1,72 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import Sidebar from '../components/Sidebar.vue'
-import { getQuizById, getQuizAttempts, copyToClipboard, generateResultsShareLink, downloadResultsAsPDF } from '../services/quizService'
-import { Trophy, Target, Clock, CheckCircle, XCircle, ArrowLeft, RotateCcw } from 'lucide-vue-next'
+import cloudQuizService from '../services/cloudQuizService'
+import { copyToClipboard, generateResultsShareLink, downloadResultsAsPDF } from '../services/quizService'
+import { Target, Clock, CheckCircle, XCircle, ArrowLeft, RotateCcw } from 'lucide-vue-next'
 
 const router = useRouter()
 const route = useRoute()
 
 const quiz = ref(null)
 const lastAttempt = ref(null)
+const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1200)
+const isLoading = ref(true)
+const error = ref(null)
 
-onMounted(() => {
+// Responsive score circle dimensions
+const scoreCircleSize = computed(() => {
+  if (windowWidth.value <= 480) return { size: 120, radius: 50, center: 60, circumference: 314.16 }
+  if (windowWidth.value <= 768) return { size: 140, radius: 60, center: 70, circumference: 376.99 }
+  return { size: 160, radius: 70, center: 80, circumference: 439.82 }
+})
+
+// Handle window resize
+function handleResize() {
+  windowWidth.value = window.innerWidth
+}
+
+onMounted(async () => {
   const { quizId } = route.params
-  const data = quizId ? getQuizById(quizId) : null
-  const attempts = quizId ? getQuizAttempts(quizId) : []
-  quiz.value = data
-  lastAttempt.value = attempts && attempts.length ? attempts[0] : null
-  if (!quiz.value) {
+  if (!quizId) {
     router.replace('/upload')
+    return
+  }
+
+  try {
+    isLoading.value = true
+    error.value = null
+
+    // Get quiz data from cloud service
+    const data = await cloudQuizService.getQuizByUuid(quizId)
+    quiz.value = data
+
+    // Get quiz attempts from cloud service
+    const attempts = await cloudQuizService.getQuizAttempts(quizId)
+    lastAttempt.value = attempts && attempts.length ? attempts[0] : null
+
+    if (!quiz.value) {
+      router.replace('/upload')
+    }
+  } catch (err) {
+    console.error('Error loading quiz results:', err)
+    error.value = err.message || 'Failed to load quiz results'
+    window.$toast?.error(error.value)
+    router.replace('/upload')
+  } finally {
+    isLoading.value = false
+  }
+
+  // Add resize listener
+  if (typeof window !== 'undefined') {
+    window.addEventListener('resize', handleResize)
+  }
+})
+
+onUnmounted(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('resize', handleResize)
   }
 })
 
@@ -80,31 +128,42 @@ function getScoreLabel(score) {
         </div>
       </div>
 
-      <div v-if="quiz" class="results-container">
+      <div v-if="isLoading" class="loading-container">
+        <div class="loading-spinner"></div>
+        <p>Loading quiz results...</p>
+      </div>
+
+      <div v-else-if="error" class="error-container">
+        <p class="error-message">{{ error }}</p>
+        <button @click="backToMyQuizzes" class="action-btn secondary">
+          Back to My Quizzes
+        </button>
+      </div>
+
+      <div v-else-if="quiz" class="results-container">
         <!-- Score Overview Card -->
         <div class="score-overview-card">
           <div class="score-section">
             <div class="score-circle">
-              <svg class="score-ring" width="160" height="160">
+              <svg class="score-ring" :width="scoreCircleSize.size" :height="scoreCircleSize.size">
                 <circle
                   class="score-ring-bg"
-                  stroke="#e5e7eb"
                   stroke-width="12"
                   fill="transparent"
-                  r="70"
-                  cx="80"
-                  cy="80"
+                  :r="scoreCircleSize.radius"
+                  :cx="scoreCircleSize.center"
+                  :cy="scoreCircleSize.center"
                 />
                 <circle
                   class="score-ring-fill"
                   :stroke="getScoreColor(lastAttempt?.score ?? 0)"
                   stroke-width="12"
                   fill="transparent"
-                  r="70"
-                  cx="80"
-                  cy="80"
-                  :stroke-dasharray="439.82"
-                  :stroke-dashoffset="439.82 - (439.82 * (lastAttempt?.score ?? 0)) / 100"
+                  :r="scoreCircleSize.radius"
+                  :cx="scoreCircleSize.center"
+                  :cy="scoreCircleSize.center"
+                  :stroke-dasharray="scoreCircleSize.circumference"
+                  :stroke-dashoffset="scoreCircleSize.circumference - (scoreCircleSize.circumference * (lastAttempt?.score ?? 0)) / 100"
                 />
               </svg>
               <div class="score-content">
@@ -263,20 +322,46 @@ function getScoreLabel(score) {
   min-height: 100vh;
   background: #f8fafc;
   overflow-x: hidden;
+  position: relative;
+  align-items: flex-start;
+}
+
+/* Ensure sidebar stays sticky - override any global styles */
+.layout :deep(.sidebar) {
+  position: sticky !important;
+  top: 0 !important;
+  height: 100vh !important;
+  flex-shrink: 0 !important;
+  align-self: flex-start !important;
+}
+
+/* Additional specificity for sidebar positioning */
+div.layout :deep(aside.sidebar) {
+  position: sticky !important;
+  top: 0 !important;
+}
+
+/* Force sidebar to stay in place - last resort */
+@media (min-width: 1025px) {
+  .layout :deep(.sidebar) {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    z-index: 100 !important;
+  }
+
+  .content {
+    margin-left: 230px !important;
+  }
 }
 
 .content {
+  flex: 1;
   padding: 32px;
   max-width: 1200px;
   margin: 0 auto;
   width: 100%;
   min-width: 0; /* Prevents content from overflowing */
-}
-
-@media (max-width: 1024px) {
-  .content {
-    padding-bottom: 120px; /* Add space for floating sidebar */
-  }
 }
 
 .header {
@@ -372,6 +457,10 @@ function getScoreLabel(score) {
   transform: rotate(-90deg);
 }
 
+.score-ring-bg {
+  stroke: #e5e7eb;
+}
+
 .score-ring-fill {
   transition: stroke-dashoffset 1.5s ease-in-out;
 }
@@ -448,6 +537,101 @@ function getScoreLabel(score) {
   color: #1f2937;
 }
 
+/* Dark mode styles */
+body.dark .layout {
+  background: #0b1020;
+}
+
+/* Ensure sidebar stays sticky in dark mode too */
+body.dark .layout :deep(.sidebar) {
+  position: sticky !important;
+  top: 0 !important;
+  height: 100vh !important;
+  flex-shrink: 0 !important;
+  align-self: flex-start !important;
+}
+
+/* Additional dark mode specificity */
+body.dark div.layout :deep(aside.sidebar) {
+  position: sticky !important;
+  top: 0 !important;
+}
+
+/* Force sidebar to stay in place in dark mode - last resort */
+@media (min-width: 1025px) {
+  body.dark .layout :deep(.sidebar) {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    z-index: 100 !important;
+  }
+
+  body.dark .content {
+    margin-left: 230px !important;
+  }
+}
+
+body.dark .header-content {
+  background: #0f172a;
+  border-color: #1f2a44;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+body.dark .breadcrumb-link {
+  color: #a5b4fc;
+}
+
+body.dark .breadcrumb-link:hover {
+  color: #c7d2fe;
+}
+
+body.dark .breadcrumb-separator {
+  color: #6b7280;
+}
+
+body.dark .breadcrumb-current {
+  color: #9ca3af;
+}
+
+body.dark .header h1 {
+  color: #e5e7eb;
+}
+
+body.dark .subtitle {
+  color: #9ca3af;
+}
+
+body.dark .score-overview-card {
+  background: #0f172a;
+  border-color: #1f2a44;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+body.dark .score-ring-bg {
+  stroke: #374151;
+}
+
+body.dark .score-number {
+  color: #e5e7eb;
+}
+
+body.dark .score-label {
+  color: #9ca3af;
+}
+
+body.dark .detail-item {
+  background: #111827;
+  border-color: #1f2a44;
+}
+
+body.dark .detail-label {
+  color: #9ca3af;
+}
+
+body.dark .detail-value {
+  color: #e5e7eb;
+}
+
 /* Actions Card */
 .actions-card {
   background: white;
@@ -521,6 +705,41 @@ function getScoreLabel(score) {
   background: #f1f5f9;
   color: #374151;
   border-color: #cbd5e1;
+}
+
+/* Dark mode for actions card */
+body.dark .actions-card {
+  background: #0f172a;
+  border-color: #1f2a44;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+body.dark .secondary-actions {
+  border-top-color: #1f2a44;
+}
+
+body.dark .action-btn.secondary {
+  background: #111827;
+  color: #cbd5e1;
+  border-color: #1f2a44;
+}
+
+body.dark .action-btn.secondary:hover {
+  background: #1f2937;
+  border-color: #374151;
+  color: #e5e7eb;
+}
+
+body.dark .action-btn.tertiary {
+  background: #111827;
+  color: #9ca3af;
+  border-color: #1f2a44;
+}
+
+body.dark .action-btn.tertiary:hover {
+  background: #1f2937;
+  color: #cbd5e1;
+  border-color: #374151;
 }
 
 /* Questions Card */
@@ -651,6 +870,52 @@ function getScoreLabel(score) {
   line-height: 1.5;
 }
 
+/* Dark mode for questions card */
+body.dark .questions-card {
+  background: #0f172a;
+  border-color: #1f2a44;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+body.dark .questions-header h3 {
+  color: #e5e7eb;
+}
+
+body.dark .questions-subtitle {
+  color: #9ca3af;
+}
+
+body.dark .question-item {
+  background: #111827;
+  border-color: #1f2a44;
+}
+
+body.dark .question-item:hover {
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+}
+
+body.dark .question-item.correct {
+  border-color: #10b981;
+  background: linear-gradient(135deg, #064e3b 0%, #065f46 100%);
+}
+
+body.dark .question-item.incorrect {
+  border-color: #ef4444;
+  background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%);
+}
+
+body.dark .question-item.correct .status-text {
+  color: #34d399;
+}
+
+body.dark .question-item.incorrect .status-text {
+  color: #f87171;
+}
+
+body.dark .question-text {
+  color: #e5e7eb;
+}
+
 .answer-section {
   display: flex;
   flex-direction: column;
@@ -716,6 +981,107 @@ function getScoreLabel(score) {
   font-style: italic;
 }
 
+/* Dark mode for answer section */
+body.dark .answer-row {
+  background: rgba(15, 23, 42, 0.8);
+  border-color: rgba(31, 42, 68, 0.5);
+}
+
+body.dark .answer-label {
+  color: #cbd5e1;
+}
+
+body.dark .answer-value {
+  color: #e5e7eb;
+}
+
+body.dark .your-answer .answer-label {
+  color: #9ca3af;
+}
+
+body.dark .correct-answer .answer-label {
+  color: #34d399;
+}
+
+body.dark .explanation-row {
+  background: rgba(102, 126, 234, 0.15);
+  border-color: rgba(102, 126, 234, 0.25);
+}
+
+body.dark .explanation-label {
+  color: #a5b4fc;
+}
+
+body.dark .explanation-text {
+  color: #cbd5e1;
+}
+
+/* Loading and Error States */
+.loading-container,
+.error-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #e5e7eb;
+  border-top: 4px solid #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-container p {
+  color: #6b7280;
+  font-size: 16px;
+  margin: 0;
+}
+
+.error-container {
+  background: white;
+  border-radius: 16px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.error-message {
+  color: #dc2626;
+  font-size: 16px;
+  margin: 0 0 24px;
+  font-weight: 500;
+}
+
+/* Dark mode for loading and error states */
+body.dark .loading-spinner {
+  border-color: #374151;
+  border-top-color: #a5b4fc;
+}
+
+body.dark .loading-container p {
+  color: #9ca3af;
+}
+
+body.dark .error-container {
+  background: #0f172a;
+  border-color: #1f2a44;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+body.dark .error-message {
+  color: #f87171;
+}
+
 /* Responsive Design */
 @media (max-width: 1200px) {
   .content {
@@ -725,19 +1091,9 @@ function getScoreLabel(score) {
 }
 
 @media (max-width: 1024px) {
-  .layout {
-    display: block !important;
-    grid-template-columns: none;
-    min-height: 100vh;
-    background: #f8fafc;
-  }
-
   .content {
     padding: 24px;
-    width: 100%;
-    max-width: none;
-    margin: 0;
-    min-width: 0;
+    padding-bottom: 120px; /* Add space for floating sidebar */
   }
 
   .score-section {
@@ -753,12 +1109,9 @@ function getScoreLabel(score) {
 }
 
 @media (max-width: 900px) {
-  .layout {
-    display: block;
-  }
-
   .content {
     padding: 20px;
+    padding-bottom: 120px; /* Add space for floating sidebar */
   }
 
   .header-content {
@@ -779,13 +1132,9 @@ function getScoreLabel(score) {
 }
 
 @media (max-width: 768px) {
-  .layout {
-    display: block;
-    min-height: 100vh;
-  }
-
   .content {
     padding: 16px;
+    padding-bottom: 120px; /* Add space for floating sidebar */
     margin: 0;
     width: 100%;
     max-width: 100%;
@@ -887,6 +1236,7 @@ function getScoreLabel(score) {
 @media (max-width: 480px) {
   .content {
     padding: 12px;
+    padding-bottom: 120px; /* Add space for floating sidebar */
   }
 
   .header-content {

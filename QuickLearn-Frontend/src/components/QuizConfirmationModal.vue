@@ -280,5 +280,7 @@ function handleClose() {
 .action-btn.primary .text small {
   opacity: 0.9;
 }
+
+/* Dark mode styles are now in global styles.css */
 </style>
 

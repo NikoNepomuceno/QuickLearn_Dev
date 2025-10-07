@@ -54,17 +54,17 @@ class DeepSeekService {
                     }
                 ],
                 temperature: 0.7,
-                max_tokens: 4000,
+                max_tokens: 6000,
                 stream: false
             });
 
             const quizContent = response.choices[0].message.content;
-            return this.parseQuizResponse(quizContent, text);
+            return this.parseQuizResponse(quizContent, text, numQuestions);
         } catch (error) {
             console.error('DeepSeek API Error:', error);
             // Return fallback quiz instead of throwing error
             console.log('Falling back to simple quiz generation...');
-            return this.createFallbackQuiz(text);
+            return this.createFallbackQuiz(text, numQuestions);
         }
     }
 
@@ -100,12 +100,12 @@ TEXT TO ANALYZE:
 ${text.substring(0, 8000)} ${text.length > 8000 ? '...[truncated]' : ''}
 
 REQUIREMENTS:
-- Generate exactly ${numQuestions} questions
+- Generate exactly ${numQuestions} questions. If unsure, synthesize plausible questions from the text so the total equals ${numQuestions}.
 - Difficulty level: ${difficulty}
 - Question types: ${questionTypes.join(', ')}
 - Focus on key concepts, important facts, and main ideas
 - Ensure questions test comprehension, not just memorization
-- Make distractors plausible but clearly incorrect
+- Make distractors plausible but clearly incorrect (for multiple choice)
 - Include brief explanations for each answer
 
 ${focusAreas.length > 0 ? `- Pay special attention to these areas: ${focusAreas.join(', ')}` : ''}
@@ -128,31 +128,41 @@ OUTPUT FORMAT (JSON):
   ]
 }
 
+STRICT OUTPUT RULES:
+- Respond with ONLY the JSON. Do not include code fences, markdown, or commentary.
+- The questions array MUST have exactly ${numQuestions} items.
+
 Please ensure the JSON is valid and properly formatted.`;
 
         return prompt;
     }
 
-    parseQuizResponse(aiResponse, originalText) {
+    parseQuizResponse(aiResponse, originalText, desiredCount = 5) {
         try {
-            // Try to extract JSON from the response
-            const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+            // Normalize common wrappers (remove code fences, stray commentary)
+            let content = aiResponse.trim();
+            content = content.replace(/^```json\s*|^```\s*|\s*```$/gmi, '');
+            // Try full parse first
+            try {
+                const parsed = JSON.parse(content);
+                return this.validateAndCleanQuiz(parsed, originalText, desiredCount);
+            } catch {}
+
+            // Fallback: extract the largest JSON-looking block
+            const jsonMatch = content.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
                 const quizData = JSON.parse(jsonMatch[0]);
-                
-                // Validate and clean the quiz data
-                return this.validateAndCleanQuiz(quizData, originalText);
-            } else {
-                throw new Error('No valid JSON found in AI response');
+                return this.validateAndCleanQuiz(quizData, originalText, desiredCount);
             }
+            throw new Error('No valid JSON found in AI response');
         } catch (error) {
             console.error('Error parsing AI response:', error);
             // Fallback to a simple quiz if parsing fails
-            return this.createFallbackQuiz(originalText);
+            return this.createFallbackQuiz(originalText, desiredCount);
         }
     }
 
-    validateAndCleanQuiz(quizData, originalText) {
+    validateAndCleanQuiz(quizData, originalText, desiredCount = 5) {
         const cleanedQuiz = {
             title: quizData.title || 'AI Generated Quiz',
             description: quizData.description || 'Quiz generated from uploaded content',
@@ -176,9 +186,17 @@ Please ensure the JSON is valid and properly formatted.`;
             });
         }
 
-        // If no valid questions were found, create a fallback
+        // Ensure exact desiredCount
         if (cleanedQuiz.questions.length === 0) {
-            return this.createFallbackQuiz(originalText);
+            return this.createFallbackQuiz(originalText, desiredCount);
+        }
+        if (cleanedQuiz.questions.length > desiredCount) {
+            cleanedQuiz.questions = cleanedQuiz.questions.slice(0, desiredCount).map((q, i) => ({ ...q, id: i + 1 }));
+        } else if (cleanedQuiz.questions.length < desiredCount) {
+            // Top up by generating additional fallback questions
+            const extra = this.createFallbackQuiz(originalText, desiredCount - cleanedQuiz.questions.length).questions;
+            const merged = cleanedQuiz.questions.concat(extra);
+            cleanedQuiz.questions = merged.slice(0, desiredCount).map((q, i) => ({ ...q, id: i + 1 }));
         }
 
         return cleanedQuiz;
@@ -195,7 +213,7 @@ Please ensure the JSON is valid and properly formatted.`;
                question.choices.includes(question.answer);
     }
 
-    createFallbackQuiz(text) {
+    createFallbackQuiz(text, desiredCount = 5) {
         // Simple fallback quiz generation
         const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 20);
         const questions = [];
@@ -214,7 +232,8 @@ Please ensure the JSON is valid and properly formatted.`;
             .map(([word]) => word);
 
         // Generate questions based on content
-        for (let i = 0; i < Math.min(5, sentences.length); i++) {
+        const limit = Math.max(1, Math.min(desiredCount - 1, sentences.length));
+        for (let i = 0; i < limit; i++) {
             const sentence = sentences[i].trim();
             if (sentence.length > 30) {
                 const words = sentence.split(' ');
@@ -239,7 +258,7 @@ Please ensure the JSON is valid and properly formatted.`;
         }
 
         // Add a question about key terms if we have them
-        if (topWords.length > 0) {
+        if (topWords.length > 0 && questions.length < desiredCount) {
             questions.push({
                 id: questions.length + 1,
                 type: 'multiple_choice',
@@ -254,6 +273,21 @@ Please ensure the JSON is valid and properly formatted.`;
                 explanation: `The term "${topWords[0]}" appears most frequently in the content.`,
                 difficulty: 'medium',
                 topic: 'Content Analysis'
+            });
+        }
+
+        // Pad if still short: create simple true/false style questions
+        while (questions.length < desiredCount) {
+            const id = questions.length + 1;
+            questions.push({
+                id,
+                type: 'true_false',
+                question: 'The uploaded text discusses a key concept in detail.',
+                choices: ['True', 'False'],
+                answer: 'True',
+                explanation: 'Based on the provided content analysis.',
+                difficulty: 'easy',
+                topic: 'General'
             });
         }
 
@@ -341,7 +375,7 @@ Return as valid JSON with this structure:
             });
 
             const quizContent = response.choices[0].message.content;
-            return this.parseQuizResponse(quizContent, text);
+            return this.parseQuizResponse(quizContent, text, numQuestions);
         } catch (error) {
             console.error('Advanced quiz generation error:', error);
             throw new Error('Failed to generate advanced quiz. Please try again.');

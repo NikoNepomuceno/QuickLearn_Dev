@@ -11,13 +11,13 @@ const props = defineProps({
 const emit = defineEmits(['close', 'confirm'])
 
 const localCount = ref(props.defaultCount)
-const selectedType = ref('multiple_choice')
+const selectedTypes = ref(['multiple_choice'])
 
 watch(() => props.visible, (v) => {
   if (v) {
     // reset to defaults each time it opens
     localCount.value = props.defaultCount
-    selectedType.value = 'multiple_choice'
+    selectedTypes.value = ['multiple_choice']
   }
 })
 
@@ -29,6 +29,32 @@ const typeOptions = [
   { key: 'mixed', title: 'Mixed', desc: 'Combination of all types', icon: 'Shuffle' }
 ]
 
+const nonMixedKeys = typeOptions.filter(t => t.key !== 'mixed').map(t => t.key)
+
+function toggleType(key) {
+  if (key === 'mixed') {
+    // Mixed means all non-mixed types
+    selectedTypes.value = [...nonMixedKeys]
+    return
+  }
+
+  const idx = selectedTypes.value.indexOf(key)
+  if (idx === -1) {
+    selectedTypes.value = [...selectedTypes.value, key]
+  } else {
+    const next = selectedTypes.value.slice()
+    next.splice(idx, 1)
+    selectedTypes.value = next.length ? next : ['multiple_choice']
+  }
+
+  // If user manually selects all non-mixed types, treat as Mixed
+  const selectedSet = new Set(selectedTypes.value)
+  const allSelected = nonMixedKeys.every(k => selectedSet.has(k))
+  if (allSelected) {
+    selectedTypes.value = [...nonMixedKeys]
+  }
+}
+
 const fileLabel = computed(() => props.fileName || '{ File Name }')
 
 function close() {
@@ -36,7 +62,11 @@ function close() {
 }
 
 function confirm() {
-  emit('confirm', { count: localCount.value, type: selectedType.value })
+  // If all types selected, communicate as 'mixed'; otherwise send explicit list
+  const selectedSet = new Set(selectedTypes.value)
+  const isMixed = nonMixedKeys.every(k => selectedSet.has(k))
+  const typePayload = isMixed ? 'mixed' : selectedTypes.value.join(',')
+  emit('confirm', { count: localCount.value, type: typePayload })
 }
 </script>
 
@@ -73,8 +103,8 @@ function confirm() {
               v-for="t in typeOptions"
               :key="t.key"
               class="type-card"
-              :class="{ active: selectedType === t.key }"
-              @click="selectedType = t.key"
+              :class="{ active: (t.key === 'mixed' ? nonMixedKeys.every(k => selectedTypes.includes(k)) : selectedTypes.includes(t.key)) }"
+              @click="toggleType(t.key)"
             >
               <div class="left">
                 <component :is="t.icon" :size="20" />
@@ -198,5 +228,7 @@ function confirm() {
 .btn { padding: 10px 14px; border-radius: 10px; cursor: pointer; }
 .ghost { background: #fff; border: 1px solid #e6e8ec; }
 .primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; border: none; }
+
+/* Dark mode styles are now in global styles.css */
 </style>
 

@@ -26,7 +26,13 @@ class CloudQuizService {
       const queryParams = new URLSearchParams()
       if (options.count) queryParams.append('count', options.count)
       if (options.difficulty) queryParams.append('difficulty', options.difficulty)
-      if (options.types) queryParams.append('types', options.types)
+      if (options.types) {
+        // options.types may be array, comma-separated string, or 'mixed'
+        const typesValue = Array.isArray(options.types)
+          ? options.types.join(',')
+          : String(options.types)
+        queryParams.append('types', typesValue)
+      }
       if (options.focus) queryParams.append('focus', options.focus)
 
       const endpoint = options.isAdvanced ? '/api/quiz/advanced' : '/api/quiz/from-file'
