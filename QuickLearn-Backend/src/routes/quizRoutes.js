@@ -152,7 +152,7 @@ router.get('/:uuid', optionalAuth, async (req, res) => {
 // Delete quiz
 router.delete('/:uuid', authenticateToken, async (req, res) => {
 	try {
-		const deleted = await CloudStorageService.deleteQuiz(req.params.uuid, req.user.id);
+        const deleted = await CloudStorageService.deleteQuiz(req.params.uuid, req.user.id);
 
 		if (!deleted) {
 			return res.status(404).json({ error: 'Quiz not found or not authorized' });
@@ -163,6 +163,53 @@ router.delete('/:uuid', authenticateToken, async (req, res) => {
 		console.error('Error deleting quiz:', err);
 		return res.status(500).json({ error: 'Failed to delete quiz' });
 	}
+});
+
+// Get trashed quizzes
+router.get('/trash/list', authenticateToken, async (req, res) => {
+    try {
+        const items = await CloudStorageService.getTrashedQuizzes(req.user.id, 100, 0);
+        return res.json({ items });
+    } catch (err) {
+        console.error('Error listing trashed quizzes:', err);
+        return res.status(500).json({ error: 'Failed to list trash' });
+    }
+});
+
+// Restore a trashed quiz
+router.post('/:uuid/restore', authenticateToken, async (req, res) => {
+    try {
+        const ok = await CloudStorageService.restoreQuiz(req.params.uuid, req.user.id);
+        if (!ok) return res.status(404).json({ error: 'Quiz not found or not authorized' });
+        return res.json({ message: 'Quiz restored' });
+    } catch (err) {
+        console.error('Error restoring quiz:', err);
+        return res.status(500).json({ error: 'Failed to restore quiz' });
+    }
+});
+
+// Permanently delete a quiz
+router.delete('/:uuid/permanent', authenticateToken, async (req, res) => {
+    try {
+        const ok = await CloudStorageService.deleteQuizPermanently(req.params.uuid, req.user.id);
+        if (!ok) return res.status(404).json({ error: 'Quiz not found or not authorized' });
+        return res.json({ message: 'Quiz permanently deleted' });
+    } catch (err) {
+        console.error('Error permanently deleting quiz:', err);
+        return res.status(500).json({ error: 'Failed to permanently delete quiz' });
+    }
+});
+
+// Purge trashed quizzes older than 30 days
+router.post('/trash/purge', authenticateToken, async (req, res) => {
+    try {
+        const days = Number(req.body?.days) || 30;
+        const result = await CloudStorageService.purgeTrashedQuizzes(req.user.id, days);
+        return res.json(result);
+    } catch (err) {
+        console.error('Error purging trash:', err);
+        return res.status(500).json({ error: 'Failed to purge trash' });
+    }
 });
 
 // Save quiz attempt

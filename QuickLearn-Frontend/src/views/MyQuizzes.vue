@@ -95,7 +95,7 @@ async function deleteQuiz(quiz) {
 
   try {
     await cloudQuizService.deleteQuiz(quiz.id)
-    window.$toast?.success('Quiz deleted successfully')
+    window.$toast?.success('Moved to Trash. Items are auto-deleted after 30 days.')
     await loadQuizzes() // Reload the list
   } catch (err) {
     console.error('Error deleting quiz:', err)

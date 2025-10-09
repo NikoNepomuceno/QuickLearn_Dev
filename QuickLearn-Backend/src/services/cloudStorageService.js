@@ -124,7 +124,9 @@ class CloudStorageService {
                 })
             );
 
-            return enhancedQuizzes;
+            // Exclude trashed quizzes
+            const filtered = enhancedQuizzes.filter(q => !q.metadata?.deletedAt);
+            return filtered;
         } catch (error) {
             console.error('Error getting user quizzes:', error);
             throw error;
@@ -209,6 +211,27 @@ class CloudStorageService {
                 return false;
             }
 
+            // Soft delete: mark metadata.deletedAt
+            const meta = quiz.metadata || {};
+            meta.deletedAt = new Date().toISOString();
+            await quiz.update({ metadata: meta });
+            return true;
+        } catch (error) {
+            console.error('Error deleting quiz:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Permanently delete a quiz and its associated file
+     */
+    static async deleteQuizPermanently(quizUuid, userId) {
+        try {
+            const quiz = await Quiz.findByUuid(quizUuid);
+            if (!quiz || Number(quiz.userId) !== Number(userId)) {
+                return false;
+            }
+
             // Delete associated file if exists
             if (quiz.sourceFileId) {
                 await File.delete(quiz.sourceFileId, Number(userId));
@@ -218,7 +241,65 @@ class CloudStorageService {
             const deleted = await Quiz.delete(quiz.id, Number(userId));
             return deleted;
         } catch (error) {
-            console.error('Error deleting quiz:', error);
+            console.error('Error permanently deleting quiz:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get trashed quizzes for a user
+     */
+    static async getTrashedQuizzes(userId, limit = 50, offset = 0) {
+        try {
+            const quizzes = await Quiz.findByUserId(userId, limit, offset);
+            const trashed = quizzes
+                .map(q => q.toJSON())
+                .filter(q => !!q.metadata?.deletedAt);
+            return trashed;
+        } catch (error) {
+            console.error('Error getting trashed quizzes:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Restore a trashed quiz
+     */
+    static async restoreQuiz(quizUuid, userId) {
+        try {
+            const quiz = await Quiz.findByUuid(quizUuid);
+            if (!quiz || Number(quiz.userId) !== Number(userId)) {
+                return false;
+            }
+            const meta = quiz.metadata || {};
+            if (!meta.deletedAt) return true;
+            delete meta.deletedAt;
+            await quiz.update({ metadata: meta });
+            return true;
+        } catch (error) {
+            console.error('Error restoring quiz:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Purge trashed quizzes older than thresholdDays (default 30)
+     */
+    static async purgeTrashedQuizzes(userId, thresholdDays = 30) {
+        try {
+            const list = await this.getTrashedQuizzes(userId, 200, 0);
+            const cutoff = Date.now() - thresholdDays * 24 * 60 * 60 * 1000;
+            let purged = 0;
+            for (const q of list) {
+                const deletedAt = Date.parse(q.metadata?.deletedAt || '');
+                if (!isNaN(deletedAt) && deletedAt < cutoff) {
+                    const ok = await this.deleteQuizPermanently(q.id, userId);
+                    if (ok) purged++;
+                }
+            }
+            return { purged };
+        } catch (error) {
+            console.error('Error purging trashed quizzes:', error);
             throw error;
         }
     }

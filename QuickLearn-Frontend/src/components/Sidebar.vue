@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { logoutUser, clearLegacyTokens } from '../services/authService'
 import ConfirmModal from './ConfirmModal.vue'
-import { BookOpen, Upload, Brain, LogOut } from 'lucide-vue-next'
+import { BookOpen, Upload, Brain, LogOut, Trash } from 'lucide-vue-next'
 
 const router = useRouter()
 const showConfirm = ref(false)
@@ -37,6 +37,10 @@ async function confirmLogout() {
       <router-link class="nav-item" to="/my-quizzes">
         <Brain class="icon" :size="20" />
         <span>My Quizzes</span>
+      </router-link>
+      <router-link class="nav-item" to="/trash">
+        <Trash class="icon" :size="20" />
+        <span>Trash</span>
       </router-link>
     </nav>
 

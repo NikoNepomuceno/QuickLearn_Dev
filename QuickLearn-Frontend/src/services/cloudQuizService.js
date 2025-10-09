@@ -139,6 +139,37 @@ class CloudQuizService {
     }
   }
 
+  /** Trash APIs */
+  async getTrashedQuizzes() {
+    const response = await fetch(`${API_BASE}/api/quiz/trash/list`, {
+      headers: this.getAuthHeaders(),
+      credentials: 'include'
+    })
+    if (!response.ok) throw new Error(`Failed to list trash: ${response.status}`)
+    const data = await response.json()
+    return data.items || []
+  }
+
+  async restoreQuiz(uuid) {
+    const response = await fetch(`${API_BASE}/api/quiz/${uuid}/restore`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      credentials: 'include'
+    })
+    if (!response.ok) throw new Error(`Failed to restore quiz: ${response.status}`)
+    return true
+  }
+
+  async permanentlyDeleteQuiz(uuid) {
+    const response = await fetch(`${API_BASE}/api/quiz/${uuid}/permanent`, {
+      method: 'DELETE',
+      headers: this.getAuthHeaders(),
+      credentials: 'include'
+    })
+    if (!response.ok) throw new Error(`Failed to permanently delete quiz: ${response.status}`)
+    return true
+  }
+
   /**
    * Save quiz attempt
    */
