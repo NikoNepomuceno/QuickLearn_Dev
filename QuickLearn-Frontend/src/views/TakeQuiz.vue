@@ -278,6 +278,7 @@ function goToUpload() {
             v-if="currentQuestionIndex < totalQuestions - 1"
             class="nav-btn primary"
             @click="nextQuestion"
+            :disabled="!answers[currentQuestionIndex]"
           >
             Next
             <ArrowRight :size="16" />

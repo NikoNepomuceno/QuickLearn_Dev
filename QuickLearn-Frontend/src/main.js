@@ -11,7 +11,7 @@ try {
   localStorage.removeItem('refreshToken')
 } catch {}
 
-// Initialize theme from localStorage and expose theme helpers
+
 try {
   const savedTheme = localStorage.getItem('theme')
   const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches

@@ -1,14 +1,35 @@
 <script setup>
+// import vue from 'eslint-plugin-vue'
+import { ref }  from 'vue'
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
 })
+
 const emit = defineEmits(['update:modelValue', 'accept'])
 
-function close() { emit('update:modelValue', false) }
-function accept() {
-  emit('accept')
+const isDisabled = ref(false)
+const countdown = ref(0)
+
+function close() {
   emit('update:modelValue', false)
 }
+
+function accept() {
+  isDisabled.value = true
+  countdown.value = 5
+  emit('accept')
+  emit('update:modelValue', false)
+
+  const timer = setInterval(() => {
+    countdown.value--
+    if (countdown.value <= 0) {
+      clearInterval(timer)
+      isDisabled.value = false
+    }
+  }, 1000)
+}
+
+
 </script>
 
 <template>
@@ -77,8 +98,14 @@ function accept() {
           <p>QuickLearn Support<br/>Email: quicklearndev25@gmail.com</p>
         </div>
           <div class="actions">
-            <button class="btn ghost" @click="close">Close</button>
-            <button class="btn primary" @click="accept">I Agree</button>
+            <!-- <button class="btn ghost" @click="close">Close</button> -->
+            <button class="btn primary"
+            @click="accept"
+            :disabled='isDisabled'
+            >
+
+            {{  isDisabled ? `Please wait... ${countdown}s` : 'I Agree' }}
+          </button>
           </div>
         </div>
       </div>
@@ -88,25 +115,83 @@ function accept() {
 </template>
 
 <style scoped>
-.modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: grid; place-items: center; z-index: 3000; }
-.modal { width: 100%; max-width: 640px; background: #fff; border: 1px solid #e6e8ec; border-radius: 12px; padding: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); display: grid; gap: 8px; transform: scale(0.98); opacity: 0.98; }
-.title { margin: 0 0 4px 0; font-size: 20px; }
-.content { max-height: 50vh; overflow: auto; padding-right: 4px; color: #374151; display: grid; gap: 6px; }
-.content h4 { margin: 8px 0 4px; font-size: 15px; color: #111827; }
-.content p { margin: 0; }
-.content ul { margin: 6px 0; padding-left: 18px; }
-.content li { margin: 4px 0; }
-.actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
-.btn { padding: 10px 14px; border-radius: 10px; cursor: pointer; }
-.ghost { background: #fff; border: 1px solid #e6e8ec; }
-.primary { background: linear-gradient(135deg,#667eea 0%,#764ba2 100%); color: #fff; border: none; }
+.modal-backdrop {
+  position: fixed;
+  inset: 0; background: rgba(0,0,0,0.5);
+  display: grid;
+  place-items: center;
+  z-index: 3000;
+}
+.modal { width: 100%;
+  max-width: 640px;
+  background: #fff;
+  border: 1px solid #e6e8ec;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  display: grid;
+  gap: 8px;
+  transform: scale(0.98);
+  opacity: 0.98;
+}
+.title {
+  margin: 0 0 4px 0;
+  font-size: 20px;
+}
+.content {
+  max-height: 50vh;
+  overflow: auto;
+  padding-right: 4px;
+  color: #374151;
+  display: grid;
+  gap: 6px;
+}
+.content h4 {
+  margin: 8px 0 4px;
+  font-size: 15px;
+  color: #111827;
+}
+.content p {
+  margin: 0;
+}
+.content ul {
+  margin: 6px 0;
+  padding-left: 18px;
+}
+.content li {
+  margin: 4px 0;
+}
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+.btn {
+  padding: 10px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.ghost {
+  background: #fff;
+  border: 1px solid #e6e8ec;
+}
+.primary {
+  background: linear-gradient(135deg,#667eea 0%,#764ba2 100%);
+  color: #fff;
+  border: none;
+}
 
 /* Fade + pop animation */
-.pp-fade-enter-active, .pp-fade-leave-active { transition: opacity 180ms ease, transform 180ms ease; }
-.pp-fade-enter-from, .pp-fade-leave-to { opacity: 0; }
-.pp-fade-enter-from .modal, .pp-fade-leave-to .modal { transform: scale(0.96); opacity: 0; }
-
-/* Dark mode styles are now in global styles.css */
+.pp-fade-enter-active, .pp-fade-leave-active {
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+.pp-fade-enter-from, .pp-fade-leave-to {
+  opacity: 0;
+}
+.pp-fade-enter-from .modal, .pp-fade-leave-to .modal {
+  transform: scale(0.96); opacity: 0;
+}
 </style>
 
 

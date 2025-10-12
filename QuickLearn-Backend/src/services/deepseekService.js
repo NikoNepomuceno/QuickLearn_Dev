@@ -94,6 +94,8 @@ class DeepSeekService {
     buildQuizPrompt(text, options) {
         const { numQuestions, difficulty, questionTypes, focusAreas } = options;
         
+        console.log('Building prompt with question types:', questionTypes);
+        
         let prompt = `Please analyze the following text and create ${numQuestions} high-quality quiz questions.
 
 TEXT TO ANALYZE:
@@ -124,6 +126,24 @@ OUTPUT FORMAT (JSON):
       "explanation": "Why this answer is correct",
       "difficulty": "easy|medium|hard",
       "topic": "Main topic this question covers"
+    },
+    {
+      "id": 2,
+      "type": "identification",
+      "question": "What is the capital of France?",
+      "answer": "Paris",
+      "explanation": "Paris is the capital and largest city of France.",
+      "difficulty": "easy|medium|hard",
+      "topic": "Geography"
+    },
+    {
+      "id": 3,
+      "type": "enumeration",
+      "question": "Name three primary colors.",
+      "answer": ["Red", "Blue", "Yellow"],
+      "explanation": "The three primary colors are red, blue, and yellow.",
+      "difficulty": "easy|medium|hard",
+      "topic": "Art"
     }
   ]
 }
@@ -139,12 +159,16 @@ Please ensure the JSON is valid and properly formatted.`;
 
     parseQuizResponse(aiResponse, originalText, desiredCount = 5) {
         try {
+            console.log('AI Response received, length:', aiResponse.length);
+            console.log('First 500 chars of AI response:', aiResponse.substring(0, 500));
+            
             // Normalize common wrappers (remove code fences, stray commentary)
             let content = aiResponse.trim();
             content = content.replace(/^```json\s*|^```\s*|\s*```$/gmi, '');
             // Try full parse first
             try {
                 const parsed = JSON.parse(content);
+                console.log('Successfully parsed JSON, questions count:', parsed.questions?.length);
                 return this.validateAndCleanQuiz(parsed, originalText, desiredCount);
             } catch {}
 
@@ -172,16 +196,23 @@ Please ensure the JSON is valid and properly formatted.`;
         if (quizData.questions && Array.isArray(quizData.questions)) {
             quizData.questions.forEach((q, index) => {
                 if (this.isValidQuestion(q)) {
-                    cleanedQuiz.questions.push({
+                    const questionType = q.type || 'multiple_choice';
+                    const baseQuestion = {
                         id: index + 1,
-                        type: q.type || 'multiple_choice',
+                        type: questionType,
                         question: q.question || '',
-                        choices: q.choices || [],
                         answer: q.answer || '',
                         explanation: q.explanation || 'No explanation provided',
                         difficulty: q.difficulty || 'medium',
                         topic: q.topic || 'General'
-                    });
+                    };
+
+                    // Add choices only for multiple choice and true/false questions
+                    if (questionType === 'multiple_choice' || questionType === 'true_false') {
+                        baseQuestion.choices = q.choices || [];
+                    }
+
+                    cleanedQuiz.questions.push(baseQuestion);
                 }
             });
         }
@@ -203,18 +234,39 @@ Please ensure the JSON is valid and properly formatted.`;
     }
 
     isValidQuestion(question) {
-        return question &&
-               question.question &&
-               question.question.trim().length > 10 &&
-               question.choices &&
-               Array.isArray(question.choices) &&
-               question.choices.length >= 2 &&
-               question.answer &&
-               question.choices.includes(question.answer);
+        if (!question || !question.question || question.question.trim().length <= 10) {
+            return false;
+        }
+
+        const questionType = question.type || 'multiple_choice';
+        
+        switch (questionType) {
+            case 'multiple_choice':
+            case 'true_false':
+                return question.choices &&
+                       Array.isArray(question.choices) &&
+                       question.choices.length >= 2 &&
+                       question.answer &&
+                       question.choices.includes(question.answer);
+            
+            case 'identification':
+                return question.answer &&
+                       typeof question.answer === 'string' &&
+                       question.answer.trim().length > 0;
+            
+            case 'enumeration':
+                return question.answer &&
+                       Array.isArray(question.answer) &&
+                       question.answer.length > 0 &&
+                       question.answer.every(item => typeof item === 'string' && item.trim().length > 0);
+            
+            default:
+                return false;
+        }
     }
 
     createFallbackQuiz(text, desiredCount = 5) {
-        // Simple fallback quiz generation
+        // Simple fallback quiz generation with variety
         const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 20);
         const questions = [];
         const words = text.toLowerCase().match(/\b\w{4,}\b/g) || [];
@@ -231,14 +283,14 @@ Please ensure the JSON is valid and properly formatted.`;
             .slice(0, 10)
             .map(([word]) => word);
 
-        // Generate questions based on content
-        const limit = Math.max(1, Math.min(desiredCount - 1, sentences.length));
-        for (let i = 0; i < limit; i++) {
-            const sentence = sentences[i].trim();
-            if (sentence.length > 30) {
-                const words = sentence.split(' ');
-                const keyWord = words.find(w => w.length > 4) || words[Math.floor(words.length/2)];
-                
+        // Generate questions with variety from the start
+        for (let i = 0; i < desiredCount; i++) {
+            const questionType = i % 4; // Cycle through different types
+            const sentence = sentences[i % sentences.length] || sentences[0];
+            
+            if (questionType === 0) {
+                // Multiple choice
+                const keyWord = sentence.split(' ').find(w => w.length > 4) || 'content';
                 questions.push({
                     id: i + 1,
                     type: 'multiple_choice',
@@ -254,42 +306,45 @@ Please ensure the JSON is valid and properly formatted.`;
                     difficulty: 'easy',
                     topic: 'Content Analysis'
                 });
+            } else if (questionType === 1) {
+                // True/False
+                questions.push({
+                    id: i + 1,
+                    type: 'true_false',
+                    question: 'The uploaded text discusses a key concept in detail.',
+                    choices: ['True', 'False'],
+                    answer: 'True',
+                    explanation: 'Based on the provided content analysis.',
+                    difficulty: 'easy',
+                    topic: 'General'
+                });
+            } else if (questionType === 2) {
+                // Identification (fill-in-the-blank)
+                const keyWord = sentence.split(' ').find(w => w.length > 4) || 'content';
+                questions.push({
+                    id: i + 1,
+                    type: 'identification',
+                    question: `What is the main topic discussed in: "${sentence.substring(0, 50)}..."?`,
+                    answer: keyWord,
+                    explanation: `The main topic appears to be related to ${keyWord}.`,
+                    difficulty: 'easy',
+                    topic: 'Content Analysis'
+                });
+            } else {
+                // Enumeration
+                const keyWords = sentence.split(' ').filter(w => w.length > 4).slice(0, 3);
+                questions.push({
+                    id: i + 1,
+                    type: 'enumeration',
+                    question: `Name key concepts mentioned in: "${sentence.substring(0, 50)}..."`,
+                    answer: keyWords.length > 0 ? keyWords : ['Learning', 'Education'],
+                    explanation: 'These are key concepts found in the content.',
+                    difficulty: 'easy',
+                    topic: 'Content Analysis'
+                });
             }
         }
 
-        // Add a question about key terms if we have them
-        if (topWords.length > 0 && questions.length < desiredCount) {
-            questions.push({
-                id: questions.length + 1,
-                type: 'multiple_choice',
-                question: `Which of these terms appears most frequently in the content?`,
-                choices: [
-                    topWords[0],
-                    topWords[1] || 'Alternative term',
-                    topWords[2] || 'Different term',
-                    'None of the above'
-                ],
-                answer: topWords[0],
-                explanation: `The term "${topWords[0]}" appears most frequently in the content.`,
-                difficulty: 'medium',
-                topic: 'Content Analysis'
-            });
-        }
-
-        // Pad if still short: create simple true/false style questions
-        while (questions.length < desiredCount) {
-            const id = questions.length + 1;
-            questions.push({
-                id,
-                type: 'true_false',
-                question: 'The uploaded text discusses a key concept in detail.',
-                choices: ['True', 'False'],
-                answer: 'True',
-                explanation: 'Based on the provided content analysis.',
-                difficulty: 'easy',
-                topic: 'General'
-            });
-        }
 
         return {
             title: 'Content-Based Quiz',
@@ -326,7 +381,7 @@ ${text.substring(0, 10000)} ${text.length > 10000 ? '...[truncated]' : ''}
 Create ${numQuestions} questions with these specifications:
 - Difficulty: ${difficulty}
 - Include reasoning questions: ${includeReasoning}
-- Mix of question types: multiple choice, true/false, fill-in-blank
+- Mix of question types: multiple choice, true/false, identification (fill-in-blank), enumeration
 - Test both factual knowledge and conceptual understanding
 - Ensure questions are fair and unambiguous
 - Provide detailed explanations
@@ -345,10 +400,10 @@ Return as valid JSON with this structure:
   "questions": [
     {
       "id": 1,
-      "type": "multiple_choice|true_false|fill_blank",
+      "type": "multiple_choice|true_false|identification|enumeration",
       "question": "Question text",
-      "choices": ["A", "B", "C", "D"] (for multiple choice),
-      "answer": "Correct answer",
+      "choices": ["A", "B", "C", "D"] (for multiple choice and true/false only),
+      "answer": "Correct answer" (string for identification, array for enumeration),
       "explanation": "Detailed explanation",
       "difficulty": "easy|medium|hard",
       "topic": "Topic name",

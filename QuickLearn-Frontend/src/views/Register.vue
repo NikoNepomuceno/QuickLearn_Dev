@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { registerUser, verifyEmail, resendOtp } from '../services/authService'
 import PrivacyPolicyModal from '../components/PrivacyPolicyModal.vue'
-import { ArrowLeft, User, Mail, Lock, UserPlus, Shield } from 'lucide-vue-next'
+import { ArrowLeft, User, Mail, Lock, UserPlus } from 'lucide-vue-next'
 
 const router = useRouter()
 const route = useRoute()
@@ -228,7 +228,7 @@ if (route.query.pp === '1') {
             <input id="pp-accept" v-model="acceptedPrivacy" type="checkbox" required />
           </div>
           <div class="pp-text">
-            <Shield class="pp-icon" :size="16" />
+            <!-- <Shield class="pp-icon" :size="16" /> -->
             <span>I agree to the</span>
             <button type="button" class="link inline" @click="showPrivacy = true">Privacy Policy</button>
           </div>

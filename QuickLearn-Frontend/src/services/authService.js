@@ -93,7 +93,9 @@ export function clearLegacyTokens() {
   try {
     localStorage.removeItem('accessToken')
     localStorage.removeItem('refreshToken')
-  } catch {}
+  } catch (error) {
+    console.warn('Failed to clear tokens!', error)
+  }
 }
 
 // Token management for API requests

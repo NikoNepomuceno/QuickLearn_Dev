@@ -15,7 +15,9 @@ function requestLogout() {
 async function confirmLogout() {
   try {
     await logoutUser({})
-  } catch {}
+  } catch (error) {
+    console.warn('Unable to Log User Out', error)
+  }
   clearLegacyTokens()
   window.$toast?.success('Logged out successfully')
   router.replace('/login')
