@@ -11,13 +11,13 @@ async function testQuestionTypes() {
     console.log('Testing question type generation...\n');
 
     try {
-        console.log('Requested question types:', ['multiple_choice', 'true_false', 'identification', 'enumeration']);
+        console.log('Requested question types:', ['identification']);
         
-        // Test with specific question types
+        // Test with ONLY identification questions
         const quiz = await deepSeekService.generateQuizFromText(sampleText, {
             numQuestions: 6,
             difficulty: 'medium',
-            questionTypes: ['multiple_choice', 'true_false', 'identification', 'enumeration']
+            questionTypes: ['identification']
         });
 
         console.log('\nGenerated Quiz:');

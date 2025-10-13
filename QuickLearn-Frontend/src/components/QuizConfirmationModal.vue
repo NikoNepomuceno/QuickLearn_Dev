@@ -7,12 +7,12 @@ const emit = defineEmits(['close', 'takeQuiz', 'downloadQuiz', 'shareQuiz'])
 const props = defineProps({
   quiz: {
     type: Object,
-    required: true
+    required: true,
   },
   isVisible: {
     type: Boolean,
-    default: false
-  }
+    default: false,
+  },
 })
 
 function handleTakeQuiz() {
@@ -281,6 +281,88 @@ function handleClose() {
   opacity: 0.9;
 }
 
+/* Responsive design */
+@media (max-width: 768px) {
+  .modal-content {
+    max-width: calc(100vw - 32px);
+    margin: 16px;
+  }
+
+  .modal-header {
+    padding: 16px 16px 0;
+  }
+
+  .modal-header h2 {
+    font-size: 20px;
+  }
+
+  .modal-body {
+    padding: 0 16px 16px;
+  }
+
+  .quiz-info h3 {
+    font-size: 18px;
+  }
+
+  .description {
+    font-size: 14px;
+  }
+
+  .quiz-stats {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .action-buttons {
+    gap: 8px;
+  }
+
+  .action-btn {
+    padding: 12px 16px;
+    flex-direction: column;
+    text-align: center;
+    gap: 8px;
+  }
+
+  .text {
+    gap: 4px;
+  }
+
+  .text strong {
+    font-size: 14px;
+  }
+
+  .text small {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .modal-content {
+    max-width: calc(100vw - 16px);
+    margin: 8px;
+  }
+
+  .modal-header {
+    padding: 12px 12px 0;
+  }
+
+  .modal-header h2 {
+    font-size: 18px;
+  }
+
+  .modal-body {
+    padding: 0 12px 12px;
+  }
+
+  .action-btn {
+    padding: 10px 12px;
+  }
+
+  .icon {
+    min-width: 20px;
+  }
+}
+
 /* Dark mode styles are now in global styles.css */
 </style>
-

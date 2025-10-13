@@ -50,7 +50,7 @@ defineEmits(['dismiss'])
   font-size: 16px;
 }
 
-/* Dark mode styles are now in global styles.css */
+
 </style>
 
 

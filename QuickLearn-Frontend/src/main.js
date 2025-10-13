@@ -4,6 +4,7 @@ import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
 import './styles.css'
+import BeatLoader from './components/BeatLoader.vue'
 
 // One-time cleanup of legacy token storage from older builds
 try {
@@ -44,5 +45,8 @@ const app = createApp(App)
 
 app.use(createPinia())
 app.use(router)
+
+// Register BeatLoader globally
+app.component('BeatLoader', BeatLoader)
 
 app.mount('#app')

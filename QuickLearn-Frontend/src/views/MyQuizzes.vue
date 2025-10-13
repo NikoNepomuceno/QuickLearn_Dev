@@ -4,7 +4,17 @@ import Sidebar from '../components/Sidebar.vue'
 import { downloadQuizAsPDF } from '../services/quizService'
 import cloudQuizService from '../services/cloudQuizService'
 import { useRouter } from 'vue-router'
-import { FolderOpen, Plus, MoreVertical, Share2, Download, Play, BarChart3, FileText, Trash2 } from 'lucide-vue-next'
+import {
+  FolderOpen,
+  Plus,
+  MoreVertical,
+  Share2,
+  Download,
+  Play,
+  BarChart3,
+  FileText,
+  Trash2,
+} from 'lucide-vue-next'
 
 const router = useRouter()
 const quizzes = ref([])
@@ -114,11 +124,16 @@ function formatFileSize(bytes) {
 
 function getFileIcon(fileType) {
   switch (fileType?.toLowerCase()) {
-    case 'pdf': return '📕'
-    case 'docx': return '📘'
-    case 'doc': return '📘'
-    case 'txt': return '📄'
-    default: return '📄'
+    case 'pdf':
+      return '📕'
+    case 'docx':
+      return '📘'
+    case 'doc':
+      return '📘'
+    case 'txt':
+      return '📄'
+    default:
+      return '📄'
   }
 }
 </script>
@@ -134,8 +149,12 @@ function getFileIcon(fileType) {
 
       <!-- Loading State -->
       <div v-if="isLoading" class="loading">
-        <div class="loading-spinner"></div>
-        <p>Loading your quizzes...</p>
+        <BeatLoader 
+          :loading="true" 
+          text="Loading your quizzes..." 
+          color="#667eea"
+          size="20px"
+        />
       </div>
 
       <!-- Error State -->
@@ -146,9 +165,7 @@ function getFileIcon(fileType) {
           </div>
           <div class="title">Failed to load quizzes</div>
           <div class="hint">{{ error }}</div>
-          <button class="primary" @click="loadQuizzes">
-            Try Again
-          </button>
+          <button class="primary" @click="loadQuizzes">Try Again</button>
         </div>
       </div>
 
@@ -214,7 +231,7 @@ function getFileIcon(fileType) {
               class="bar-fill"
               :style="{
                 width: (cloudQuizService.getQuizSummary(quiz).lastScore ?? 0) + '%',
-                background: getBarColor(cloudQuizService.getQuizSummary(quiz).lastScore)
+                background: getBarColor(cloudQuizService.getQuizSummary(quiz).lastScore),
               }"
             ></div>
           </div>
@@ -223,7 +240,9 @@ function getFileIcon(fileType) {
               Last score: {{ cloudQuizService.getQuizSummary(quiz).lastScore }}%
             </span>
             <span v-else class="score none">Not taken yet</span>
-            <span class="attempts">Attempts: {{ cloudQuizService.getQuizSummary(quiz).attemptsCount }}</span>
+            <span class="attempts"
+              >Attempts: {{ cloudQuizService.getQuizSummary(quiz).attemptsCount }}</span
+            >
           </div>
 
           <div class="actions">
@@ -244,7 +263,6 @@ function getFileIcon(fileType) {
       </div>
     </div>
   </div>
-
 </template>
 
 <style scoped>
@@ -264,8 +282,13 @@ function getFileIcon(fileType) {
   }
 }
 
-.header h1 { margin: 0 0 6px; }
-.subtitle { color: #6b7280; margin: 0 0 20px; }
+.header h1 {
+  margin: 0 0 6px;
+}
+.subtitle {
+  color: #6b7280;
+  margin: 0 0 20px;
+}
 
 /* Loading State */
 .loading {
@@ -277,41 +300,79 @@ function getFileIcon(fileType) {
   color: #6b7280;
 }
 
-.loading-spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid #e5e7eb;
-  border-top: 3px solid #667eea;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 16px;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
+/* BeatLoader handles its own styling */
 
 /* Empty and Error States */
-.empty, .error { display: flex; justify-content: center; padding: 60px 0; }
-.empty-card, .error-card { text-align: center; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; width: 520px; }
-.empty-card .icon, .error-card .icon {
+.empty,
+.error {
+  display: flex;
+  justify-content: center;
+  padding: 60px 0;
+}
+.empty-card,
+.error-card {
+  text-align: center;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 32px;
+  width: 520px;
+}
+.empty-card .icon,
+.error-card .icon {
   color: #9ca3af;
   margin-bottom: 16px;
   display: flex;
   justify-content: center;
 }
-.empty-card .title, .error-card .title { font-weight: 700; color: #1f2937; margin-bottom: 6px; }
-.empty-card .hint, .error-card .hint { color: #6b7280; margin-bottom: 16px; }
+.empty-card .title,
+.error-card .title {
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 6px;
+}
+.empty-card .hint,
+.error-card .hint {
+  color: #6b7280;
+  margin-bottom: 16px;
+}
 
-.grid { display: flex; flex-wrap: wrap; gap: 16px; }
-.card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; box-shadow: 0 6px 18px rgba(0,0,0,0.03); display: flex; flex-direction: column; flex: 0 0 320px; min-width: 320px; }
+.grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.03);
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 320px;
+  min-width: 320px;
+}
 
-.row { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
-.meta .name { font-weight: 700; color: #111827; }
-.meta .desc { color: #6b7280; font-size: 13px; margin-top: 4px; }
+.row {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.meta .name {
+  font-weight: 700;
+  color: #111827;
+}
+.meta .desc {
+  color: #6b7280;
+  font-size: 13px;
+  margin-top: 4px;
+}
 
-.menu { position: relative; }
+.menu {
+  position: relative;
+}
 .icon-btn {
   background: #f3f4f6;
   border: 1px solid #e5e7eb;
@@ -328,7 +389,19 @@ function getFileIcon(fileType) {
   transform: scale(1.05);
 }
 
-.dropdown { position: absolute; right: 0; margin-top: 8px; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; box-shadow: 0 8px 20px rgba(0,0,0,0.08); display: flex; flex-direction: column; min-width: 140px; z-index: 10; }
+.dropdown {
+  position: absolute;
+  right: 0;
+  margin-top: 8px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+  z-index: 10;
+}
 .dropdown-item {
   background: transparent;
   border: none;
@@ -342,9 +415,17 @@ function getFileIcon(fileType) {
   gap: 8px;
   transition: all 0.2s ease;
 }
-.dropdown-item:hover { background: #f8faff; color: #4338ca; }
-.dropdown-item.danger { color: #dc2626; }
-.dropdown-item.danger:hover { background: #fef2f2; color: #dc2626; }
+.dropdown-item:hover {
+  background: #f8faff;
+  color: #4338ca;
+}
+.dropdown-item.danger {
+  color: #dc2626;
+}
+.dropdown-item.danger:hover {
+  background: #fef2f2;
+  color: #dc2626;
+}
 
 /* File Information */
 .file-info {
@@ -383,14 +464,42 @@ function getFileIcon(fileType) {
   margin-top: 2px;
 }
 
-.progress { position: relative; height: 10px; border-radius: 6px; margin: 14px 0 6px; }
-.bar-bg { position: absolute; inset: 0; background: #e5e7eb; border-radius: 6px; }
-.bar-fill { position: absolute; inset: 0; width: 0; border-radius: 6px; transition: width .3s ease; }
+.progress {
+  position: relative;
+  height: 10px;
+  border-radius: 6px;
+  margin: 14px 0 6px;
+}
+.bar-bg {
+  position: absolute;
+  inset: 0;
+  background: #e5e7eb;
+  border-radius: 6px;
+}
+.bar-fill {
+  position: absolute;
+  inset: 0;
+  width: 0;
+  border-radius: 6px;
+  transition: width 0.3s ease;
+}
 
-.progress-meta { display: flex; justify-content: space-between; color: #6b7280; font-size: 12px; margin-bottom: 8px; }
-.score.none { font-style: italic; }
+.progress-meta {
+  display: flex;
+  justify-content: space-between;
+  color: #6b7280;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.score.none {
+  font-style: italic;
+}
 
-.actions { display: flex; gap: 8px; margin-top: auto; }
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+}
 .primary {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: #fff;
@@ -406,7 +515,7 @@ function getFileIcon(fileType) {
 }
 .primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(102,126,234,0.3);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
 }
 
 .secondary {
@@ -427,9 +536,77 @@ function getFileIcon(fileType) {
   transform: translateY(-1px);
 }
 
-@media (max-width: 900px) {
-  .layout { grid-template-columns: 1fr; }
-  .content { padding: 16px; }
+@media (max-width: 1024px) {
+  .content {
+    padding-bottom: 120px; /* Add space for floating sidebar */
+  }
+}
+
+@media (max-width: 768px) {
+  .content {
+    padding: 16px;
+    padding-bottom: 100px;
+  }
+
+  .header h1 {
+    font-size: 24px;
+  }
+
+  .subtitle {
+    font-size: 14px;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .card {
+    flex: 1 1 100%;
+    min-width: auto;
+    padding: 16px;
+  }
+
+  .actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .primary,
+  .secondary {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .content {
+    padding: 12px;
+    padding-bottom: 80px;
+  }
+
+  .header h1 {
+    font-size: 20px;
+  }
+
+  .card {
+    padding: 12px;
+  }
+
+  .file-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .file-details {
+    width: 100%;
+  }
+
+  .dropdown {
+    right: -10px;
+    min-width: 120px;
+  }
 }
 
 /* Dark mode styles */
@@ -461,7 +638,7 @@ body.dark .empty-card .hint {
 body.dark .card {
   background: #0f172a;
   border-color: #1f2a44;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.2);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
 }
 
 body.dark .meta .name {
@@ -485,7 +662,7 @@ body.dark .icon-btn:hover {
 body.dark .dropdown {
   background: #0f172a;
   border-color: #1f2a44;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
 }
 
 body.dark .dropdown-item {
@@ -516,8 +693,6 @@ body.dark .secondary:hover {
 }
 
 body.dark .primary {
-  box-shadow: 0 4px 12px rgba(102,126,234,0.4);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 </style>
-
-

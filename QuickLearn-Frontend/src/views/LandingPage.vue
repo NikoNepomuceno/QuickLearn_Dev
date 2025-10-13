@@ -16,7 +16,9 @@ const toggleMenu = () => {
 }
 
 // function goLogin() { router.push('/login') }
-function goRegister() { router.push({ path: '/register', query: { pp: '1' } }) }
+function goRegister() {
+  router.push({ path: '/register', query: { pp: '1' } })
+}
 function onAcceptPrivacy() {}
 </script>
 
@@ -52,16 +54,12 @@ function onAcceptPrivacy() {}
             <span class="gradient-text">QuickLearn</span>
           </h1>
           <p class="hero-subtitle">
-            Create accurate study materials from your course content in seconds.
-            Upload any document and get instant quizzes, flashcards, and personalized study tools powered by AI.
+            Create accurate study materials from your course content in seconds. Upload any document
+            and get instant quizzes, flashcards, and personalized study tools powered by AI.
           </p>
           <div class="hero-actions">
-            <button class="btn-primary" @click="goRegister">
-              Try For Free
-            </button>
-            <button class="btn-secondary">
-              Watch Demo
-            </button>
+            <button class="btn-primary" @click="goRegister">Try For Free</button>
+            <button class="btn-secondary">Watch Demo</button>
           </div>
           <div class="hero-stats">
             <div class="stat">
@@ -129,32 +127,50 @@ function onAcceptPrivacy() {}
           <div class="feature-card">
             <div class="feature-icon">⚡</div>
             <h3>Instant Study Sets</h3>
-            <p>Convert your notes, videos, and presentations into flashcards, quizzes, and personalized chat assistance with a single click.</p>
+            <p>
+              Convert your notes, videos, and presentations into flashcards, quizzes, and
+              personalized chat assistance with a single click.
+            </p>
           </div>
           <div class="feature-card">
             <div class="feature-icon">🤖</div>
             <h3>AI-Powered Analysis</h3>
-            <p>Our advanced AI understands your content and creates relevant, accurate study materials tailored to your learning needs.</p>
+            <p>
+              Our advanced AI understands your content and creates relevant, accurate study
+              materials tailored to your learning needs.
+            </p>
           </div>
           <div class="feature-card">
             <div class="feature-icon">📊</div>
             <h3>Progress Tracking</h3>
-            <p>Track your learning progress with detailed analytics and insights into your strengths and areas for improvement.</p>
+            <p>
+              Track your learning progress with detailed analytics and insights into your strengths
+              and areas for improvement.
+            </p>
           </div>
           <div class="feature-card">
             <div class="feature-icon">🎯</div>
             <h3>Personalized Learning</h3>
-            <p>Get study recommendations and adaptive quizzes that adjust to your learning pace and style.</p>
+            <p>
+              Get study recommendations and adaptive quizzes that adjust to your learning pace and
+              style.
+            </p>
           </div>
           <div class="feature-card">
             <div class="feature-icon">📚</div>
             <h3>Multiple Formats</h3>
-            <p>Support for PDF, Word documents, and text files. Upload any educational content and get instant results.</p>
+            <p>
+              Support for PDF, Word documents, and text files. Upload any educational content and
+              get instant results.
+            </p>
           </div>
           <div class="feature-card">
             <div class="feature-icon">⏱️</div>
             <h3>Save Time</h3>
-            <p>Reduce study time by 30% with our efficient learning tools and smart content organization.</p>
+            <p>
+              Reduce study time by 30% with our efficient learning tools and smart content
+              organization.
+            </p>
           </div>
         </div>
       </div>
@@ -179,14 +195,19 @@ function onAcceptPrivacy() {}
             <div class="step-number">2</div>
             <div class="step-content">
               <h3>AI Analysis</h3>
-              <p>Our AI analyzes your content and identifies key concepts, facts, and learning objectives.</p>
+              <p>
+                Our AI analyzes your content and identifies key concepts, facts, and learning
+                objectives.
+              </p>
             </div>
           </div>
           <div class="step">
             <div class="step-number">3</div>
             <div class="step-content">
               <h3>Study & Learn</h3>
-              <p>Get instant access to quizzes, flashcards, and summaries tailored to your content.</p>
+              <p>
+                Get instant access to quizzes, flashcards, and summaries tailored to your content.
+              </p>
             </div>
           </div>
         </div>
@@ -203,7 +224,10 @@ function onAcceptPrivacy() {}
         <div class="testimonials-grid">
           <div class="testimonial">
             <div class="testimonial-content">
-              <p>"QuickLearn saved me hours of study time. I uploaded my textbook chapters and got perfect quiz questions in seconds!"</p>
+              <p>
+                "QuickLearn saved me hours of study time. I uploaded my textbook chapters and got
+                perfect quiz questions in seconds!"
+              </p>
             </div>
             <div class="testimonial-author">
               <div class="author-avatar">👩‍🎓</div>
@@ -215,7 +239,10 @@ function onAcceptPrivacy() {}
           </div>
           <div class="testimonial">
             <div class="testimonial-content">
-              <p>"The AI-generated flashcards are incredibly accurate. My test scores improved by 20 points this semester!"</p>
+              <p>
+                "The AI-generated flashcards are incredibly accurate. My test scores improved by 20
+                points this semester!"
+              </p>
             </div>
             <div class="testimonial-author">
               <div class="author-avatar">👨‍🎓</div>
@@ -227,7 +254,10 @@ function onAcceptPrivacy() {}
           </div>
           <div class="testimonial">
             <div class="testimonial-content">
-              <p>"Finally, a tool that actually understands my course material. The summaries are spot-on and the quizzes are challenging but fair."</p>
+              <p>
+                "Finally, a tool that actually understands my course material. The summaries are
+                spot-on and the quizzes are challenging but fair."
+              </p>
             </div>
             <div class="testimonial-author">
               <div class="author-avatar">👩‍🎓</div>
@@ -247,9 +277,7 @@ function onAcceptPrivacy() {}
         <div class="cta-content">
           <h2>Ready to Transform Your Learning?</h2>
           <p>Join thousands of students who are already studying smarter with QuickLearn</p>
-          <button class="btn-primary large" @click="navigateToUpload">
-            Start Learning Now
-          </button>
+          <button class="btn-primary large" @click="navigateToUpload">Start Learning Now</button>
         </div>
       </div>
     </section>
@@ -297,7 +325,8 @@ function onAcceptPrivacy() {}
 }
 
 .landing-page {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   line-height: 1.6;
   color: #333;
 }
@@ -563,8 +592,13 @@ body.dark .demo-card {
 }
 
 @keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-20px); }
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-20px);
+  }
 }
 
 .demo-header {
@@ -698,8 +732,12 @@ body.dark .processing p {
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .results {
@@ -1115,26 +1153,270 @@ body.dark .author-info span {
 }
 
 @media (max-width: 480px) {
+  .container {
+    padding: 0 12px;
+  }
+
+  .nav-container {
+    padding: 0 12px;
+    height: 60px;
+  }
+
+  .nav-logo h2 {
+    font-size: 20px;
+  }
+
+  .hero {
+    padding: 80px 0 60px;
+    min-height: 90vh;
+  }
+
+  .hero-container {
+    flex-direction: column;
+    gap: 30px;
+    text-align: center;
+  }
+
   .hero-title {
-    font-size: 2rem;
+    font-size: 1.75rem;
+    line-height: 1.3;
   }
 
   .hero-subtitle {
-    font-size: 1.1rem;
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+
+  .hero-actions {
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
   }
 
   .btn-primary,
   .btn-secondary {
     padding: 12px 24px;
     font-size: 1rem;
+    width: 100%;
+    max-width: 280px;
+  }
+
+  .hero-stats {
+    flex-direction: column;
+    gap: 20px;
+    align-items: center;
+  }
+
+  .stat {
+    text-align: center;
+  }
+
+  .stat-number {
+    font-size: 1.5rem;
+  }
+
+  .demo-card {
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .demo-header {
+    width: 100%;
+    padding: 12px 16px;
+  }
+
+  .demo-content {
+    padding: 20px 16px;
+  }
+
+  .upload-area {
+    padding: 16px;
+  }
+
+  .upload-icon {
+    font-size: 1.5rem;
+  }
+
+  .upload-area p {
+    font-size: 14px;
+  }
+
+  .file-types {
+    font-size: 12px;
+  }
+
+  .processing {
+    padding: 16px;
+  }
+
+  .spinner {
+    width: 24px;
+    height: 24px;
+  }
+
+  .results {
+    gap: 8px;
+  }
+
+  .result-item {
+    padding: 8px;
+    font-size: 14px;
+  }
+
+  .result-icon {
+    font-size: 1rem;
+  }
+
+  .features {
+    padding: 60px 0;
   }
 
   .section-header h2 {
+    font-size: 1.75rem;
+  }
+
+  .section-header p {
+    font-size: 1rem;
+  }
+
+  .features-grid {
+    gap: 20px;
+  }
+
+  .feature-card {
+    padding: 24px 20px;
+    flex: 1 1 100%;
+    min-width: auto;
+  }
+
+  .feature-icon {
     font-size: 2rem;
+    margin-bottom: 16px;
+  }
+
+  .feature-card h3 {
+    font-size: 1.25rem;
+    margin-bottom: 12px;
+  }
+
+  .feature-card p {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .how-it-works {
+    padding: 60px 0;
+  }
+
+  .steps {
+    gap: 30px;
+  }
+
+  .step {
+    padding: 30px 16px;
+    flex: 1 1 100%;
+    min-width: auto;
+  }
+
+  .step-number {
+    width: 60px;
+    height: 60px;
+    font-size: 1.5rem;
+    margin-bottom: 20px;
+  }
+
+  .step h3 {
+    font-size: 1.25rem;
+    margin-bottom: 12px;
+  }
+
+  .step p {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .testimonials {
+    padding: 60px 0;
+  }
+
+  .testimonials-grid {
+    gap: 20px;
+  }
+
+  .testimonial {
+    padding: 24px 20px;
+    flex: 1 1 100%;
+    min-width: auto;
+  }
+
+  .testimonial-content p {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .author-avatar {
+    width: 40px;
+    height: 40px;
+    font-size: 1.25rem;
+  }
+
+  .author-info h4 {
+    font-size: 14px;
+    margin-bottom: 2px;
+  }
+
+  .author-info span {
+    font-size: 12px;
+  }
+
+  .cta {
+    padding: 60px 0;
   }
 
   .cta-content h2 {
-    font-size: 2rem;
+    font-size: 1.75rem;
+  }
+
+  .cta-content p {
+    font-size: 1rem;
+    margin-bottom: 24px;
+  }
+
+  .btn-primary.large {
+    padding: 16px 32px;
+    font-size: 1.1rem;
+  }
+
+  .footer {
+    padding: 40px 0 16px;
+  }
+
+  .footer-content {
+    flex-direction: column;
+    gap: 24px;
+    text-align: center;
+  }
+
+  .footer-section h3 {
+    font-size: 1.25rem;
+    margin-bottom: 12px;
+  }
+
+  .footer-section h4 {
+    font-size: 1rem;
+    margin-bottom: 12px;
+  }
+
+  .footer-section p {
+    font-size: 14px;
+  }
+
+  .footer-section ul li {
+    margin-bottom: 6px;
+  }
+
+  .footer-section ul li a {
+    font-size: 14px;
   }
 }
 </style>

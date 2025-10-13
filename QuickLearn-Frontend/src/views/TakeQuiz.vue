@@ -10,6 +10,7 @@ const route = useRoute()
 const quiz = ref(null)
 const currentQuestionIndex = ref(0)
 const answers = ref({})
+const enumerationAnswers = ref({}) // For enumeration questions
 const isSubmitted = ref(false)
 const showResults = ref(false)
 const timeElapsed = ref(0)
@@ -25,14 +26,106 @@ const totalQuestions = computed(() => {
 })
 
 const progress = computed(() => {
-  return totalQuestions.value > 0 ? ((currentQuestionIndex.value + 1) / totalQuestions.value) * 100 : 0
+  return totalQuestions.value > 0
+    ? ((currentQuestionIndex.value + 1) / totalQuestions.value) * 100
+    : 0
 })
+
+// Helper function to check if answers match (case-insensitive and flexible)
+function isAnswerCorrect(userAnswer, correctAnswer, questionType) {
+  if (!userAnswer || !correctAnswer) return false
+
+  // Handle different question types
+  if (questionType === 'enumeration') {
+    // For enumeration, both should be arrays
+    if (!Array.isArray(userAnswer) || !Array.isArray(correctAnswer)) return false
+
+    // Normalize both arrays (trim, lowercase)
+    const normalizedUser = userAnswer
+      .map((item) => item.toString().trim().toLowerCase())
+      .filter((item) => item)
+    const normalizedCorrect = correctAnswer
+      .map((item) => item.toString().trim().toLowerCase())
+      .filter((item) => item)
+
+    // Check if all correct answers are present in user answer (order doesn't matter)
+    // Also handle variations for each item
+    return normalizedCorrect.every((correctItem) => {
+      // Direct match
+      if (normalizedUser.includes(correctItem)) return true
+
+      // Check variations for this specific item
+      const itemVariations = {
+        javascript: ['js', 'javascript', 'ecmascript'],
+        js: ['javascript', 'js', 'ecmascript'],
+        html: ['hypertext markup language', 'html'],
+        css: ['cascading style sheets', 'css'],
+        dom: ['document object model', 'dom'],
+        api: ['application programming interface', 'api'],
+      }
+
+      if (itemVariations[correctItem]) {
+        return itemVariations[correctItem].some((variation) => normalizedUser.includes(variation))
+      }
+
+      return false
+    })
+  } else {
+    // For other question types (multiple_choice, true_false, identification)
+    const normalizedUser = userAnswer.toString().trim().toLowerCase()
+    const normalizedCorrect = correctAnswer.toString().trim().toLowerCase()
+
+    // Direct match
+    if (normalizedUser === normalizedCorrect) return true
+
+    // Handle common variations
+    const variations = {
+      dom: ['document object model', 'dom'],
+      'document object model': ['dom', 'document object model'],
+      javascript: ['js', 'javascript', 'ecmascript'],
+      js: ['javascript', 'js', 'ecmascript'],
+      ecmascript: ['javascript', 'js', 'ecmascript'],
+      html: ['hypertext markup language', 'html'],
+      'hypertext markup language': ['html', 'hypertext markup language'],
+      css: ['cascading style sheets', 'css'],
+      'cascading style sheets': ['css', 'cascading style sheets'],
+      api: ['application programming interface', 'api'],
+      'application programming interface': ['api', 'application programming interface'],
+      url: ['uniform resource locator', 'url'],
+      'uniform resource locator': ['url', 'uniform resource locator'],
+      http: ['hypertext transfer protocol', 'http'],
+      'hypertext transfer protocol': ['http', 'hypertext transfer protocol'],
+      https: ['hypertext transfer protocol secure', 'https'],
+      'hypertext transfer protocol secure': ['https', 'hypertext transfer protocol secure'],
+      json: ['javascript object notation', 'json'],
+      'javascript object notation': ['json', 'javascript object notation'],
+      xml: ['extensible markup language', 'xml'],
+      'extensible markup language': ['xml', 'extensible markup language'],
+      sql: ['structured query language', 'sql'],
+      'structured query language': ['sql', 'structured query language'],
+      true: ['yes', 'correct', 'true', '1'],
+      false: ['no', 'incorrect', 'false', '0'],
+    }
+
+    // Check if user answer matches any variation of correct answer
+    if (variations[normalizedCorrect]) {
+      return variations[normalizedCorrect].includes(normalizedUser)
+    }
+
+    // Check if correct answer matches any variation of user answer
+    if (variations[normalizedUser]) {
+      return variations[normalizedUser].includes(normalizedCorrect)
+    }
+
+    return false
+  }
+}
 
 const score = computed(() => {
   if (!quiz.value?.questions) return 0
   let correct = 0
   quiz.value.questions.forEach((question, index) => {
-    if (answers.value[index] === question.answer) {
+    if (isAnswerCorrect(answers.value[index], question.answer, question.type)) {
       correct++
     }
   })
@@ -43,6 +136,23 @@ const timeFormatted = computed(() => {
   const minutes = Math.floor(timeElapsed.value / 60)
   const seconds = timeElapsed.value % 60
   return `${minutes}:${seconds.toString().padStart(2, '0')}`
+})
+
+const isCurrentQuestionAnswered = computed(() => {
+  const currentAnswer = answers.value[currentQuestionIndex.value]
+  if (!currentAnswer) return false
+
+  // For enumeration questions, check if there are any non-empty lines
+  if (currentQuestion.value?.type === 'enumeration') {
+    return (
+      Array.isArray(currentAnswer) &&
+      currentAnswer.length > 0 &&
+      currentAnswer.some((item) => item.trim() !== '')
+    )
+  }
+
+  // For other question types, check if answer is not empty
+  return currentAnswer && currentAnswer.toString().trim() !== ''
 })
 
 onMounted(async () => {
@@ -79,6 +189,22 @@ function selectAnswer(answer) {
   answers.value[currentQuestionIndex.value] = answer
 }
 
+function updateEnumerationAnswer() {
+  const textarea = document.getElementById('enumeration-answer')
+  if (textarea) {
+    const lines = textarea.value.split('\n').filter((line) => line.trim() !== '')
+    answers.value[currentQuestionIndex.value] = lines
+    enumerationAnswers.value[currentQuestionIndex.value] = textarea.value
+  }
+}
+
+function getEnumerationPreview() {
+  const currentAnswer = enumerationAnswers.value[currentQuestionIndex.value]
+  if (!currentAnswer) return ''
+  const lines = currentAnswer.split('\n').filter((line) => line.trim() !== '')
+  return lines.length > 0 ? `[${lines.join(', ')}]` : ''
+}
+
 function nextQuestion() {
   if (currentQuestionIndex.value < totalQuestions.value - 1) {
     currentQuestionIndex.value++
@@ -107,7 +233,7 @@ async function submitQuiz() {
       await cloudQuizService.saveQuizAttempt(quiz.value.id, {
         score: score.value,
         timeSeconds: elapsed,
-        userAnswers
+        userAnswers,
       })
     }
   } catch (error) {
@@ -162,8 +288,8 @@ function goToUpload() {
           />
           <defs>
             <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
-              <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+              <stop offset="0%" style="stop-color: #667eea; stop-opacity: 1" />
+              <stop offset="100%" style="stop-color: #764ba2; stop-opacity: 1" />
             </linearGradient>
           </defs>
         </svg>
@@ -172,311 +298,481 @@ function goToUpload() {
     </div>
 
     <div class="quiz-main">
-        <div class="quiz-header">
-      <button class="back-btn" @click="goHome">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="m12 19-7-7 7-7"/>
-          <path d="m19 12H5"/>
-        </svg>
-        Back to Home
-      </button>
-      <div class="quiz-title">
-        <h1>{{ quiz?.title || 'Quiz' }}</h1>
-        <p class="description">{{ quiz?.description }}</p>
-      </div>
-      <div class="quiz-meta">
-        <div class="timer">
-          <Clock :size="16" />
-          {{ timeFormatted }}
-        </div>
-        <div class="question-counter">
-          <span class="current">{{ currentQuestionIndex + 1 }}</span>
-          <span class="separator">of</span>
-          <span class="total">{{ totalQuestions }}</span>
-        </div>
-      </div>
-        </div>
-
-        <div class="progress-bar">
-          <div class="progress-fill" :style="{ width: progress + '%' }"></div>
-          <div class="progress-markers">
-            <div
-              v-for="(_, index) in quiz?.questions"
-              :key="index"
-              class="marker"
-              :class="{
-                active: index <= currentQuestionIndex,
-                current: index === currentQuestionIndex
-              }"
-              :style="{ left: `${(index / (totalQuestions - 1)) * 100}%` }"
-            ></div>
-          </div>
-        </div>
-
-        <div v-if="!showResults" class="quiz-content">
-      <div class="question-section">
-        <div class="question-card">
-          <div class="question-badge">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-              <path d="M12 17h.01"/>
-            </svg>
-            Question {{ currentQuestionIndex + 1 }}
-          </div>
-
-          <div class="question-text">
-            {{ currentQuestion?.question }}
-          </div>
-
-          <div class="choices">
-            <div
-              v-for="(choice, index) in currentQuestion?.choices"
-              :key="index"
-              class="choice-option"
-              :class="{ selected: answers[currentQuestionIndex] === choice }"
-              @click="selectAnswer(choice)"
-            >
-              <div class="choice-radio">
-                <input
-                  type="radio"
-                  :name="`question-${currentQuestionIndex}`"
-                  :value="choice"
-                  :checked="answers[currentQuestionIndex] === choice"
-                  @change="selectAnswer(choice)"
-                />
-                <div class="radio-custom">
-                  <div class="radio-dot"></div>
-                </div>
-              </div>
-              <div class="choice-content">
-                <span class="choice-letter">{{ String.fromCharCode(65 + index) }}</span>
-                <span class="choice-text">{{ choice }}</span>
-              </div>
-              <div class="choice-indicator">
-                <svg v-if="answers[currentQuestionIndex] === choice" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="20,6 9,17 4,12"/>
-                </svg>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="navigation">
-        <div class="nav-controls">
-          <button
-            class="nav-btn secondary"
-            @click="previousQuestion"
-            :disabled="currentQuestionIndex === 0"
+      <div class="quiz-header">
+        <button class="back-btn" @click="goHome">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
           >
-            <ArrowLeft :size="16" />
-            Previous
-          </button>
-
-          <button
-            v-if="currentQuestionIndex < totalQuestions - 1"
-            class="nav-btn primary"
-            @click="nextQuestion"
-            :disabled="!answers[currentQuestionIndex]"
-          >
-            Next
-            <ArrowRight :size="16" />
-          </button>
-
-          <button
-            v-else
-            class="nav-btn submit"
-            @click="submitQuiz"
-            :disabled="Object.keys(answers).length === 0"
-          >
-            <CheckCircle :size="16" />
-            Submit Quiz
-          </button>
-        </div>
-      </div>
-        </div>
-
-        <div v-else class="results-section">
-      <div class="results-header">
-        <div class="celebration-icon">
-          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M9 12l2 2 4-4"/>
-            <path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z"/>
+            <path d="m12 19-7-7 7-7" />
+            <path d="m19 12H5" />
           </svg>
-        </div>
-        <h2>Quiz Complete!</h2>
-        <p class="results-subtitle">Great job! Here's how you performed</p>
-
-        <div class="score-display">
-          <div class="score-circle">
-            <svg class="score-ring" width="140" height="140">
-              <circle
-                class="score-ring-bg"
-                stroke="#e5e7eb"
-                stroke-width="8"
-                fill="transparent"
-                r="62"
-                cx="70"
-                cy="70"
-              />
-              <circle
-                class="score-ring-fill"
-                stroke="url(#scoreGradient)"
-                stroke-width="8"
-                fill="transparent"
-                r="62"
-                cx="70"
-                cy="70"
-                :stroke-dasharray="389.56"
-                :stroke-dashoffset="389.56 - (389.56 * score) / 100"
-              />
-              <defs>
-                <linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" :style="`stop-color:${score >= 80 ? '#10b981' : score >= 60 ? '#f59e0b' : '#ef4444'};stop-opacity:1`" />
-                  <stop offset="100%" :style="`stop-color:${score >= 80 ? '#059669' : score >= 60 ? '#d97706' : '#dc2626'};stop-opacity:1`" />
-                </linearGradient>
-              </defs>
-            </svg>
-            <div class="score-content">
-              <span class="score-number">{{ score }}%</span>
-              <span class="score-label">{{ score >= 80 ? 'Excellent!' : score >= 60 ? 'Good Job!' : 'Keep Trying!' }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="results-stats">
-        <div class="stat-card correct">
-          <div class="stat-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="20,6 9,17 4,12"/>
-            </svg>
-          </div>
-          <div class="stat-content">
-            <span class="stat-value">{{ Object.values(answers).filter((answer, index) => answer === quiz.questions[index].answer).length }}</span>
-            <span class="stat-label">Correct</span>
-          </div>
-        </div>
-        <div class="stat-card incorrect">
-          <div class="stat-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </div>
-          <div class="stat-content">
-            <span class="stat-value">{{ Object.values(answers).filter((answer, index) => answer !== quiz.questions[index].answer).length }}</span>
-            <span class="stat-label">Incorrect</span>
-          </div>
-        </div>
-        <div class="stat-card time">
-          <div class="stat-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <polyline points="12,6 12,12 16,14"/>
-            </svg>
-          </div>
-          <div class="stat-content">
-            <span class="stat-value">{{ timeFormatted }}</span>
-            <span class="stat-label">Time Taken</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="results-actions">
-        <button class="action-btn secondary" @click="restartQuiz">
-          <RotateCcw :size="16" />
-          Retake Quiz
+          Back to Home
         </button>
-        <button class="action-btn primary" @click="goToUpload">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14,2 14,8 20,8"/>
-            <line x1="16" y1="13" x2="8" y2="13"/>
-            <line x1="16" y1="17" x2="8" y2="17"/>
-            <polyline points="10,9 9,9 8,9"/>
-          </svg>
-          Create New Quiz
-        </button>
+        <div class="quiz-title">
+          <h1>{{ quiz?.title || 'Quiz' }}</h1>
+          <p class="description">{{ quiz?.description }}</p>
+        </div>
+        <div class="quiz-meta">
+          <div class="timer">
+            <Clock :size="16" />
+            {{ timeFormatted }}
+          </div>
+          <div class="question-counter">
+            <span class="current">{{ currentQuestionIndex + 1 }}</span>
+            <span class="separator">of</span>
+            <span class="total">{{ totalQuestions }}</span>
+          </div>
+        </div>
       </div>
 
-      <div class="detailed-results">
-        <div class="review-header">
-          <h3>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 11l3 3L22 4"/>
-              <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
-            </svg>
-            Review Your Answers
-          </h3>
-          <p class="review-subtitle">See how you performed on each question</p>
-        </div>
-
-        <div class="answer-review">
+      <div class="progress-bar">
+        <div class="progress-fill" :style="{ width: progress + '%' }"></div>
+        <div class="progress-markers">
           <div
-            v-for="(question, index) in quiz.questions"
+            v-for="(_, index) in quiz?.questions"
             :key="index"
-            class="review-item"
-            :class="{ correct: answers[index] === question.answer, incorrect: answers[index] !== question.answer }"
-          >
-            <div class="review-header-item">
-              <div class="question-number">
-                <span class="q-num">{{ index + 1 }}</span>
-              </div>
-              <div class="result-indicator">
-                <svg v-if="answers[index] === question.answer" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="20,6 9,17 4,12"/>
-                </svg>
-                <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <line x1="18" y1="6" x2="6" y2="18"/>
-                  <line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
+            class="marker"
+            :class="{
+              active: index <= currentQuestionIndex,
+              current: index === currentQuestionIndex,
+            }"
+            :style="{ left: `${(index / (totalQuestions - 1)) * 100}%` }"
+          ></div>
+        </div>
+      </div>
+
+      <div v-if="!showResults" class="quiz-content">
+        <div class="question-section">
+          <div class="question-card">
+            <div class="question-badge">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                <path d="M12 17h.01" />
+              </svg>
+              Question {{ currentQuestionIndex + 1 }}
+            </div>
+
+            <div class="question-text">
+              {{ currentQuestion?.question }}
+            </div>
+
+            <!-- Multiple Choice and True/False Questions -->
+            <div
+              v-if="
+                currentQuestion?.type === 'multiple_choice' ||
+                currentQuestion?.type === 'true_false'
+              "
+              class="choices"
+            >
+              <div
+                v-for="(choice, index) in currentQuestion?.choices"
+                :key="index"
+                class="choice-option"
+                :class="{ selected: answers[currentQuestionIndex] === choice }"
+                @click="selectAnswer(choice)"
+              >
+                <div class="choice-radio">
+                  <input
+                    type="radio"
+                    :name="`question-${currentQuestionIndex}`"
+                    :value="choice"
+                    :checked="answers[currentQuestionIndex] === choice"
+                    @change="selectAnswer(choice)"
+                  />
+                  <div class="radio-custom">
+                    <div class="radio-dot"></div>
+                  </div>
+                </div>
+                <div class="choice-content">
+                  <span class="choice-letter">{{ String.fromCharCode(65 + index) }}</span>
+                  <span class="choice-text">{{ choice }}</span>
+                </div>
+                <div class="choice-indicator">
+                  <svg
+                    v-if="answers[currentQuestionIndex] === choice"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <polyline points="20,6 9,17 4,12" />
+                  </svg>
+                </div>
               </div>
             </div>
 
-            <div class="review-question">
-              {{ question.question }}
+            <!-- Identification (Fill-in-the-blank) Questions -->
+            <div
+              v-else-if="currentQuestion?.type === 'identification'"
+              class="identification-input"
+            >
+              <div class="input-group">
+                <label for="identification-answer" class="input-label">Your Answer:</label>
+                <input
+                  id="identification-answer"
+                  type="text"
+                  v-model="answers[currentQuestionIndex]"
+                  class="text-input"
+                  placeholder="Type your answer here..."
+                  @input="selectAnswer($event.target.value)"
+                />
+              </div>
             </div>
 
-            <div class="review-answers">
-              <div class="answer-row your-answer">
-                <div class="answer-label">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                    <circle cx="12" cy="7" r="4"/>
-                  </svg>
-                  Your answer:
+            <!-- Enumeration (List multiple answers) Questions -->
+            <div v-else-if="currentQuestion?.type === 'enumeration'" class="enumeration-input">
+              <div class="input-group">
+                <label for="enumeration-answer" class="input-label"
+                  >Your Answers (one per line):</label
+                >
+                <textarea
+                  id="enumeration-answer"
+                  v-model="enumerationAnswers[currentQuestionIndex]"
+                  class="text-area"
+                  placeholder="Enter each answer on a new line..."
+                  rows="4"
+                  @input="updateEnumerationAnswer"
+                ></textarea>
+                <div class="enumeration-preview" v-if="enumerationAnswers[currentQuestionIndex]">
+                  <small>Preview: {{ getEnumerationPreview() }}</small>
                 </div>
-                <div class="answer-value">{{ answers[index] || 'Not answered' }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="navigation">
+          <div class="nav-controls">
+            <button
+              class="nav-btn secondary"
+              @click="previousQuestion"
+              :disabled="currentQuestionIndex === 0"
+            >
+              <ArrowLeft :size="16" />
+              Previous
+            </button>
+
+            <button
+              v-if="currentQuestionIndex < totalQuestions - 1"
+              class="nav-btn primary"
+              @click="nextQuestion"
+              :disabled="!isCurrentQuestionAnswered"
+            >
+              Next
+              <ArrowRight :size="16" />
+            </button>
+
+            <button
+              v-else
+              class="nav-btn submit"
+              @click="submitQuiz"
+              :disabled="!isCurrentQuestionAnswered"
+            >
+              <CheckCircle :size="16" />
+              Submit Quiz
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div v-else class="results-section">
+        <div class="results-header">
+          <div class="celebration-icon">
+            <svg
+              width="64"
+              height="64"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+            >
+              <path d="M9 12l2 2 4-4" />
+              <path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z" />
+            </svg>
+          </div>
+          <h2>Quiz Complete!</h2>
+          <p class="results-subtitle">Great job! Here's how you performed</p>
+
+          <div class="score-display">
+            <div class="score-circle">
+              <svg class="score-ring" width="140" height="140">
+                <circle
+                  class="score-ring-bg"
+                  stroke="#e5e7eb"
+                  stroke-width="8"
+                  fill="transparent"
+                  r="62"
+                  cx="70"
+                  cy="70"
+                />
+                <circle
+                  class="score-ring-fill"
+                  stroke="url(#scoreGradient)"
+                  stroke-width="8"
+                  fill="transparent"
+                  r="62"
+                  cx="70"
+                  cy="70"
+                  :stroke-dasharray="389.56"
+                  :stroke-dashoffset="389.56 - (389.56 * score) / 100"
+                />
+                <defs>
+                  <linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop
+                      offset="0%"
+                      :style="`stop-color:${score >= 80 ? '#10b981' : score >= 60 ? '#f59e0b' : '#ef4444'};stop-opacity:1`"
+                    />
+                    <stop
+                      offset="100%"
+                      :style="`stop-color:${score >= 80 ? '#059669' : score >= 60 ? '#d97706' : '#dc2626'};stop-opacity:1`"
+                    />
+                  </linearGradient>
+                </defs>
+              </svg>
+              <div class="score-content">
+                <span class="score-number">{{ score }}%</span>
+                <span class="score-label">{{
+                  score >= 80 ? 'Excellent!' : score >= 60 ? 'Good Job!' : 'Keep Trying!'
+                }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="results-stats">
+          <div class="stat-card correct">
+            <div class="stat-icon">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="20,6 9,17 4,12" />
+              </svg>
+            </div>
+            <div class="stat-content">
+              <span class="stat-value">{{
+                Object.values(answers).filter((answer, index) =>
+                  isAnswerCorrect(answer, quiz.questions[index].answer, quiz.questions[index].type),
+                ).length
+              }}</span>
+              <span class="stat-label">Correct</span>
+            </div>
+          </div>
+          <div class="stat-card incorrect">
+            <div class="stat-icon">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </div>
+            <div class="stat-content">
+              <span class="stat-value">{{
+                Object.values(answers).filter(
+                  (answer, index) =>
+                    !isAnswerCorrect(
+                      answer,
+                      quiz.questions[index].answer,
+                      quiz.questions[index].type,
+                    ),
+                ).length
+              }}</span>
+              <span class="stat-label">Incorrect</span>
+            </div>
+          </div>
+          <div class="stat-card time">
+            <div class="stat-icon">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12,6 12,12 16,14" />
+              </svg>
+            </div>
+            <div class="stat-content">
+              <span class="stat-value">{{ timeFormatted }}</span>
+              <span class="stat-label">Time Taken</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="results-actions">
+          <button class="action-btn secondary" @click="restartQuiz">
+            <RotateCcw :size="16" />
+            Retake Quiz
+          </button>
+          <button class="action-btn primary" @click="goToUpload">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14,2 14,8 20,8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+              <polyline points="10,9 9,9 8,9" />
+            </svg>
+            Create New Quiz
+          </button>
+        </div>
+
+        <div class="detailed-results">
+          <div class="review-header">
+            <h3>
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M9 11l3 3L22 4" />
+                <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+              </svg>
+              Review Your Answers
+            </h3>
+            <p class="review-subtitle">See how you performed on each question</p>
+          </div>
+
+          <div class="answer-review">
+            <div
+              v-for="(question, index) in quiz.questions"
+              :key="index"
+              class="review-item"
+              :class="{
+                correct: isAnswerCorrect(answers[index], question.answer, question.type),
+                incorrect: !isAnswerCorrect(answers[index], question.answer, question.type),
+              }"
+            >
+              <div class="review-header-item">
+                <div class="question-number">
+                  <span class="q-num">{{ index + 1 }}</span>
+                </div>
+                <div class="result-indicator">
+                  <svg
+                    v-if="isAnswerCorrect(answers[index], question.answer, question.type)"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <polyline points="20,6 9,17 4,12" />
+                  </svg>
+                  <svg
+                    v-else
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </div>
               </div>
 
-              <div class="answer-row correct-answer">
-                <div class="answer-label">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="20,6 9,17 4,12"/>
-                  </svg>
-                  Correct answer:
-                </div>
-                <div class="answer-value">{{ question.answer }}</div>
+              <div class="review-question">
+                {{ question.question }}
               </div>
 
-              <div v-if="question.explanation" class="explanation">
-                <div class="explanation-label">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"/>
-                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-                    <path d="M12 17h.01"/>
-                  </svg>
-                  Explanation:
+              <div class="review-answers">
+                <div class="answer-row your-answer">
+                  <div class="answer-label">
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                      <circle cx="12" cy="7" r="4" />
+                    </svg>
+                    Your answer:
+                  </div>
+                  <div class="answer-value">{{ answers[index] || 'Not answered' }}</div>
                 </div>
-                <div class="explanation-text">{{ question.explanation }}</div>
+
+                <div class="answer-row correct-answer">
+                  <div class="answer-label">
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <polyline points="20,6 9,17 4,12" />
+                    </svg>
+                    Correct answer:
+                  </div>
+                  <div class="answer-value">{{ question.answer }}</div>
+                </div>
+
+                <div v-if="question.explanation" class="explanation">
+                  <div class="explanation-label">
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                      <path d="M12 17h.01" />
+                    </svg>
+                    Explanation:
+                  </div>
+                  <div class="explanation-text">{{ question.explanation }}</div>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-        </div>
     </div>
   </div>
 </template>
@@ -487,8 +783,8 @@ function goToUpload() {
   margin: 0 auto;
   padding: 24px;
   background:
-    radial-gradient(1000px 600px at 20% -10%, rgba(102,126,234,0.08), transparent 60%),
-    radial-gradient(900px 500px at 120% 10%, rgba(118,75,162,0.06), transparent 60%);
+    radial-gradient(1000px 600px at 20% -10%, rgba(102, 126, 234, 0.08), transparent 60%),
+    radial-gradient(900px 500px at 120% 10%, rgba(118, 75, 162, 0.06), transparent 60%);
   min-height: 100vh;
   position: relative;
 }
@@ -773,7 +1069,7 @@ function goToUpload() {
   flex-shrink: 0;
 }
 
-.choice-radio input[type="radio"] {
+.choice-radio input[type='radio'] {
   opacity: 0;
   position: absolute;
   width: 20px;
@@ -1472,34 +1768,181 @@ function goToUpload() {
 }
 
 @media (max-width: 480px) {
-  .choice-option {
+  .quiz-page {
+    padding: 12px;
+  }
+
+  .floating-progress {
+    top: 12px;
+    right: 12px;
+    transform: scale(0.8);
+  }
+
+  .quiz-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .quiz-title h1 {
+    font-size: 20px;
+  }
+
+  .quiz-content {
     padding: 16px;
+  }
+
+  .question-card {
+    padding: 16px;
+  }
+
+  .question-text {
+    font-size: 18px;
+  }
+
+  .choice-option {
+    padding: 12px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
   }
 
   .choice-content {
     gap: 8px;
+    width: 100%;
   }
 
   .choice-letter {
-    width: 28px;
-    height: 28px;
-    font-size: 12px;
+    width: 24px;
+    height: 24px;
+    font-size: 11px;
   }
 
   .choice-text {
     font-size: 14px;
   }
 
-  .question-dots {
+  .nav-controls {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .nav-btn {
+    width: 100%;
+    justify-content: center;
+    padding: 12px 16px;
+  }
+
+  .results-section {
+    padding: 20px 16px;
+  }
+
+  .results-stats {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .stat-card {
+    padding: 16px;
+  }
+
+  .results-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .action-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .detailed-results {
+    padding: 16px;
+  }
+
+  .review-item {
+    padding: 16px;
+  }
+
+  .answer-row {
+    flex-direction: column;
     gap: 6px;
   }
 
-  .dot {
-    width: 32px;
-    height: 32px;
-    font-size: 11px;
+  .answer-label {
+    min-width: auto;
+    font-size: 12px;
+  }
+
+  .answer-value {
+    font-size: 13px;
   }
 }
 
+/* New question type styles */
+.identification-input,
+.enumeration-input {
+  margin-top: 20px;
+}
 
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.input-label {
+  font-weight: 600;
+  color: #374151;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.text-input {
+  padding: 12px 16px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 16px;
+  transition: all 0.3s ease;
+  background: #fff;
+}
+
+.text-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.text-area {
+  padding: 12px 16px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 16px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 100px;
+  transition: all 0.3s ease;
+  background: #fff;
+}
+
+.text-area:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.enumeration-preview {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.enumeration-preview small {
+  color: #6b7280;
+  font-style: italic;
+}
 </style>

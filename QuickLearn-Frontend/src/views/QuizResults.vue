@@ -129,8 +129,12 @@ function getScoreLabel(score) {
       </div>
 
       <div v-if="isLoading" class="loading-container">
-        <div class="loading-spinner"></div>
-        <p>Loading quiz results...</p>
+        <BeatLoader 
+          :loading="true" 
+          text="Loading quiz results..." 
+          color="#667eea"
+          size="20px"
+        />
       </div>
 
       <div v-else-if="error" class="error-container">
@@ -326,34 +330,7 @@ function getScoreLabel(score) {
   align-items: flex-start;
 }
 
-/* Ensure sidebar stays sticky - override any global styles */
-.layout :deep(.sidebar) {
-  position: sticky !important;
-  top: 0 !important;
-  height: 100vh !important;
-  flex-shrink: 0 !important;
-  align-self: flex-start !important;
-}
-
-/* Additional specificity for sidebar positioning */
-div.layout :deep(aside.sidebar) {
-  position: sticky !important;
-  top: 0 !important;
-}
-
-/* Force sidebar to stay in place - last resort */
-@media (min-width: 1025px) {
-  .layout :deep(.sidebar) {
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    z-index: 100 !important;
-  }
-
-  .content {
-    margin-left: 230px !important;
-  }
-}
+/* Let the sidebar component handle its own responsive behavior */
 
 .content {
   flex: 1;
@@ -542,34 +519,7 @@ body.dark .layout {
   background: #0b1020;
 }
 
-/* Ensure sidebar stays sticky in dark mode too */
-body.dark .layout :deep(.sidebar) {
-  position: sticky !important;
-  top: 0 !important;
-  height: 100vh !important;
-  flex-shrink: 0 !important;
-  align-self: flex-start !important;
-}
-
-/* Additional dark mode specificity */
-body.dark div.layout :deep(aside.sidebar) {
-  position: sticky !important;
-  top: 0 !important;
-}
-
-/* Force sidebar to stay in place in dark mode - last resort */
-@media (min-width: 1025px) {
-  body.dark .layout :deep(.sidebar) {
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    z-index: 100 !important;
-  }
-
-  body.dark .content {
-    margin-left: 230px !important;
-  }
-}
+/* Let the sidebar component handle its own responsive behavior in dark mode too */
 
 body.dark .header-content {
   background: #0f172a;
@@ -1027,20 +977,7 @@ body.dark .explanation-text {
   text-align: center;
 }
 
-.loading-spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid #e5e7eb;
-  border-top: 4px solid #667eea;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 16px;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
+/* BeatLoader handles its own styling */
 
 .loading-container p {
   color: #6b7280;
@@ -1063,10 +1000,7 @@ body.dark .explanation-text {
 }
 
 /* Dark mode for loading and error states */
-body.dark .loading-spinner {
-  border-color: #374151;
-  border-top-color: #a5b4fc;
-}
+/* BeatLoader handles its own dark mode styling */
 
 body.dark .loading-container p {
   color: #9ca3af;

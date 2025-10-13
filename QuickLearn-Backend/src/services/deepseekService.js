@@ -59,12 +59,12 @@ class DeepSeekService {
             });
 
             const quizContent = response.choices[0].message.content;
-            return this.parseQuizResponse(quizContent, text, numQuestions);
+            return this.parseQuizResponse(quizContent, text, numQuestions, questionTypes);
         } catch (error) {
             console.error('DeepSeek API Error:', error);
             // Return fallback quiz instead of throwing error
             console.log('Falling back to simple quiz generation...');
-            return this.createFallbackQuiz(text, numQuestions);
+            return this.createFallbackQuiz(text, numQuestions, questionTypes);
         }
     }
 
@@ -105,6 +105,7 @@ REQUIREMENTS:
 - Generate exactly ${numQuestions} questions. If unsure, synthesize plausible questions from the text so the total equals ${numQuestions}.
 - Difficulty level: ${difficulty}
 - Question types: ${questionTypes.join(', ')}
+- IMPORTANT: ONLY generate questions of the specified types: ${questionTypes.join(', ')}. Do not mix in other question types.
 - Focus on key concepts, important facts, and main ideas
 - Ensure questions test comprehension, not just memorization
 - Make distractors plausible but clearly incorrect (for multiple choice)
@@ -117,34 +118,7 @@ OUTPUT FORMAT (JSON):
   "title": "Quiz Title based on content",
   "description": "Brief description of the quiz",
   "questions": [
-    {
-      "id": 1,
-      "type": "multiple_choice",
-      "question": "Question text here",
-      "choices": ["Option A", "Option B", "Option C", "Option D"],
-      "answer": "Correct answer",
-      "explanation": "Why this answer is correct",
-      "difficulty": "easy|medium|hard",
-      "topic": "Main topic this question covers"
-    },
-    {
-      "id": 2,
-      "type": "identification",
-      "question": "What is the capital of France?",
-      "answer": "Paris",
-      "explanation": "Paris is the capital and largest city of France.",
-      "difficulty": "easy|medium|hard",
-      "topic": "Geography"
-    },
-    {
-      "id": 3,
-      "type": "enumeration",
-      "question": "Name three primary colors.",
-      "answer": ["Red", "Blue", "Yellow"],
-      "explanation": "The three primary colors are red, blue, and yellow.",
-      "difficulty": "easy|medium|hard",
-      "topic": "Art"
-    }
+    ${this.generateQuestionExamples(questionTypes)}
   ]
 }
 
@@ -157,7 +131,65 @@ Please ensure the JSON is valid and properly formatted.`;
         return prompt;
     }
 
-    parseQuizResponse(aiResponse, originalText, desiredCount = 5) {
+    generateQuestionExamples(questionTypes) {
+        const examples = [];
+        let id = 1;
+        
+        questionTypes.forEach(type => {
+            switch (type) {
+                case 'multiple_choice':
+                    examples.push(`{
+      "id": ${id++},
+      "type": "multiple_choice",
+      "question": "Question text here",
+      "choices": ["Option A", "Option B", "Option C", "Option D"],
+      "answer": "Correct answer",
+      "explanation": "Why this answer is correct",
+      "difficulty": "easy|medium|hard",
+      "topic": "Main topic this question covers"
+    }`);
+                    break;
+                case 'true_false':
+                    examples.push(`{
+      "id": ${id++},
+      "type": "true_false",
+      "question": "True or false question here",
+      "choices": ["True", "False"],
+      "answer": "True",
+      "explanation": "Why this answer is correct",
+      "difficulty": "easy|medium|hard",
+      "topic": "Main topic this question covers"
+    }`);
+                    break;
+                case 'identification':
+                    examples.push(`{
+      "id": ${id++},
+      "type": "identification",
+      "question": "What is the capital of France?",
+      "answer": "Paris",
+      "explanation": "Paris is the capital and largest city of France.",
+      "difficulty": "easy|medium|hard",
+      "topic": "Geography"
+    }`);
+                    break;
+                case 'enumeration':
+                    examples.push(`{
+      "id": ${id++},
+      "type": "enumeration",
+      "question": "Name three primary colors.",
+      "answer": ["Red", "Blue", "Yellow"],
+      "explanation": "The three primary colors are red, blue, and yellow.",
+      "difficulty": "easy|medium|hard",
+      "topic": "Art"
+    }`);
+                    break;
+            }
+        });
+        
+        return examples.join(',\n    ');
+    }
+
+    parseQuizResponse(aiResponse, originalText, desiredCount = 5, requestedTypes = null) {
         try {
             console.log('AI Response received, length:', aiResponse.length);
             console.log('First 500 chars of AI response:', aiResponse.substring(0, 500));
@@ -169,24 +201,24 @@ Please ensure the JSON is valid and properly formatted.`;
             try {
                 const parsed = JSON.parse(content);
                 console.log('Successfully parsed JSON, questions count:', parsed.questions?.length);
-                return this.validateAndCleanQuiz(parsed, originalText, desiredCount);
+                return this.validateAndCleanQuiz(parsed, originalText, desiredCount, requestedTypes);
             } catch {}
 
             // Fallback: extract the largest JSON-looking block
             const jsonMatch = content.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
                 const quizData = JSON.parse(jsonMatch[0]);
-                return this.validateAndCleanQuiz(quizData, originalText, desiredCount);
+                return this.validateAndCleanQuiz(quizData, originalText, desiredCount, requestedTypes);
             }
             throw new Error('No valid JSON found in AI response');
         } catch (error) {
             console.error('Error parsing AI response:', error);
             // Fallback to a simple quiz if parsing fails
-            return this.createFallbackQuiz(originalText, desiredCount);
+            return this.createFallbackQuiz(originalText, desiredCount, requestedTypes);
         }
     }
 
-    validateAndCleanQuiz(quizData, originalText, desiredCount = 5) {
+    validateAndCleanQuiz(quizData, originalText, desiredCount = 5, requestedTypes = null) {
         const cleanedQuiz = {
             title: quizData.title || 'AI Generated Quiz',
             description: quizData.description || 'Quiz generated from uploaded content',
@@ -197,6 +229,13 @@ Please ensure the JSON is valid and properly formatted.`;
             quizData.questions.forEach((q, index) => {
                 if (this.isValidQuestion(q)) {
                     const questionType = q.type || 'multiple_choice';
+                    
+                    // Filter by requested types if specified
+                    if (requestedTypes && !requestedTypes.includes(questionType)) {
+                        console.log(`Filtering out question type: ${questionType} (not in requested types: ${requestedTypes.join(', ')})`);
+                        return;
+                    }
+                    
                     const baseQuestion = {
                         id: index + 1,
                         type: questionType,
@@ -219,13 +258,13 @@ Please ensure the JSON is valid and properly formatted.`;
 
         // Ensure exact desiredCount
         if (cleanedQuiz.questions.length === 0) {
-            return this.createFallbackQuiz(originalText, desiredCount);
+            return this.createFallbackQuiz(originalText, desiredCount, requestedTypes);
         }
         if (cleanedQuiz.questions.length > desiredCount) {
             cleanedQuiz.questions = cleanedQuiz.questions.slice(0, desiredCount).map((q, i) => ({ ...q, id: i + 1 }));
         } else if (cleanedQuiz.questions.length < desiredCount) {
             // Top up by generating additional fallback questions
-            const extra = this.createFallbackQuiz(originalText, desiredCount - cleanedQuiz.questions.length).questions;
+            const extra = this.createFallbackQuiz(originalText, desiredCount - cleanedQuiz.questions.length, requestedTypes).questions;
             const merged = cleanedQuiz.questions.concat(extra);
             cleanedQuiz.questions = merged.slice(0, desiredCount).map((q, i) => ({ ...q, id: i + 1 }));
         }
@@ -265,7 +304,7 @@ Please ensure the JSON is valid and properly formatted.`;
         }
     }
 
-    createFallbackQuiz(text, desiredCount = 5) {
+    createFallbackQuiz(text, desiredCount = 5, requestedTypes = ['multiple_choice']) {
         // Simple fallback quiz generation with variety
         const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 20);
         const questions = [];
@@ -285,10 +324,10 @@ Please ensure the JSON is valid and properly formatted.`;
 
         // Generate questions with variety from the start
         for (let i = 0; i < desiredCount; i++) {
-            const questionType = i % 4; // Cycle through different types
+            const questionType = requestedTypes[i % requestedTypes.length]; // Cycle through requested types only
             const sentence = sentences[i % sentences.length] || sentences[0];
             
-            if (questionType === 0) {
+            if (questionType === 'multiple_choice') {
                 // Multiple choice
                 const keyWord = sentence.split(' ').find(w => w.length > 4) || 'content';
                 questions.push({
@@ -306,7 +345,7 @@ Please ensure the JSON is valid and properly formatted.`;
                     difficulty: 'easy',
                     topic: 'Content Analysis'
                 });
-            } else if (questionType === 1) {
+            } else if (questionType === 'true_false') {
                 // True/False
                 questions.push({
                     id: i + 1,
@@ -318,7 +357,7 @@ Please ensure the JSON is valid and properly formatted.`;
                     difficulty: 'easy',
                     topic: 'General'
                 });
-            } else if (questionType === 2) {
+            } else if (questionType === 'identification') {
                 // Identification (fill-in-the-blank)
                 const keyWord = sentence.split(' ').find(w => w.length > 4) || 'content';
                 questions.push({
@@ -330,7 +369,7 @@ Please ensure the JSON is valid and properly formatted.`;
                     difficulty: 'easy',
                     topic: 'Content Analysis'
                 });
-            } else {
+            } else if (questionType === 'enumeration') {
                 // Enumeration
                 const keyWords = sentence.split(' ').filter(w => w.length > 4).slice(0, 3);
                 questions.push({

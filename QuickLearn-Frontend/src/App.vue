@@ -1,5 +1,6 @@
 <script setup>
 import Swal from 'sweetalert2'
+import GlobalLoader from './components/GlobalLoader.vue'
 
 // Configure a Toast instance with dynamic dark mode support
 function getToastConfig() {
@@ -66,6 +67,7 @@ function toggleTheme() {
 
 <template>
   <router-view />
+  <GlobalLoader />
   <button class="theme-floating-toggle" @click="toggleTheme" aria-label="Toggle theme">🌓</button>
 </template>
 

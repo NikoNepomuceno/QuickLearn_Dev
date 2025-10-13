@@ -56,6 +56,17 @@ function onFileChange(event) {
   }
 }
 
+function triggerFileInput() {
+  // Don't trigger file input if a file is already selected
+  if (selectedFile.value) {
+    return
+  }
+  const fileInput = document.getElementById('file-input')
+  if (fileInput) {
+    fileInput.click()
+  }
+}
+
 function onDrop(event) {
   event.preventDefault()
   isDragOver.value = false
@@ -65,7 +76,7 @@ function onDrop(event) {
     const allowedTypes = [
       'application/pdf',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'text/plain'
+      'text/plain',
     ]
     if (allowedTypes.includes(file.type) || file.name.match(/\.(pdf|docx|txt)$/i)) {
       selectedFile.value = file
@@ -137,7 +148,7 @@ async function uploadFile(options = {}) {
       focus: options.focus || '',
       isAdvanced: options.isAdvanced || false,
       includeReasoning: options.includeReasoning !== false,
-      customInstructions: options.customInstructions || ''
+      customInstructions: options.customInstructions || '',
     }
 
     const result = await cloudQuizService.createQuizFromFile(selectedFile.value, quizOptions)
@@ -227,7 +238,10 @@ function handleConfigConfirm(payload) {
     selectedTypes.value = ['multiple_choice', 'true_false', 'identification', 'enumeration']
     typesParam = 'mixed'
   } else if (typeof payload?.type === 'string' && payload.type.length > 0) {
-    const arr = payload.type.split(',').map(s => s.trim()).filter(Boolean)
+    const arr = payload.type
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
     selectedTypes.value = arr.length ? arr : ['multiple_choice']
     typesParam = arr.join(',')
   }
@@ -237,12 +251,15 @@ function handleConfigConfirm(payload) {
 
 function copyShareLink() {
   if (shareLink.value) {
-    cloudQuizService.copyToClipboard(shareLink.value).then(() => {
-      // You could show a toast notification here
-      console.log('Link copied to clipboard!')
-    }).catch(err => {
-      console.error('Failed to copy link:', err)
-    })
+    cloudQuizService
+      .copyToClipboard(shareLink.value)
+      .then(() => {
+        // You could show a toast notification here
+        console.log('Link copied to clipboard!')
+      })
+      .catch((err) => {
+        console.error('Failed to copy link:', err)
+      })
   }
 }
 </script>
@@ -257,114 +274,121 @@ function copyShareLink() {
           Smart Upload
         </div>
         <h1>Generate a Quiz from Your File</h1>
-        <p class="subtitle">Upload a PDF, DOCX, or TXT and let QuickLearn create high-quality questions.</p>
+        <p class="subtitle">
+          Upload a PDF, DOCX, or TXT and let QuickLearn create high-quality questions.
+        </p>
       </div>
       <div class="content-grid">
-      <div class="panel upload-panel">
-        <div class="progress" v-show="isLoading || progressPercent > 0">
-          <div class="bar" :style="{ width: progressPercent + '%' }"></div>
-        </div>
+        <div class="panel upload-panel">
+          <div class="progress" v-show="isLoading || progressPercent > 0">
+            <div class="bar" :style="{ width: progressPercent + '%' }"></div>
+          </div>
 
-        <div
-          class="dropzone"
-          :class="{ over: isDragOver, ready: selectedFile }"
-          @drop="onDrop"
-          @dragover="onDragOver"
-          @dragleave="onDragLeave"
-        >
-          <div class="dropzone-inner">
-            <div class="upload-icon">
-              <Upload :size="48" />
-            </div>
-            <div class="dz-text" v-if="!selectedFile">
-              <div class="headline">Drop your files here</div>
-              <div class="subline">or <label for="file-input" class="browse">browse to upload</label></div>
-              <input
-                id="file-input"
-                type="file"
-                accept=".txt,.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
-                @change="onFileChange"
-                hidden
-              />
-              <div class="chips">
-                <span class="chip">PDF</span>
-                <span class="chip">DOCX</span>
-                <span class="chip">TXT</span>
+          <div
+            class="dropzone"
+            :class="{ over: isDragOver, ready: selectedFile }"
+            @drop="onDrop"
+            @dragover="onDragOver"
+            @dragleave="onDragLeave"
+            @click="triggerFileInput"
+          >
+            <div class="dropzone-inner">
+              <div class="upload-icon">
+                <Upload :size="48" />
               </div>
-              <div class="hint">Maximum file size: 10MB</div>
-            </div>
-            <div class="dz-selected" v-else>
-              <div class="selected-top">
-                <FileText class="file-icon" :size="20" />
-                <div class="selected-name">{{ fileName }}</div>
-                <button class="remove" @click="removeFile" aria-label="Remove file">
-                  <X :size="16" />
-                </button>
+              <div class="dz-text" v-if="!selectedFile">
+                <div class="headline">Drop your files here</div>
+                <div class="subline">
+                  or <label for="file-input" class="browse">browse to upload</label>
+                </div>
+                <input
+                  id="file-input"
+                  type="file"
+                  accept=".txt,.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                  @change="onFileChange"
+                  hidden
+                />
+                <div class="chips">
+                  <span class="chip">PDF</span>
+                  <span class="chip">DOCX</span>
+                  <span class="chip">TXT</span>
+                </div>
+                <div class="hint">Maximum file size: 10MB</div>
               </div>
-              <div class="selected-meta">{{ fileSize }}</div>
+              <div class="dz-selected" v-else>
+                <div class="selected-top">
+                  <FileText class="file-icon" :size="20" />
+                  <div class="selected-name">{{ fileName }}</div>
+                  <button class="remove" @click="removeFile" aria-label="Remove file">
+                    <X :size="16" />
+                  </button>
+                </div>
+                <div class="selected-meta">{{ fileSize }}</div>
+              </div>
             </div>
           </div>
+
+          <!-- Loading state removed - now handled by full-page overlay -->
         </div>
 
-        <div v-if="isLoading" class="loading">
-          <div class="spinner"></div>
-          <div>Analyzing your file and generating questions…</div>
-        </div>
-      </div>
-
-      <div class="panel tips-panel">
-        <h3>
-          <Lightbulb :size="20" />
-          Tips for best result
-        </h3>
-        <div class="tips-grid">
-          <div class="tip">Use clean, well-structured documents.</div>
-          <div class="tip">Split large topics into separate files for focused quizzes.</div>
-          <div class="tip">Prefer 10–25 questions for balanced difficulty.</div>
+        <div class="panel tips-panel">
+          <h3>
+            <Lightbulb :size="20" />
+            Tips for best result
+          </h3>
+          <div class="tips-grid">
+            <div class="tip">Use clean, well-structured documents.</div>
+            <div class="tip">Split large topics into separate files for focused quizzes.</div>
+            <div class="tip">Prefer 10–25 questions for balanced difficulty.</div>
+          </div>
         </div>
       </div>
-      </div>
 
-    <!-- Configuration Modal -->
-    <QuizConfigModal
-      :visible="showConfigModal"
-      :file-name="fileName"
-      :default-count="count"
-      @close="handleConfigCancel"
-      @confirm="handleConfigConfirm"
-    />
+      <!-- Configuration Modal -->
+      <QuizConfigModal
+        :visible="showConfigModal"
+        :file-name="fileName"
+        :default-count="count"
+        @close="handleConfigCancel"
+        @confirm="handleConfigConfirm"
+      />
 
-    <!-- Confirmation Modal -->
-    <QuizConfirmationModal
-      :quiz="quiz"
-      :is-visible="showConfirmationModal"
-      @close="handleCloseModal"
-      @take-quiz="handleTakeQuiz"
-      @download-quiz="handleDownloadQuiz"
-      @share-quiz="handleShareQuiz"
-    />
+      <!-- Confirmation Modal -->
+      <QuizConfirmationModal
+        :quiz="quiz"
+        :is-visible="showConfirmationModal"
+        @close="handleCloseModal"
+        @take-quiz="handleTakeQuiz"
+        @download-quiz="handleDownloadQuiz"
+        @share-quiz="handleShareQuiz"
+      />
 
-    <!-- Share Success Message -->
-    <div v-if="showShareSuccess" class="share-success">
-      <div class="share-success-content">
-        <h3>🔗 Shareable Link Generated!</h3>
-        <p>Your quiz has been saved and can be shared with this link:</p>
-        <div class="share-link-container">
-          <input
-            type="text"
-            :value="shareLink"
-            readonly
-            class="share-link-input"
-          />
-          <button class="copy-btn" @click="copyShareLink">
-            <Copy :size="16" />
-            Copy
-          </button>
+      <!-- Share Success Message -->
+      <div v-if="showShareSuccess" class="share-success">
+        <div class="share-success-content">
+          <h3>🔗 Shareable Link Generated!</h3>
+          <p>Your quiz has been saved and can be shared with this link:</p>
+          <div class="share-link-container">
+            <input type="text" :value="shareLink" readonly class="share-link-input" />
+            <button class="copy-btn" @click="copyShareLink">
+              <Copy :size="16" />
+              Copy
+            </button>
+          </div>
+          <button class="close-success" @click="showShareSuccess = false">✕</button>
         </div>
-        <button class="close-success" @click="showShareSuccess = false">✕</button>
       </div>
     </div>
-    </div>
+
+    <!-- Full-page loading overlay -->
+    <BeatLoader 
+      v-if="isLoading"
+      :loading="isLoading" 
+      text="Analyzing your file and generating questions…" 
+      color="#667eea"
+      size="20px"
+      :overlay="true"
+    />
   </div>
 </template>
 
@@ -379,13 +403,68 @@ function copyShareLink() {
   margin: 0;
   padding: 24px;
   background:
-    radial-gradient(1000px 600px at 20% -10%, rgba(102,126,234,0.12), transparent 60%),
-    radial-gradient(900px 500px at 120% 10%, rgba(118,75,162,0.10), transparent 60%);
+    radial-gradient(1000px 600px at 20% -10%, rgba(102, 126, 234, 0.12), transparent 60%),
+    radial-gradient(900px 500px at 120% 10%, rgba(118, 75, 162, 0.1), transparent 60%);
 }
 
 @media (max-width: 1024px) {
   .upload-page {
     padding-bottom: 120px; /* Add space for floating sidebar */
+  }
+}
+
+@media (max-width: 768px) {
+  .upload-page {
+    padding: 16px;
+    padding-bottom: 100px;
+  }
+
+  .header h1 {
+    font-size: 24px;
+  }
+
+  .subtitle {
+    font-size: 14px;
+  }
+
+  .dropzone {
+    min-height: 300px;
+  }
+
+  .panel {
+    padding: 16px;
+  }
+
+  .tips-grid {
+    gap: 8px;
+  }
+
+  .tip {
+    padding: 10px;
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .upload-page {
+    padding: 12px;
+    padding-bottom: 80px;
+  }
+
+  .header h1 {
+    font-size: 20px;
+  }
+
+  .dropzone {
+    min-height: 250px;
+  }
+
+  .headline {
+    font-size: 16px;
+  }
+
+  .subline {
+    font-size: 14px;
   }
 }
 
@@ -395,15 +474,16 @@ function copyShareLink() {
   gap: 20px;
 }
 
-
-.header { margin-bottom: 16px; }
+.header {
+  margin-bottom: 16px;
+}
 .eyebrow {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #4b53c5;
   background: linear-gradient(135deg, #eef0ff, #f6f0ff);
@@ -411,24 +491,31 @@ function copyShareLink() {
   padding: 6px 12px;
   border-radius: 999px;
 }
-.header h1 { margin: 8px 0 6px; font-size: 28px; }
-.subtitle { color: #5b6472; }
+.header h1 {
+  margin: 8px 0 6px;
+  font-size: 28px;
+}
+.subtitle {
+  color: #5b6472;
+}
 
-.tips-panel { margin-top: 16px; }
+.tips-panel {
+  margin-top: 16px;
+}
 
 .panel {
   background: #fff;
   border: 1px solid #e6e8ec;
   border-radius: 12px;
   padding: 16px;
-  box-shadow: 0 10px 25px rgba(50, 50, 93, 0.05), 0 6px 12px rgba(0,0,0,0.04);
+  box-shadow:
+    0 10px 25px rgba(50, 50, 93, 0.05),
+    0 6px 12px rgba(0, 0, 0, 0.04);
 }
 
 .upload-panel {
   position: relative;
 }
-
-
 
 .progress {
   position: absolute;
@@ -445,7 +532,7 @@ function copyShareLink() {
   height: 100%;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   width: 0%;
-  transition: width .2s ease;
+  transition: width 0.2s ease;
 }
 
 .dropzone {
@@ -459,12 +546,15 @@ function copyShareLink() {
   transition: all 0.25s ease;
   position: relative;
   width: 100%;
+  cursor: pointer;
 }
 
 .dropzone.over {
   border-color: #667eea;
   background: #f0f3ff;
-  box-shadow: 0 0 0 6px rgba(102,126,234,0.08), 0 8px 24px rgba(102,126,234,0.18);
+  box-shadow:
+    0 0 0 6px rgba(102, 126, 234, 0.08),
+    0 8px 24px rgba(102, 126, 234, 0.18);
 }
 
 .dropzone.ready {
@@ -483,18 +573,34 @@ function copyShareLink() {
   justify-content: center;
 }
 
-
-
 .browse {
   color: #5562ea;
   text-decoration: underline;
   cursor: pointer;
 }
 
-.headline { font-weight: 700; font-size: 18px; }
-.subline { color: #5b6472; margin-top: 2px; }
-.chips { margin-top: 10px; display: flex; gap: 6px; justify-content: center; }
-.chip { font-size: 11px; padding: 4px 8px; border-radius: 999px; background: #eef0ff; color: #4b53c5; border: 1px solid #e6e8ec; }
+.headline {
+  font-weight: 700;
+  font-size: 18px;
+}
+.subline {
+  color: #5b6472;
+  margin-top: 2px;
+}
+.chips {
+  margin-top: 10px;
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+.chip {
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #eef0ff;
+  color: #4b53c5;
+  border: 1px solid #e6e8ec;
+}
 .hint {
   color: #7a8494;
   margin-top: 6px;
@@ -551,18 +657,21 @@ function copyShareLink() {
   font-weight: 600;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   cursor: pointer;
-  box-shadow: 0 8px 20px rgba(102,126,234,0.25);
-  transition: transform .15s ease, box-shadow .2s ease, filter .2s ease;
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.25);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.2s ease,
+    filter 0.2s ease;
 }
 
 .primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 10px 26px rgba(102,126,234,0.35);
+  box-shadow: 0 10px 26px rgba(102, 126, 234, 0.35);
 }
 
 .primary:active {
   transform: translateY(0);
-  filter: brightness(.98);
+  filter: brightness(0.98);
 }
 
 .link {
@@ -578,31 +687,11 @@ function copyShareLink() {
   margin-top: 10px;
 }
 
-.loading {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 14px;
-  color: #4b5563;
-}
+/* Loading styles removed - now using full-page overlay */
 
-.spinner {
-  width: 18px;
-  height: 18px;
-  border: 2px solid #e6e8ec;
-  border-top: 2px solid #667eea;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
+/* BeatLoader handles its own styling */
 
 /* results/sidebar sections removed */
-
-
 
 .tips-panel h3 {
   display: flex;
@@ -612,8 +701,18 @@ function copyShareLink() {
   color: #1f2937;
 }
 
-.tips-grid { display: flex; flex-direction: column; gap: 10px; }
-.tip { background: #f8faff; border: 1px dashed #c8cdd6; border-radius: 8px; padding: 12px; color: #4b5563; }
+.tips-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tip {
+  background: #f8faff;
+  border: 1px dashed #c8cdd6;
+  border-radius: 8px;
+  padding: 12px;
+  color: #4b5563;
+}
 
 .quiz-header {
   display: flex;
@@ -819,7 +918,9 @@ body.dark .eyebrow {
 body.dark .panel {
   background: #0f172a;
   border-color: #1f2a44;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.35), 0 6px 12px rgba(0,0,0,0.3);
+  box-shadow:
+    0 10px 25px rgba(0, 0, 0, 0.35),
+    0 6px 12px rgba(0, 0, 0, 0.3);
 }
 
 body.dark .progress {
@@ -834,7 +935,9 @@ body.dark .dropzone {
 body.dark .dropzone.over {
   border-color: #667eea;
   background: #131c35;
-  box-shadow: 0 0 0 6px rgba(102,126,234,0.12), 0 8px 24px rgba(102,126,234,0.28);
+  box-shadow:
+    0 0 0 6px rgba(102, 126, 234, 0.12),
+    0 8px 24px rgba(102, 126, 234, 0.28);
 }
 
 body.dark .dropzone.ready {
@@ -887,7 +990,7 @@ body.dark .remove-file:hover {
 }
 
 body.dark .primary {
-  box-shadow: 0 8px 20px rgba(102,126,234,0.35);
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.35);
 }
 
 body.dark .secondary {

@@ -1,12 +1,13 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { logoutUser, clearLegacyTokens } from '../services/authService'
 import ConfirmModal from './ConfirmModal.vue'
-import { BookOpen, Upload, Brain, LogOut, Trash } from 'lucide-vue-next'
+import { BookOpen, Upload, Brain, LogOut, Trash, Menu, X } from 'lucide-vue-next'
 
 const router = useRouter()
 const showConfirm = ref(false)
+const isOpen = ref(false)
 
 function requestLogout() {
   showConfirm.value = true
@@ -22,25 +23,72 @@ async function confirmLogout() {
   window.$toast?.success('Logged out successfully')
   router.replace('/login')
 }
+
+function toggleSidebar() {
+  isOpen.value = !isOpen.value
+}
+
+function closeSidebar() {
+  isOpen.value = false
+}
+
+function handleOverlayClick() {
+  closeSidebar()
+}
+
+// Close sidebar on route change
+router.afterEach(() => {
+  closeSidebar()
+})
+
+// Close sidebar on escape key
+function handleKeydown(event) {
+  if (event.key === 'Escape' && isOpen.value) {
+    closeSidebar()
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('keydown', handleKeydown)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', handleKeydown)
+})
 </script>
 
 <template>
-  <aside class="sidebar">
+  <!-- Mobile menu button -->
+  <button class="mobile-menu-btn" @click="toggleSidebar" aria-label="Toggle menu">
+    <Menu v-if="!isOpen" :size="24" />
+    <X v-else :size="24" />
+  </button>
+
+  <!-- Sidebar overlay for mobile -->
+  <div
+    v-if="isOpen"
+    class="sidebar-overlay"
+    :class="{ active: isOpen }"
+    @click="handleOverlayClick"
+  ></div>
+
+  <!-- Sidebar -->
+  <aside class="sidebar" :class="{ open: isOpen }">
     <div class="brand">
       <BookOpen class="logo" :size="24" />
       <span class="brand-text">QuickLearn</span>
     </div>
 
     <nav class="nav">
-      <router-link class="nav-item" to="/upload">
+      <router-link class="nav-item" to="/upload" @click="closeSidebar">
         <Upload class="icon" :size="20" />
         <span>Upload</span>
       </router-link>
-      <router-link class="nav-item" to="/my-quizzes">
+      <router-link class="nav-item" to="/my-quizzes" @click="closeSidebar">
         <Brain class="icon" :size="20" />
         <span>My Quizzes</span>
       </router-link>
-      <router-link class="nav-item" to="/trash">
+      <router-link class="nav-item" to="/trash" @click="closeSidebar">
         <Trash class="icon" :size="20" />
         <span>Trash</span>
       </router-link>
@@ -63,6 +111,39 @@ async function confirmLogout() {
 </template>
 
 <style scoped>
+/* Mobile menu button */
+.mobile-menu-btn {
+  display: none;
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 1001;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  padding: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.mobile-menu-btn:hover {
+  background: rgba(255, 255, 255, 0.8);
+  transform: scale(1.05);
+}
+
+/* Dark mode mobile menu button */
+body.dark .mobile-menu-btn {
+  background: rgba(15, 23, 42, 0.6);
+  border-color: rgba(31, 42, 68, 0.3);
+  color: #e5e7eb;
+}
+
+body.dark .mobile-menu-btn:hover {
+  background: rgba(15, 23, 42, 0.8);
+}
+
 .sidebar {
   position: sticky;
   top: 0;
@@ -79,6 +160,39 @@ async function confirmLogout() {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
   transition: all 0.3s ease;
   overflow: hidden; /* prevent scrollbars */
+}
+
+/* Responsive sidebar behavior */
+@media (max-width: 1024px) {
+  .mobile-menu-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: -230px;
+    width: 230px;
+    height: 100vh;
+    z-index: 1000;
+    transition: left 0.3s ease;
+    background: rgba(255, 255, 255, 0.95) !important;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
+  }
+
+  .sidebar.open {
+    left: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    width: 280px;
+    left: -280px;
+  }
 }
 
 .brand {
@@ -162,5 +276,4 @@ async function confirmLogout() {
     margin-top: 12px;
   }
 }
-
 </style>
