@@ -195,7 +195,11 @@ function handleTakeQuiz() {
   // Store quiz in localStorage for the quiz page
   localStorage.setItem('currentQuiz', JSON.stringify(quiz.value))
   showConfirmationModal.value = false
-  router.push('/quiz')
+  if (quiz.value?.id) {
+    router.push({ name: 'quiz', params: { quizId: quiz.value.id } })
+  } else {
+    window.$toast?.error('Quiz ID missing; please try again')
+  }
 }
 
 function handleDownloadQuiz() {

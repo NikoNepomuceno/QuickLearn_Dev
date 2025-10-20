@@ -1,8 +1,0 @@
-flowchart TD
-  SRV[server.js] -->|helmet| HEL["Helmet (CORP cross-origin)"]
-  SRV -->|cookie-parser| CP["Cookie Parser"]
-  SRV -->|"CORS headers"| CORS["CORS allow origin + credentials"]
-  AR[authRoutes.js] -->|"failure-only limiter"| RL["In-memory attempts+lock"]
-  AR -->|"jwt.verify on /me"| JWT["JWT using JWT_ACCESS_SECRET"]
-
-

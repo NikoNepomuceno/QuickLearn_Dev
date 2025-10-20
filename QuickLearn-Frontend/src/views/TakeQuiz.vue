@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import cloudQuizService from '../services/cloudQuizService'
+import VoiceQuiz from '../components/VoiceQuiz.vue'
 import { Clock, CheckCircle, ArrowRight, ArrowLeft, RotateCcw } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -31,16 +32,12 @@ const progress = computed(() => {
     : 0
 })
 
-// Helper function to check if answers match (case-insensitive and flexible)
 function isAnswerCorrect(userAnswer, correctAnswer, questionType) {
   if (!userAnswer || !correctAnswer) return false
 
-  // Handle different question types
   if (questionType === 'enumeration') {
-    // For enumeration, both should be arrays
     if (!Array.isArray(userAnswer) || !Array.isArray(correctAnswer)) return false
 
-    // Normalize both arrays (trim, lowercase)
     const normalizedUser = userAnswer
       .map((item) => item.toString().trim().toLowerCase())
       .filter((item) => item)
@@ -48,13 +45,9 @@ function isAnswerCorrect(userAnswer, correctAnswer, questionType) {
       .map((item) => item.toString().trim().toLowerCase())
       .filter((item) => item)
 
-    // Check if all correct answers are present in user answer (order doesn't matter)
-    // Also handle variations for each item
     return normalizedCorrect.every((correctItem) => {
-      // Direct match
       if (normalizedUser.includes(correctItem)) return true
 
-      // Check variations for this specific item
       const itemVariations = {
         javascript: ['js', 'javascript', 'ecmascript'],
         js: ['javascript', 'js', 'ecmascript'],
@@ -151,12 +144,12 @@ const isCurrentQuestionAnswered = computed(() => {
     )
   }
 
-  // For other question types, check if answer is not empty
   return currentAnswer && currentAnswer.toString().trim() !== ''
 })
 
+const isVoiceEnabled = ref(false)
+
 onMounted(async () => {
-  // Get quiz data from route params (UUID)
   if (route.params.quizId) {
     try {
       const quizData = await cloudQuizService.getQuizByUuid(route.params.quizId)
@@ -173,7 +166,6 @@ onMounted(async () => {
       router.push('/')
     }
   } else {
-    // No quiz ID provided, redirect to home
     router.push('/')
   }
 })
@@ -224,11 +216,9 @@ async function submitQuiz() {
     clearInterval(timer)
   }
 
-  // persist attempt result
   try {
     const elapsed = typeof timeElapsed.value === 'number' ? timeElapsed.value : 0
     if (quiz.value?.id && (await cloudQuizService.isAuthenticated())) {
-      // capture user answers in order of questions
       const userAnswers = (quiz.value.questions || []).map((_, idx) => answers.value[idx] || null)
       await cloudQuizService.saveQuizAttempt(quiz.value.id, {
         score: score.value,
@@ -238,7 +228,6 @@ async function submitQuiz() {
     }
   } catch (error) {
     console.error('Error saving quiz attempt:', error)
-    // Don't show error to user, just log it
   }
 }
 
@@ -258,11 +247,40 @@ function goHome() {
 function goToUpload() {
   router.push('/upload')
 }
+
+function handleVoiceAnswer(answer) {
+  console.log('Voice answer received:', answer, 'Current question:', currentQuestionIndex.value)
+  selectAnswer(answer)
+  window.$toast?.success('Answer recorded via voice')
+  
+
+  setTimeout(() => {
+    console.log('Auto-advancing from question', currentQuestionIndex.value, 'to next question')
+    if (currentQuestionIndex.value < totalQuestions.value - 1) {
+      nextQuestion()
+    } else {
+
+      console.log('Last question reached, submitting quiz')
+      submitQuiz()
+    }
+  }, 1500) 
+}
+
+function handleVoiceError(error) {
+  window.$toast?.error(`Voice error: ${error}`)
+}
+
+function handleVoiceStatusChange(status) {
+  if (status === 'active') {
+    isVoiceEnabled.value = true
+  } else if (status === 'inactive') {
+    isVoiceEnabled.value = false
+  }
+}
 </script>
 
 <template>
   <div class="quiz-page">
-    <!-- Floating Progress Indicator -->
     <div class="floating-progress">
       <div class="progress-circle">
         <svg class="progress-ring" width="60" height="60">
@@ -327,6 +345,18 @@ function goToUpload() {
             <span class="separator">of</span>
             <span class="total">{{ totalQuestions }}</span>
           </div>
+        </div>
+        
+        <!-- Voice Quiz Component -->
+        <div class="voice-controls">
+          <VoiceQuiz
+            :question="currentQuestion"
+            :question-number="currentQuestionIndex + 1"
+            :is-enabled="isVoiceEnabled"
+            @answer-selected="handleVoiceAnswer"
+            @error="handleVoiceError"
+            @status-change="handleVoiceStatusChange"
+          />
         </div>
       </div>
 
@@ -918,6 +948,12 @@ function goToUpload() {
 
 .question-counter .total {
   opacity: 0.9;
+}
+
+.voice-controls {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
 }
 
 .progress-bar {
