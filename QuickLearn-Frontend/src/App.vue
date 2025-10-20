@@ -1,5 +1,5 @@
 <script setup>
-import { SpeedInsights } from "@vercel/speed-insights/next"
+// import { SpeedInsights } from "@vercel/speed-insights/next"
 import Swal from 'sweetalert2'
 import GlobalLoader from './components/GlobalLoader.vue'
 
@@ -70,7 +70,7 @@ function toggleTheme() {
   <router-view />
   <GlobalLoader />
   <button class="theme-floating-toggle" @click="toggleTheme" aria-label="Toggle theme">🌓</button>
-  <SpeedInsights />
+  <!--  -->
 </template>
 
 <style scoped></style>
