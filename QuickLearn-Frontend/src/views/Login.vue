@@ -36,8 +36,8 @@ function togglePassword() {
 }
 
 function handleGoogleLogin() {
-  // TODO: Implement Google OAuth
-  console.log('Google login clicked')
+	const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3000';
+	window.location.href = `${API_BASE}/api/auth/oauth/google/start`;
 }
 
 function handleGitHubLogin() {

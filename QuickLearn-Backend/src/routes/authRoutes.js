@@ -1,7 +1,9 @@
 const express = require('express');
-const { register, verifyEmail, resendOtp, login, logout, forgotPassword, resetPassword } = require('../services/authService');
-const { getCookieOptions } = require('../middleware/auth');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const { register, verifyEmail, resendOtp, login, logout, forgotPassword, resetPassword } = require('../services/authService');
+const { generateState, buildGoogleAuthUrl, exchangeCodeForTokens, fetchGoogleProfile, loginOrCreateFromGoogle } = require('../services/oauthService');
+const { getCookieOptions } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -35,8 +37,7 @@ router.post('/resend-otp', async (req, res) => {
 	}
 });
 
-// Failure-only limiter: 5 failed attempts -> 15s lock
-const failedAttempts = new Map(); // key -> { count, lockedUntil }
+const failedAttempts = new Map(); 
 function getLoginKey(req) {
     const identifier = req.body?.identifier || '';
     return `${identifier.toLowerCase()}|${req.ip}`;
@@ -52,9 +53,7 @@ router.post('/login', async (req, res) => {
             return res.status(429).json({ error: `Too many failed attempts. Try again in ${waitSec}s` });
         }
         const result = await login({ identifier, password, ip: req.ip, userAgent: req.headers['user-agent'] });
-        // Set httpOnly cookie for access token
         res.cookie('access_token', result.accessToken, getCookieOptions());
-        // reset counter on success
         failedAttempts.delete(key);
         return res.json({ user: result.user });
 	} catch (err) {
@@ -71,7 +70,6 @@ router.post('/login', async (req, res) => {
 	}
 });
 
-// Refresh removed
 
 router.post('/logout', async (req, res) => {
 	try {
@@ -84,7 +82,6 @@ router.post('/logout', async (req, res) => {
 	}
 });
 
-// Current user endpoint for frontend to check auth
 router.get('/me', (req, res) => {
     try {
         const token = req.cookies && req.cookies.access_token ? req.cookies.access_token : null;
@@ -116,59 +113,72 @@ router.post('/reset-password', async (req, res) => {
 	}
 });
 
-// Development only: Create test user and get token
-// if (process.env.NODE_ENV === 'development') {
-// 	router.post('/dev-create-test-user', async (req, res) => {
-// 		try {
-// 			const { getPool } = require('../config/db');
-// 			const bcrypt = require('bcrypt');
-// 			const { v4: uuidv4 } = require('uuid');
+router.get('/oauth/google/start', (req, res) => {
+	try {
+        // Ensure required env vars are present; set a safe default redirect for local dev
+        if (!process.env.GOOGLE_CLIENT_ID) {
+            return res.status(500).json({ error: 'Google OAuth not configured: missing GOOGLE_CLIENT_ID' });
+        }
+        if (!process.env.GOOGLE_REDIRECT_URI) {
+            const fallback = `${req.protocol}://${req.get('host')}/api/auth/oauth/google/callback`;
+            process.env.GOOGLE_REDIRECT_URI = fallback;
+        }
+        const makeState = typeof generateState === 'function'
+            ? generateState
+            : () => crypto.randomBytes(16).toString('hex');
+        const state = makeState();
+		res.cookie('oauth_state', state, { ...getCookieOptions(), maxAge: 60 * 1000 });
+        const url = typeof buildGoogleAuthUrl === 'function'
+            ? buildGoogleAuthUrl(state)
+            : (() => {
+                const params = new URLSearchParams({
+                    client_id: process.env.GOOGLE_CLIENT_ID,
+                    redirect_uri: process.env.GOOGLE_REDIRECT_URI,
+                    response_type: 'code',
+                    scope: 'openid email profile',
+                    access_type: 'offline',
+                    prompt: 'consent',
+                    state
+                });
+                return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+            })();
+		return res.redirect(url);
+	} catch (err) {
+        console.error('Failed to start Google OAuth:', err);
+        return res.status(500).json({ error: 'Failed to start Google OAuth' });
+	}
+});
 
-// 			const pool = await getPool();
-// 			const testEmail = 'test@quicklearn.dev';
-// 			const testUsername = 'testuser';
-// 			const testPassword = 'password123';
+router.get('/oauth/google/callback', async (req, res) => {
+	try {
+		const { code, state } = req.query || {};
+        const savedState = req.cookies?.oauth_state;
+        if (!code || !state || !savedState || state !== savedState) {
+            console.warn('Invalid OAuth state', {
+                hasCode: Boolean(code),
+                stateFromQuery: state,
+                stateFromCookie: savedState,
+                cookieHeader: req.headers?.cookie
+            });
+			return res.status(400).json({ error: 'Invalid OAuth state' });
+		}
+		res.clearCookie('oauth_state', { path: '/' });
+        const tokens = await exchangeCodeForTokens(code);
+        const profile = await fetchGoogleProfile(tokens.access_token);
 
-// 			// Check if user already exists
-// 			const [existing] = await pool.execute(
-// 				'SELECT id FROM users WHERE email = ? OR username = ?',
-// 				[testEmail, testUsername]
-// 			);
+		const result = await loginOrCreateFromGoogle(profile, {
+			ip: req.ip,
+			userAgent: req.headers['user-agent']
+		});
+		res.cookie('access_token', result.accessToken, getCookieOptions());
+		const redirectBase = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
 
-// 			let userId;
-// 			if (existing.length > 0) {
-// 				userId = existing[0].id;
-// 			} else {
-// 				// Create test user
-// 				const passwordHash = await bcrypt.hash(testPassword, 10);
-// 				const userUuid = uuidv4();
-
-// 				const [result] = await pool.execute(
-// 					`INSERT INTO users (uuid, username, email, password_hash, is_email_verified)
-// 					 VALUES (?, ?, ?, ?, 1)`,
-// 					[userUuid, testUsername, testEmail, passwordHash]
-// 				);
-// 				userId = result.insertId;
-// 			}
-
-// 			// Generate token
-// 			const token = jwt.sign(
-// 				{ sub: userId, uuid: uuidv4(), username: testUsername },
-// 				process.env.JWT_ACCESS_SECRET,
-// 				{ expiresIn: '24h' }
-// 			);
-
-// 			res.json({
-// 				message: 'Test user created/found',
-// 				user: { id: userId, username: testUsername, email: testEmail },
-// 				token: token
-// 			});
-// 		} catch (err) {
-// 			console.error('Error creating test user:', err);
-// 			res.status(500).json({ error: 'Failed to create test user' });
-// 		}
-// 	});
-// }
+		return res.redirect(`${redirectBase}/upload`);
+	} catch (err) {
+        console.error('Google OAuth callback failed:', err);
+        return res.status(500).json({ error: 'Callback failed' });
+	}
+});
 
 module.exports = router;
 

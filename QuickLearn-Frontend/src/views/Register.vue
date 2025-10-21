@@ -210,20 +210,23 @@ if (route.query.pp === '1') {
       <h1>Create Account</h1>
       <p class="subtitle">Sign up to start generating quizzes.</p>
 
-      <form v-if="step === 1" @submit="onRegister" class="form">
+      <form v-if="step === 1" @submit="onRegister" class="form" autocomplete="off">
+        <!-- Autofill decoys -->
+        <input type="text" name="username" autocomplete="username" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;opacity:0;height:0;width:0;pointer-events:none;" />
+        <input type="password" name="password" autocomplete="current-password" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;opacity:0;height:0;width:0;pointer-events:none;" />
         <div class="input-group">
-          <User class="input-icon" :size="18" />
-          <input v-model="username" type="text" required placeholder="Username" />
+          <User class="input-icon" :size="18" /> 
+          <input v-model="username" type="text" required placeholder="Username" name="new-username" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="text" />
         </div>
         
         <div class="input-group">
           <Mail class="input-icon" :size="18" />
-          <input v-model="email" type="email" required placeholder="Email" />
+          <input v-model="email" type="email" required placeholder="Email" name="new-email" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="email" />
         </div>
         
         <div class="input-group">
           <Lock class="input-icon" :size="18" />
-          <input v-model="password" :type="showPassword ? 'text' : 'password'" required @input="validatePassword" placeholder="Password" />
+          <input v-model="password" :type="showPassword ? 'text' : 'password'" required @input="validatePassword" placeholder="Password" name="new-password" autocomplete="new-password" @paste.prevent @copy.prevent @cut.prevent @drop.prevent @contextmenu.prevent />
           <button type="button" class="password-toggle" @click="togglePassword">
             <Eye v-if="!showPassword" :size="18" />
             <EyeOff v-else :size="18" />
@@ -251,7 +254,7 @@ if (route.query.pp === '1') {
         
         <div class="input-group">
           <Lock class="input-icon" :size="18" />
-          <input v-model="confirmPassword" :type="showConfirmPassword ? 'text' : 'password'" required placeholder="Confirm Password" />
+          <input v-model="confirmPassword" :type="showConfirmPassword ? 'text' : 'password'" required placeholder="Confirm Password" autocomplete="new-password" @paste.prevent @copy.prevent @cut.prevent @drop.prevent @contextmenu.prevent />
           <button type="button" class="password-toggle" @click="toggleConfirmPassword">
             <Eye v-if="!showConfirmPassword" :size="18" />
             <EyeOff v-else :size="18" />
