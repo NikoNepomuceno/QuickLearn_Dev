@@ -1,8 +1,9 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import QuizConfirmationModal from '../components/QuizConfirmationModal.vue'
 import QuizConfigModal from '../components/QuizConfigModal.vue'
+import PageSelectionModal from '../components/PageSelectionModal.vue'
 import Sidebar from '../components/Sidebar.vue'
 import { downloadQuizAsPDF } from '../services/quizService'
 import cloudQuizService from '../services/cloudQuizService'
@@ -20,9 +21,27 @@ const showAnswers = ref({})
 const progressPercent = ref(0)
 const showConfirmationModal = ref(false)
 const showConfigModal = ref(false)
+const showPageSelectionModal = ref(false)
 const shareLink = ref('')
 const showShareSuccess = ref(false)
+const filePages = ref([])
+const filePageCount = ref(0)
 let progressTimer = null
+onMounted(() => {
+  try {
+    const url = new URL(window.location.href)
+    const welcome = url.searchParams.get('welcome')
+    if (welcome === 'new') {
+      window.$toast?.success('Welcome to QuickLearn!')
+    } else if (welcome === 'returning') {
+      window.$toast?.success('Welcome back!')
+    }
+    if (welcome) {
+      url.searchParams.delete('welcome')
+      window.history.replaceState({}, document.title, url.pathname + url.search + url.hash)
+    }
+  } catch {}
+})
 
 const fileSize = computed(() => {
   if (!selectedFile.value) return null
@@ -47,12 +66,12 @@ const fileName = computed(() => {
 //   }
 // })
 
-function onFileChange(event) {
+async function onFileChange(event) {
   const files = event.target.files
   selectedFile.value = files && files[0] ? files[0] : null
   errorMessage.value = ''
   if (selectedFile.value) {
-    showConfigModal.value = true
+    await handleFileUpload()
   }
 }
 
@@ -67,7 +86,7 @@ function triggerFileInput() {
   }
 }
 
-function onDrop(event) {
+async function onDrop(event) {
   event.preventDefault()
   isDragOver.value = false
   const files = event.dataTransfer.files
@@ -76,14 +95,15 @@ function onDrop(event) {
     const allowedTypes = [
       'application/pdf',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
       'text/plain',
     ]
-    if (allowedTypes.includes(file.type) || file.name.match(/\.(pdf|docx|txt)$/i)) {
+    if (allowedTypes.includes(file.type) || file.name.match(/\.(pdf|docx|pptx|txt)$/i)) {
       selectedFile.value = file
       errorMessage.value = ''
-      showConfigModal.value = true
+      await handleFileUpload()
     } else {
-      const message = 'Please upload a PDF, DOCX, or TXT file.'
+      const message = 'Please upload a PDF, DOCX, PPTX, or TXT file.'
       errorMessage.value = message
       window.$toast?.error(message)
     }
@@ -103,6 +123,38 @@ function onDragLeave(event) {
 function removeFile() {
   selectedFile.value = null
   errorMessage.value = ''
+  filePages.value = []
+  filePageCount.value = 0
+}
+
+async function handleFileUpload() {
+  if (!selectedFile.value) return
+
+  // Check if user is authenticated
+  if (!(await cloudQuizService.isAuthenticated())) {
+    window.$toast?.error('Please log in to create quizzes')
+    router.push('/login')
+    return
+  }
+
+  isLoading.value = true
+  startProgress()
+
+  try {
+    // Parse the file to get page information
+    const parseResult = await cloudQuizService.parseFile(selectedFile.value)
+    filePages.value = parseResult.pages || []
+    filePageCount.value = parseResult.pageCount || 1
+    
+    // Show page selection modal
+    showPageSelectionModal.value = true
+  } catch (err) {
+    errorMessage.value = err?.message || 'Failed to parse file.'
+    window.$toast?.error(errorMessage.value)
+  } finally {
+    completeProgress()
+    isLoading.value = false
+  }
 }
 
 // function toggleAnswer(questionIndex) {
@@ -149,6 +201,7 @@ async function uploadFile(options = {}) {
       isAdvanced: options.isAdvanced || false,
       includeReasoning: options.includeReasoning !== false,
       customInstructions: options.customInstructions || '',
+      selectedPages: options.selectedPages || [],
     }
 
     const result = await cloudQuizService.createQuizFromFile(selectedFile.value, quizOptions)
@@ -250,7 +303,19 @@ function handleConfigConfirm(payload) {
     typesParam = arr.join(',')
   }
 
-  uploadFile({ ...payload, type: typesParam })
+  // Include page selection data if available
+  const pageSelectionData = window.pageSelectionData || {}
+  const finalPayload = {
+    ...payload,
+    type: typesParam,
+    selectedPages: pageSelectionData.selectedPages || [],
+    customInstructions: pageSelectionData.customPrompt || payload.customInstructions || ''
+  }
+
+  // Clear the stored page selection data
+  delete window.pageSelectionData
+
+  uploadFile(finalPayload)
 }
 
 function copyShareLink() {
@@ -266,6 +331,24 @@ function copyShareLink() {
       })
   }
 }
+
+// Page selection modal handlers
+function handlePageSelectionCancel() {
+  showPageSelectionModal.value = false
+}
+
+function handlePageSelectionConfirm(payload) {
+  showPageSelectionModal.value = false
+  
+  // Show config modal with the selected pages and custom prompt
+  showConfigModal.value = true
+  
+  // Store the page selection data for later use
+  window.pageSelectionData = {
+    selectedPages: payload.selectedPages,
+    customPrompt: payload.customPrompt
+  }
+}
 </script>
 
 <template>
@@ -279,74 +362,161 @@ function copyShareLink() {
         </div>
         <h1>Generate a Quiz from Your File</h1>
         <p class="subtitle">
-          Upload a PDF, DOCX, or TXT and let QuickLearn create high-quality questions.
+          Upload a PDF, DOCX, PPTX, or TXT and let QuickLearn create high-quality questions.
         </p>
       </div>
-      <div class="content-grid">
-        <div class="panel upload-panel">
-          <div class="progress" v-show="isLoading || progressPercent > 0">
-            <div class="bar" :style="{ width: progressPercent + '%' }"></div>
-          </div>
+      <div class="content-layout">
+        <!-- Left Column -->
+        <div class="left-column">
+          <div class="panel upload-panel">
+            <div class="progress" v-show="isLoading || progressPercent > 0">
+              <div class="bar" :style="{ width: progressPercent + '%' }"></div>
+            </div>
 
-          <div
-            class="dropzone"
-            :class="{ over: isDragOver, ready: selectedFile }"
-            @drop="onDrop"
-            @dragover="onDragOver"
-            @dragleave="onDragLeave"
-            @click="triggerFileInput"
-          >
-            <div class="dropzone-inner">
-              <div class="upload-icon">
-                <Upload :size="48" />
-              </div>
-              <div class="dz-text" v-if="!selectedFile">
-                <div class="headline">Drop your files here</div>
-                <div class="subline">
-                  or <label for="file-input" class="browse">browse to upload</label>
+            <div
+              class="dropzone"
+              :class="{ over: isDragOver, ready: selectedFile }"
+              @drop="onDrop"
+              @dragover="onDragOver"
+              @dragleave="onDragLeave"
+              @click="triggerFileInput"
+            >
+              <div class="dropzone-inner">
+                <div class="upload-icon">
+                  <Upload :size="48" />
                 </div>
-                <input
-                  id="file-input"
-                  type="file"
-                  accept=".txt,.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
-                  @change="onFileChange"
-                  hidden
-                />
-                <div class="chips">
-                  <span class="chip">PDF</span>
-                  <span class="chip">DOCX</span>
-                  <span class="chip">TXT</span>
+                <div class="dz-text" v-if="!selectedFile">
+                  <div class="headline">Drop your files here</div>
+                  <div class="subline">
+                    or <label for="file-input" class="browse">browse to upload</label>
+                  </div>
+                  <input
+                    id="file-input"
+                    type="file"
+                    accept=".txt,.pdf,.docx,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain"
+                    @change="onFileChange"
+                    hidden
+                  />
+                  <div class="chips">
+                    <span class="chip">PDF</span>
+                    <span class="chip">DOCX</span>
+                    <span class="chip">PPTX</span>
+                    <span class="chip">TXT</span>
+                  </div>
+                  <div class="hint">Maximum file size: 10MB</div>
                 </div>
-                <div class="hint">Maximum file size: 10MB</div>
-              </div>
-              <div class="dz-selected" v-else>
-                <div class="selected-top">
-                  <FileText class="file-icon" :size="20" />
-                  <div class="selected-name">{{ fileName }}</div>
-                  <button class="remove" @click="removeFile" aria-label="Remove file">
-                    <X :size="16" />
-                  </button>
+                <div class="dz-selected" v-else>
+                  <div class="selected-top">
+                    <FileText class="file-icon" :size="20" />
+                    <div class="selected-name">{{ fileName }}</div>
+                    <button class="remove" @click="removeFile" aria-label="Remove file">
+                      <X :size="16" />
+                    </button>
+                  </div>
+                  <div class="selected-meta">{{ fileSize }}</div>
                 </div>
-                <div class="selected-meta">{{ fileSize }}</div>
               </div>
             </div>
           </div>
 
-          <!-- Loading state removed - now handled by full-page overlay -->
+          <!-- Tips for Better Results Section (moved to left column) -->
+          <div class="panel tips-panel">
+            <h3>
+              <Lightbulb :size="20" />
+              Tips for Better Results
+            </h3>
+            <div class="tips-grid">
+              <div class="tip">
+                <span class="tip-check">✓</span>
+                <span>Use clear, well-structured documents</span>
+              </div>
+              <div class="tip">
+                <span class="tip-check">✓</span>
+                <span>Include headings and subheadings</span>
+              </div>
+              <div class="tip">
+                <span class="tip-check">✓</span>
+                <span>Ensure text is readable and not scanned images</span>
+              </div>
+              <div class="tip">
+                <span class="tip-check">✓</span>
+                <span>Keep files under 10MB for faster processing</span>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div class="panel tips-panel">
-          <h3>
-            <Lightbulb :size="20" />
-            Tips for best result
-          </h3>
-          <div class="tips-grid">
-            <div class="tip">Use clean, well-structured documents.</div>
-            <div class="tip">Split large topics into separate files for focused quizzes.</div>
-            <div class="tip">Prefer 10–25 questions for balanced difficulty.</div>
+        <!-- Right Column -->
+        <div class="right-column">
+          <!-- Supported Formats Section -->
+          <div class="panel formats-panel">
+            <h3>Supported Formats</h3>
+            <div class="formats-grid">
+              <div class="format-card">
+                <div class="format-icon">📄</div>
+                <div class="format-info">
+                  <div class="format-tag">PDF</div>
+                  <div class="format-name">Portable Document Format</div>
+                  <div class="format-examples">Textbooks, research papers, lecture slides</div>
+                </div>
+              </div>
+              <div class="format-card">
+                <div class="format-icon">📄</div>
+                <div class="format-info">
+                  <div class="format-tag">DOCX</div>
+                  <div class="format-name">Microsoft Word Document</div>
+                  <div class="format-examples">Notes, essays, study guides</div>
+                </div>
+              </div>
+              <div class="format-card">
+                <div class="format-icon">📄</div>
+                <div class="format-info">
+                  <div class="format-tag">TXT</div>
+                  <div class="format-name">Plain Text File</div>
+                  <div class="format-examples">Simple notes, code snippets, lists</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- How It Works Section -->
+          <div class="panel process-panel">
+            <h3>How It Works</h3>
+            <div class="process-steps">
+              <div class="process-step">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                  <div class="step-title">Upload Your Files</div>
+                  <div class="step-description">Drag and drop or browse to select your study materials</div>
+                </div>
+              </div>
+              <div class="process-step">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                  <div class="step-title">Processing</div>
+                  <div class="step-description">Our AI analyzes your content and extracts key information</div>
+                </div>
+              </div>
+              <div class="process-step">
+                <div class="step-number">3</div>
+                <div class="step-content">
+                  <div class="step-title">Generate Quizzes</div>
+                  <div class="step-description">Create custom quizzes in multiple formats from your content</div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
+
+      <!-- Page Selection Modal -->
+      <PageSelectionModal
+        :visible="showPageSelectionModal"
+        :file-name="fileName"
+        :pages="filePages"
+        @close="handlePageSelectionCancel"
+        @confirm="handlePageSelectionConfirm"
+      />
 
       <!-- Configuration Modal -->
       <QuizConfigModal
@@ -447,6 +617,21 @@ function copyShareLink() {
     padding: 10px;
     font-size: 14px;
   }
+
+  .format-card {
+    padding: 12px;
+  }
+
+  .process-step {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .step-number {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -472,10 +657,30 @@ function copyShareLink() {
   }
 }
 
-.content-grid {
+.content-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.left-column {
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+.right-column {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+@media (max-width: 1024px) {
+  .content-layout {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
 }
 
 .header {
@@ -705,17 +910,162 @@ function copyShareLink() {
   color: #1f2937;
 }
 
+/* Formats Panel Styles */
+.formats-panel h3 {
+  margin: 0 0 20px;
+  color: #1f2937;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.formats-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.format-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: #f8faff;
+  border: 1px solid #e6e8ec;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.format-card:hover {
+  background: #f0f3ff;
+  border-color: #c8cdd6;
+  transform: translateY(-1px);
+}
+
+.format-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.format-info {
+  flex: 1;
+}
+
+.format-tag {
+  display: inline-block;
+  background: #667eea;
+  color: white;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  margin-bottom: 4px;
+}
+
+.format-name {
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 2px;
+}
+
+.format-examples {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+/* Process Panel Styles */
+.process-panel h3 {
+  margin: 0 0 20px;
+  color: #1f2937;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.process-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.process-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px;
+  background: #f8faff;
+  border: 1px solid #e6e8ec;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.process-step:hover {
+  background: #f0f3ff;
+  border-color: #c8cdd6;
+  transform: translateY(-1px);
+}
+
+.step-number {
+  width: 32px;
+  height: 32px;
+  background: #667eea;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.step-content {
+  flex: 1;
+}
+
+.step-title {
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 4px;
+}
+
+.step-description {
+  font-size: 14px;
+  color: #6b7280;
+}
+
 .tips-grid {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 .tip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   background: #f8faff;
   border: 1px dashed #c8cdd6;
   border-radius: 8px;
   padding: 12px;
   color: #4b5563;
+  transition: all 0.2s ease;
+}
+
+.tip:hover {
+  background: #f0f3ff;
+  border-color: #c8cdd6;
+}
+
+.tip-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: #10b981;
+  color: white;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
 }
 
 .quiz-header {
@@ -1042,5 +1392,61 @@ body.dark .close-success {
 body.dark .close-success:hover {
   background: #1f2a44;
   color: #e5e7eb;
+}
+
+/* Dark mode styles for new sections */
+body.dark .formats-panel h3 {
+  color: #e5e7eb;
+}
+
+body.dark .format-card {
+  background: #1f2a44;
+  border-color: #334155;
+}
+
+body.dark .format-card:hover {
+  background: #334155;
+  border-color: #4b5563;
+}
+
+body.dark .format-name {
+  color: #e5e7eb;
+}
+
+body.dark .format-examples {
+  color: #9ca3af;
+}
+
+body.dark .process-panel h3 {
+  color: #e5e7eb;
+}
+
+body.dark .process-step {
+  background: #1f2a44;
+  border-color: #334155;
+}
+
+body.dark .process-step:hover {
+  background: #334155;
+  border-color: #4b5563;
+}
+
+body.dark .step-title {
+  color: #e5e7eb;
+}
+
+body.dark .step-description {
+  color: #9ca3af;
+}
+
+body.dark .tip {
+  background: #1f2a44;
+  border-color: #334155;
+  color: #e5e7eb;
+}
+
+body.dark .tip:hover {
+  background: #334155;
+  border-color: #4b5563;
 }
 </style>

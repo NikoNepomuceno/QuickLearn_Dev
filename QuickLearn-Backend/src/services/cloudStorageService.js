@@ -22,14 +22,17 @@ class CloudStorageService {
                 }
             );
 
-            // Step 2: Extract text from the uploaded file
+            // Step 2: Extract text and pages from the uploaded file
             const mockFile = {
                 originalname: originalFilename,
                 mimetype: this.getMimeTypeFromFilename(originalFilename),
                 buffer: fileBuffer
             };
             
-            const textContent = await parseUploadedFile(mockFile);
+            const parseResult = await parseUploadedFile(mockFile);
+            const textContent = parseResult.text;
+            const pages = parseResult.pages || [textContent];
+            const pageCount = parseResult.pageCount || 1;
             
             if (!textContent || !textContent.trim()) {
                 throw new Error('Unable to extract text from the uploaded file.');
@@ -43,23 +46,46 @@ class CloudStorageService {
                 focusAreas = [],
                 isAdvanced = false,
                 includeReasoning = true,
-                customInstructions = ''
+                customInstructions = '',
+                selectedPages = []
             } = quizOptions;
+
+            // Use selected pages if provided, otherwise use full text
+            let contentToUse = textContent;
+            console.log('Selected pages received:', {
+                selectedPages: selectedPages,
+                type: typeof selectedPages,
+                isArray: Array.isArray(selectedPages),
+                length: selectedPages?.length
+            });
+            
+            if (selectedPages && Array.isArray(selectedPages) && selectedPages.length > 0) {
+                // Filter pages based on selected page indices
+                const selectedPageContents = selectedPages.map(page => page.content).filter(Boolean);
+                console.log('Selected page contents:', selectedPageContents.length);
+                if (selectedPageContents.length > 0) {
+                    contentToUse = selectedPageContents.join('\n\n');
+                    console.log('Using selected pages content, length:', contentToUse.length);
+                }
+            } else {
+                console.log('Using full text content, length:', contentToUse.length);
+            }
 
             let generatedQuiz;
             if (isAdvanced) {
-                generatedQuiz = await generateAdvancedQuiz(textContent, {
+                generatedQuiz = await generateAdvancedQuiz(contentToUse, {
                     numQuestions,
                     difficulty,
                     includeReasoning,
                     customInstructions
                 });
             } else {
-                generatedQuiz = await generateAIPoweredQuiz(textContent, {
+                generatedQuiz = await generateAIPoweredQuiz(contentToUse, {
                     numQuestions,
                     difficulty,
                     questionTypes,
-                    focusAreas
+                    focusAreas,
+                    customInstructions
                 });
             }
 
@@ -97,7 +123,9 @@ class CloudStorageService {
                     textLength: textContent.length,
                     processingTime: new Date().toISOString(),
                     fileUploaded: true,
-                    cloudinaryUrl: cloudinaryResult.secure_url
+                    cloudinaryUrl: cloudinaryResult.secure_url,
+                    pages: pages,
+                    pageCount: pageCount
                 }
             };
 
@@ -312,6 +340,7 @@ class CloudStorageService {
         const mimeTypes = {
             'pdf': 'application/pdf',
             'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
             'txt': 'text/plain',
             'doc': 'application/msword'
         };

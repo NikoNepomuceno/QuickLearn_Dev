@@ -115,7 +115,6 @@ router.post('/reset-password', async (req, res) => {
 
 router.get('/oauth/google/start', (req, res) => {
 	try {
-        // Ensure required env vars are present; set a safe default redirect for local dev
         if (!process.env.GOOGLE_CLIENT_ID) {
             return res.status(500).json({ error: 'Google OAuth not configured: missing GOOGLE_CLIENT_ID' });
         }
@@ -173,7 +172,8 @@ router.get('/oauth/google/callback', async (req, res) => {
 		res.cookie('access_token', result.accessToken, getCookieOptions());
 		const redirectBase = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
 
-		return res.redirect(`${redirectBase}/upload`);
+		const welcome = result.isNewUser ? 'new' : 'returning';
+		return res.redirect(`${redirectBase}/upload?welcome=${welcome}`);
 	} catch (err) {
         console.error('Google OAuth callback failed:', err);
         return res.status(500).json({ error: 'Callback failed' });

@@ -16,12 +16,54 @@ class CloudQuizService {
   }
 
   /**
+   * Parse file and get page information
+   */
+  async parseFile(file) {
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const headers = {}
+      const token = authService.getToken()
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+
+      const response = await fetch(`${API_BASE}/api/quiz/parse-file`, {
+        method: 'POST',
+        headers,
+        body: formData,
+        credentials: 'include'
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(errorText || `File parsing failed with status ${response.status}`)
+      }
+
+      const data = await response.json()
+      return data
+    } catch (error) {
+      console.error('Error parsing file:', error)
+      throw error
+    }
+  }
+
+  /**
    * Upload file and create quiz
    */
   async createQuizFromFile(file, options = {}) {
     try {
       const formData = new FormData()
       formData.append('file', file)
+
+      // Add selected pages and custom instructions to form data
+      if (options.selectedPages && options.selectedPages.length > 0) {
+        formData.append('selectedPages', JSON.stringify(options.selectedPages))
+      }
+      if (options.customInstructions) {
+        formData.append('customInstructions', options.customInstructions)
+      }
 
       const queryParams = new URLSearchParams()
       if (options.count) queryParams.append('count', options.count)

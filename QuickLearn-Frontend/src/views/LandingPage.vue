@@ -90,7 +90,7 @@ function onAcceptPrivacy() {}
               <div class="upload-area">
                 <div class="upload-icon">📄</div>
                 <p>Upload your document</p>
-                <span class="file-types">PDF, DOCX, TXT</span>
+                <span class="file-types">PDF, DOCX, PPTX, TXT</span>
               </div>
               <div class="processing">
                 <div class="spinner"></div>

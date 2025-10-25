@@ -134,7 +134,7 @@ function handleGitHubLogin() {
   justify-content: center;
   min-height: 100vh;
   padding: 24px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #E0E6F0;
 }
 
 .card {
@@ -404,6 +404,11 @@ input:focus {
 body.dark .card {
   background: #1a202c;
   color: #e2e8f0;
+}
+
+/* Page background in dark mode */
+body.dark .auth-page {
+  background: #131C30;
 }
 
 body.dark h1 {

@@ -1,26 +1,21 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { registerUser, verifyEmail, resendOtp } from '../services/authService'
+import { registerUser } from '../services/authService'
 import PrivacyPolicyModal from '../components/PrivacyPolicyModal.vue'
 import { ArrowLeft, User, Mail, Lock, UserPlus, Eye, EyeOff } from 'lucide-vue-next'
 
+
 const router = useRouter()
 const route = useRoute()
-const step = ref(1)
 const username = ref('')
 const email = ref('')
 const password = ref('')
 const confirmPassword = ref('')
-const otp = ref('')
 const isLoading = ref(false)
 const error = ref('')
 const showPrivacy = ref(false)
 const acceptedPrivacy = ref(false)
-const resendCooldown = ref(0)
-const resendTimer = ref(null)
-const otpDigits = ref(['', '', '', '', '', ''])
-const otpInputs = ref([])
 const showPassword = ref(false)
 const showConfirmPassword = ref(false)
 
@@ -55,8 +50,9 @@ async function onRegister(e) {
       password: password.value,
       confirmPassword: confirmPassword.value,
     })
-    step.value = 2
     window.$toast?.success('Account created! Check your email for the verification code.')
+    try { sessionStorage.setItem('verifyEmailPending', email.value) } catch {}
+    router.push({ name: 'verify-email', query: { email: email.value } })
   } catch (err) {
     error.value = err?.message || 'Registration failed'
     window.$toast?.error(error.value)
@@ -65,102 +61,6 @@ async function onRegister(e) {
   }
 }
 
-async function onVerify(e) {
-  e.preventDefault()
-  error.value = ''
-  isLoading.value = true
-  try {
-    await verifyEmail({ email: email.value, otp: otp.value })
-    window.$toast?.success('Email verified! You can now log in.')
-    router.push('/login')
-  } catch (err) {
-    error.value = err?.message || 'Verification failed'
-    window.$toast?.error(error.value)
-  } finally {
-    isLoading.value = false
-  }
-}
-
-async function onResendOtp() {
-  if (resendCooldown.value > 0) return
-
-  error.value = ''
-  isLoading.value = true
-  try {
-    await resendOtp({ email: email.value })
-    window.$toast?.success('New verification code sent!')
-    startResendCooldown()
-  } catch (err) {
-    error.value = err?.message || 'Failed to resend code'
-    window.$toast?.error(error.value)
-  } finally {
-    isLoading.value = false
-  }
-}
-
-function startResendCooldown() {
-  resendCooldown.value = 60 // 60 seconds cooldown
-  resendTimer.value = setInterval(() => {
-    resendCooldown.value--
-    if (resendCooldown.value <= 0) {
-      clearInterval(resendTimer.value)
-      resendTimer.value = null
-    }
-  }, 1000)
-}
-
-// OTP input handling
-function handleOtpInput(index, event) {
-  const value = event.target.value
-
-  // Only allow single digit
-  if (value.length > 1) {
-    otpDigits.value[index] = value.slice(-1)
-    event.target.value = otpDigits.value[index]
-  } else {
-    otpDigits.value[index] = value
-  }
-
-  // Update the main otp ref
-  otp.value = otpDigits.value.join('')
-
-  // Auto-focus next input
-  if (value && index < 5) {
-    otpInputs.value[index + 1]?.focus()
-  }
-}
-
-function handleOtpKeydown(index, event) {
-  // Handle backspace
-  if (event.key === 'Backspace' && !otpDigits.value[index] && index > 0) {
-    otpInputs.value[index - 1]?.focus()
-  }
-
-  // Handle arrow keys
-  if (event.key === 'ArrowLeft' && index > 0) {
-    otpInputs.value[index - 1]?.focus()
-  }
-  if (event.key === 'ArrowRight' && index < 5) {
-    otpInputs.value[index + 1]?.focus()
-  }
-}
-
-function handleOtpPaste(event) {
-  event.preventDefault()
-  const pastedData = event.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
-
-  for (let i = 0; i < 6; i++) {
-    otpDigits.value[i] = pastedData[i] || ''
-  }
-
-  // Update the main otp ref
-  otp.value = otpDigits.value.join('')
-
-  // Focus the next empty field or the last field
-  const nextEmptyIndex = otpDigits.value.findIndex((digit) => !digit)
-  const focusIndex = nextEmptyIndex !== -1 ? nextEmptyIndex : 5
-  otpInputs.value[focusIndex]?.focus()
-}
 
 function goHome() {
   router.push('/')
@@ -175,8 +75,8 @@ function toggleConfirmPassword() {
 }
 
 function handleGoogleLogin() {
-  // TODO: Implement Google OAuth
-  console.log('Google login clicked')
+	const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3000';
+	window.location.href = `${API_BASE}/api/auth/oauth/google/start`;
 }
 
 function handleGitHubLogin() {
@@ -210,7 +110,7 @@ if (route.query.pp === '1') {
       <h1>Create Account</h1>
       <p class="subtitle">Sign up to start generating quizzes.</p>
 
-      <form v-if="step === 1" @submit="onRegister" class="form" autocomplete="off">
+      <form @submit="onRegister" class="form" autocomplete="off">
         <!-- Autofill decoys -->
         <input type="text" name="username" autocomplete="username" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;opacity:0;height:0;width:0;pointer-events:none;" />
         <input type="password" name="password" autocomplete="current-password" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;opacity:0;height:0;width:0;pointer-events:none;" />
@@ -319,44 +219,6 @@ if (route.query.pp === '1') {
           <router-link to="/login">Sign in</router-link>
         </div>
       </form>
-
-      <form v-else @submit="onVerify" class="form">
-        <p>We sent a one-time code to {{ email }}. Enter it below to verify your email.</p>
-        <div class="otp-container">
-          <label class="otp-label">Verification Code</label>
-          <div class="otp-inputs">
-            <input
-              v-for="(digit, index) in otpDigits"
-              :key="index"
-              :ref="(el) => (otpInputs[index] = el)"
-              v-model="otpDigits[index]"
-              type="text"
-              maxlength="1"
-              class="otp-input"
-              :class="{ filled: digit }"
-              @input="handleOtpInput(index, $event)"
-              @keydown="handleOtpKeydown(index, $event)"
-              @paste="handleOtpPaste($event)"
-              autocomplete="one-time-code"
-            />
-          </div>
-        </div>
-        <button class="primary" type="submit" :disabled="isLoading || otp.length !== 6">
-          {{ isLoading ? 'Verifying…' : 'Verify Email' }}
-        </button>
-        <div class="resend-section">
-          <p class="resend-text">Didn't receive the code?</p>
-          <button
-            type="button"
-            class="resend-btn"
-            @click="onResendOtp"
-            :disabled="isLoading || resendCooldown > 0"
-          >
-            {{ resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend Code' }}
-          </button>
-        </div>
-        <p v-if="error" class="error">{{ error }}</p>
-      </form>
     </div>
     <PrivacyPolicyModal v-model="showPrivacy" @accept="acceptedPrivacy = true" />
   </div>
@@ -370,7 +232,7 @@ if (route.query.pp === '1') {
   justify-content: center;
   min-height: 100vh;
   padding: 24px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #E0E6F0;
 }
 
 .card {
@@ -675,88 +537,17 @@ input:focus {
   color: #5a67d8;
 }
 
-.resend-section {
-  margin-top: 16px;
-  text-align: center;
-}
 
-.resend-text {
-  margin: 0 0 8px;
-  color: #6b7280;
-  font-size: 14px;
-}
-
-.resend-btn {
-  background: none;
-  border: 1px solid #d1d5db;
-  color: #667eea;
-  padding: 8px 16px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: all 0.2s;
-}
-
-.resend-btn:hover:not(:disabled) {
-  border-color: #667eea;
-  background: #f8fafc;
-}
-
-.resend-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  color: #9ca3af;
-  border-color: #e5e7eb;
-}
-
-.otp-container {
-  margin: 16px 0;
-}
-
-.otp-label {
-  display: block;
-  margin-bottom: 8px;
-  font-weight: 500;
-  color: #374151;
-}
-
-.otp-inputs {
-  display: flex;
-  gap: 8px;
-  justify-content: center;
-}
-
-.otp-input {
-  width: 48px;
-  height: 48px;
-  text-align: center;
-  font-size: 18px;
-  font-weight: 600;
-  border: 2px solid #d1d5db;
-  border-radius: 8px;
-  background: #fff;
-  transition: all 0.2s;
-}
-
-.otp-input:focus {
-  outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-.otp-input.filled {
-  border-color: #10b981;
-  background: #f0fdf4;
-}
-
-.otp-input:invalid {
-  border-color: #ef4444;
-}
 
 /* Dark mode styles */
 body.dark .card {
   background: #1a202c;
   color: #e2e8f0;
+}
+
+/* Page background in dark mode */
+body.dark .auth-page {
+  background: #131C30;
 }
 
 body.dark h1 {
@@ -846,45 +637,6 @@ body.dark .signup-link a {
   color: #667eea;
 }
 
-body.dark .resend-text {
-  color: #a0aec0;
-}
-
-body.dark .resend-btn {
-  background: #2d3748;
-  border: 1px solid #4a5568;
-  color: #667eea;
-}
-
-body.dark .resend-btn:hover:not(:disabled) {
-  border-color: #667eea;
-  background: #4a5568;
-}
-
-body.dark .resend-btn:disabled {
-  color: #6b7280;
-  border-color: #4a5568;
-}
-
-body.dark .otp-label {
-  color: #e2e8f0;
-}
-
-body.dark .otp-input {
-  background: #2d3748;
-  border: 2px solid #4a5568;
-  color: #e2e8f0;
-}
-
-body.dark .otp-input:focus {
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-body.dark .otp-input.filled {
-  border-color: #10b981;
-  background: #064e3b;
-}
 
 /* Responsive design */
 @media (max-width: 768px) {

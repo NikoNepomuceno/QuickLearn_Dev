@@ -4,7 +4,6 @@ const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
 const { getPool } = require('../config/db');
 
-// Use Node 18+/20+ global fetch when available; otherwise lazy-load node-fetch
 const fetch = (typeof global !== 'undefined' && typeof global.fetch === 'function')
     ? global.fetch.bind(global)
     : (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
@@ -74,6 +73,7 @@ async function loginOrCreateFromGoogle(profile, { ip, userAgent }) {
 	}
 
 	let user = userRows[0];
+	let isNewUser = false;
 
 	if (!user) {
 		const [byEmail] = await pool.execute(
@@ -114,6 +114,7 @@ async function loginOrCreateFromGoogle(profile, { ip, userAgent }) {
 
 		const [insert] = await pool.execute(sql, params);
 		user = { id: insert.insertId, uuid: userUuid, username, email: profile.email };
+		isNewUser = true;
 	}
 
 	try {
@@ -126,7 +127,7 @@ async function loginOrCreateFromGoogle(profile, { ip, userAgent }) {
 		username: user.username
 	});
 
-	return { accessToken, user };
+	return { accessToken, user, isNewUser };
 }
 
 module.exports = {

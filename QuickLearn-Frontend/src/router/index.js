@@ -11,6 +11,9 @@ import QuizResults from '../views/QuizResults.vue'
 import TestCloudStorage from '../views/TestCloudStorage.vue'
 import Trash from '../views/Trash.vue'
 import { getCurrentUser } from '../services/authService'
+import VerifyEmail from '../views/VerifyEmail.vue'
+import SettingsPage from '@/views/SettingsPage.vue'
+import UserProfile from '@/views/UserProfile.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -25,7 +28,11 @@ const router = createRouter({
     { path: '/login', name: 'login', component: Login, meta: { guestOnly: true } },
     { path: '/register', name: 'register', component: Register, meta: { guestOnly: true } },
     { path: '/forgot-password', name: 'forgot-password', component: ForgotPassword, meta: { guestOnly: true } },
-    { path: '/reset-password', name: 'reset-password', component: ResetPassword, meta: { guestOnly: true } }
+    { path: '/reset-password', name: 'reset-password', component: ResetPassword, meta: { guestOnly: true } },
+    { path: '/verify-email', name: 'verify-email', component: VerifyEmail, meta: { guestOnly: true } },
+    { path: '/settings', name: 'settings', component: SettingsPage, meta: { requiresAuth: true }},
+    { path: '/user-profile', name: 'user-profile', component: UserProfile, meta: { requiresAuth: true }
+    }
   ],
 })
 
@@ -36,9 +43,6 @@ router.beforeEach(async (to, from) => {
 
   let user = null
 
-  // Only check auth status if we actually need to know
-  // For guest-only routes, we only need to check if coming from a non-guest route
-  // or if we need to redirect authenticated users
   const shouldCheckAuth = to.meta?.requiresAuth ||
     (to.meta?.guestOnly && (!from.meta?.guestOnly || from.name === undefined))
 
@@ -53,6 +57,18 @@ router.beforeEach(async (to, from) => {
   // Redirect unauthenticated users away from protected routes
   if (to.meta?.requiresAuth && !user) {
     return { name: 'login', replace: true }
+  }
+
+  // Restrict direct navigation to verify-email unless coming from registration
+  if (to.name === 'verify-email') {
+    try {
+      const flag = sessionStorage.getItem('verifyEmailPending')
+      // allow only if flag is set or coming directly from register page
+      const cameFromRegister = from.name === 'register'
+      if (!flag && !cameFromRegister) {
+        return { name: 'register', replace: true }
+      }
+    } catch {}
   }
 
   // Redirect authenticated users away from guest-only routes

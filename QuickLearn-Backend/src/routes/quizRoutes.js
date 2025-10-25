@@ -12,17 +12,51 @@ const upload = multer({
         const allowedTypes = [
             'application/pdf',
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
             'text/plain',
             'application/msword'
         ];
 
         if (allowedTypes.includes(file.mimetype) ||
-            file.originalname.match(/\.(pdf|docx|txt|doc)$/i)) {
+            file.originalname.match(/\.(pdf|docx|pptx|txt|doc)$/i)) {
             cb(null, true);
         } else {
-            cb(new Error('Invalid file type. Only PDF, DOCX, DOC, and TXT files are allowed.'));
+            cb(new Error('Invalid file type. Only PDF, DOCX, PPTX, DOC, and TXT files are allowed.'));
         }
     }
+});
+
+// Parse file and return page information
+router.post('/parse-file', authenticateToken, upload.single('file'), async (req, res) => {
+	try {
+		if (!req.file) {
+			return res.status(400).json({ error: 'No file uploaded. Field name should be "file".' });
+		}
+
+		// Parse the file to extract pages
+		const { parseUploadedFile } = require('../utils/parseFile');
+		const parseResult = await parseUploadedFile(req.file);
+		
+		console.log('File parsing result:', {
+			fileName: req.file.originalname,
+			pageCount: parseResult.pageCount,
+			pagesLength: parseResult.pages?.length,
+			totalTextLength: parseResult.text.length
+		});
+		
+		return res.json({
+			fileName: req.file.originalname,
+			fileSize: req.file.size,
+			pages: parseResult.pages,
+			pageCount: parseResult.pageCount,
+			totalTextLength: parseResult.text.length
+		});
+	} catch (err) {
+		console.error('Error parsing file:', err);
+		return res.status(500).json({
+			error: err.message || 'Failed to parse file'
+		});
+	}
 });
 
 // Create quiz with file upload to cloud storage
@@ -44,12 +78,25 @@ router.post('/from-file', authenticateToken, upload.single('file'), async (req, 
 			questionTypes = ['mixed'];
 		}
 
+		// Parse selectedPages from JSON string if it exists
+		let selectedPages = [];
+		if (req.body.selectedPages) {
+			try {
+				selectedPages = JSON.parse(req.body.selectedPages);
+			} catch (error) {
+				console.error('Error parsing selectedPages:', error);
+				selectedPages = [];
+			}
+		}
+
 		const quizOptions = {
 			numQuestions,
 			difficulty,
 			questionTypes,
 			focusAreas,
-			isAdvanced: false
+			isAdvanced: false,
+			customInstructions: req.body.customInstructions || '',
+			selectedPages: selectedPages
 		};
 
 		const result = await CloudStorageService.createQuizWithFile(
@@ -84,11 +131,23 @@ router.post('/advanced', authenticateToken, upload.single('file'), async (req, r
 		const includeReasoning = req.body.includeReasoning !== 'false';
 		const customInstructions = req.body.customInstructions || '';
 
+		// Parse selectedPages from JSON string if it exists
+		let selectedPages = [];
+		if (req.body.selectedPages) {
+			try {
+				selectedPages = JSON.parse(req.body.selectedPages);
+			} catch (error) {
+				console.error('Error parsing selectedPages:', error);
+				selectedPages = [];
+			}
+		}
+
 		const quizOptions = {
 			numQuestions,
 			difficulty,
 			includeReasoning,
 			customInstructions,
+			selectedPages: selectedPages,
 			isAdvanced: true
 		};
 

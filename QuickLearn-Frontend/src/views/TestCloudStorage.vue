@@ -24,7 +24,7 @@
           <input
             type="file"
             @change="onFileSelect"
-            accept=".pdf,.docx,.txt"
+            accept=".pdf,.docx,.pptx,.txt"
             ref="fileInput"
           />
           <button
