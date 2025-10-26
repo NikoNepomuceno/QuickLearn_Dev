@@ -84,23 +84,6 @@ onMounted(loadTrash)
 </template>
 
 <style scoped>
-/* .layout { display: flex; min-height: 100vh; }
-.content { flex: 1; padding: 24px; }
-.header h1 { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; }
-.subtitle { color: #6b7280; margin: 0 0 16px; }
-.grid { display: flex; flex-wrap: wrap; gap: 16px; }
-.card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; flex: 0 0 320px; }
-.row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.meta .name { font-weight: 700; color: #111827; }
-.meta .desc { color: #6b7280; font-size: 12px; margin-top: 2px; }
-.actions { display: flex; gap: 8px; }
-.secondary { background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 10px; padding: 8px 12px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
-.danger { background: #fee2e2; color: #b91c1c; border: none; border-radius: 10px; padding: 8px 12px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
-.empty { display: flex; justify-content: center; padding: 60px 0; }
-.empty-card { text-align: center; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; width: 520px; }
-.empty-card .icon { font-size: 32px; margin-bottom: 12px; }
-.empty-card .title { font-weight: 700; margin-bottom: 6px; }
-.empty-card .hint { color: #6b7280; } */
 
 .layout {
   display: flex;
@@ -110,6 +93,8 @@ onMounted(loadTrash)
 .content {
   flex: 1;
   padding: 24px;
+  max-width: none;
+  margin-left: 40px;
 }
 
 .header h1{

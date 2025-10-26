@@ -61,3 +61,16 @@ AFTER `width`,
 AFTER `height`;
 -- Note: Run each ALTER TABLE statement one by one
 -- If you get "Duplicate column name" errors, that means the column already exists and you can skip that statement
+-- 4. Add profile fields to users table
+-- Add profile picture URL column
+ALTER TABLE `users`
+ADD COLUMN IF NOT EXISTS `profile_picture_url` TEXT NULL
+AFTER `last_login_ip`;
+-- Add display name column
+ALTER TABLE `users`
+ADD COLUMN IF NOT EXISTS `display_name` VARCHAR(50) NULL
+AFTER `profile_picture_url`;
+-- Add bio column
+ALTER TABLE `users`
+ADD COLUMN IF NOT EXISTS `bio` TEXT NULL
+AFTER `display_name`;
