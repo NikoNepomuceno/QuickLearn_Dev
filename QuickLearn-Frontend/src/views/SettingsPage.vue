@@ -443,7 +443,6 @@ async function deleteAccount() {
 </template>
 
 <style scoped>
-/* Ensure consistent box-sizing for all elements */
 * {
   box-sizing: border-box;
 }
@@ -461,6 +460,8 @@ async function deleteAccount() {
   background: #f8fafc;
   scrollbar-width: none; 
   -ms-overflow-style: none;
+  max-width: none;
+  margin-left: 40px;
 }
 
 .content::-webkit-scrollbar {
@@ -894,6 +895,11 @@ body.dark {
 }
 
 body.dark .content {
+  background: #0f172a;
+}
+
+/* Ensure the page wrapper matches dark background to avoid light gutters */
+body.dark .layout {
   background: #0f172a;
 }
 

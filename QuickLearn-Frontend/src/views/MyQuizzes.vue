@@ -285,7 +285,6 @@ function getFileIcon(fileType) {
       </div>
     </div>
 
-    <!-- Delete Confirmation Modal -->
     <ConfirmModal
       v-model="showDeleteModal"
       title="Delete Quiz"
@@ -301,17 +300,19 @@ function getFileIcon(fileType) {
 <style scoped>
 .layout {
   display: flex;
-  min-height: 100vh;
+  max-height: 100vh;
 }
 
 .content {
   flex: 1;
   padding: 24px;
+  max-width: none;
+  margin-left: 40px;
 }
 
 @media (max-width: 1024px) {
   .content {
-    padding-bottom: 120px; /* Add space for floating sidebar */
+    padding-bottom: 120px;
   }
 }
 
@@ -323,7 +324,6 @@ function getFileIcon(fileType) {
   margin: 0 0 20px;
 }
 
-/* Loading State */
 .loading {
   display: flex;
   flex-direction: column;
@@ -333,9 +333,6 @@ function getFileIcon(fileType) {
   color: #6b7280;
 }
 
-/* BeatLoader handles its own styling */
-
-/* Empty and Error States */
 .empty,
 .error {
   display: flex;

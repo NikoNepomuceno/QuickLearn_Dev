@@ -21,7 +21,7 @@ function goHome() {
 }
 
 function handleOtpInput(index, event) {
-  const value = event.target.value.replace(/\\D/g, '')
+  const value = event.target.value.replace(/[^0-9]/g, '')
   if (value.length > 1) {
     otpDigits.value[index] = value.slice(-1)
     event.target.value = otpDigits.value[index]
@@ -40,9 +40,16 @@ function handleOtpKeydown(index, event) {
   if (event.key === 'ArrowRight' && index < 5) otpInputs.value[index + 1]?.focus()
 }
 
+function handleOtpKeypress(event) {
+  // Only allow numeric keys (0-9)
+  if (!/[0-9]/.test(event.key)) {
+    event.preventDefault()
+  }
+}
+
 function handleOtpPaste(event) {
   event.preventDefault()
-  const pastedData = event.clipboardData.getData('text').replace(/\\D/g, '').slice(0, 6)
+  const pastedData = event.clipboardData.getData('text').replace(/[^0-9]/g, '').slice(0, 6)
   for (let i = 0; i < 6; i++) otpDigits.value[i] = pastedData[i] || ''
   otp.value = otpDigits.value.join('')
   const nextEmptyIndex = otpDigits.value.findIndex((d) => !d)
@@ -68,9 +75,9 @@ async function onVerify(e) {
   isLoading.value = true
   try {
     await verifyEmail({ email: email.value, otp: otp.value })
-    window.$toast?.success('Email verified! You can now log in.')
+    window.$toast?.success('Email verified! Welcome to QuickLearn.')
     try { sessionStorage.removeItem('verifyEmailPending') } catch {}
-    router.push('/login')
+    router.push('/upload')
   } catch (err) {
     error.value = err?.message || 'Verification failed'
     window.$toast?.error(error.value)
@@ -132,11 +139,13 @@ async function onResendOtp() {
               v-model="otpDigits[index]"
               type="text"
               maxlength="1"
+              pattern="[0-9]"
               class="otp-input"
               :class="{ filled: digit }"
               @input="handleOtpInput(index, $event)"
               @keydown="handleOtpKeydown(index, $event)"
               @paste="handleOtpPaste($event)"
+              @keypress="handleOtpKeypress($event)"
               autocomplete="one-time-code"
               inputmode="numeric"
             />
