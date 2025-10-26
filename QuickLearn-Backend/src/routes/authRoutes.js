@@ -113,6 +113,48 @@ router.post('/reset-password', async (req, res) => {
 	}
 });
 
+router.post('/update-password', async (req, res) => {
+	try {
+		const token = req.cookies && req.cookies.access_token ? req.cookies.access_token : null;
+		if (!token) return res.status(401).json({ error: 'Unauthorized' });
+		
+		const payload = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+		const { currentPassword, newPassword } = req.body || {};
+		
+		// Import the auth service function for updating password
+		const { updatePassword } = require('../services/authService');
+		const result = await updatePassword({ 
+			userId: payload.sub, 
+			currentPassword, 
+			newPassword 
+		});
+		
+		return res.json(result);
+	} catch (err) {
+		return res.status(400).json({ error: err.message || 'Password update failed' });
+	}
+});
+
+router.delete('/account', async (req, res) => {
+	try {
+		const token = req.cookies && req.cookies.access_token ? req.cookies.access_token : null;
+		if (!token) return res.status(401).json({ error: 'Unauthorized' });
+		
+		const payload = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+		
+		// Import the auth service function for deleting account
+		const { deleteAccount } = require('../services/authService');
+		const result = await deleteAccount({ userId: payload.sub });
+		
+		// Clear the access cookie
+		res.clearCookie('access_token', { path: '/' });
+		
+		return res.json(result);
+	} catch (err) {
+		return res.status(400).json({ error: err.message || 'Account deletion failed' });
+	}
+});
+
 router.get('/oauth/google/start', (req, res) => {
 	try {
         if (!process.env.GOOGLE_CLIENT_ID) {

@@ -323,7 +323,7 @@ function getScoreLabel(score) {
 <style scoped>
 .layout {
   display: flex;
-  min-height: 100vh;
+  max-height: 100vh;
   background: #f8fafc;
   overflow-x: hidden;
   position: relative;
@@ -518,8 +518,6 @@ function getScoreLabel(score) {
 body.dark .layout {
   background: #0b1020;
 }
-
-/* Let the sidebar component handle its own responsive behavior in dark mode too */
 
 body.dark .header-content {
   background: #0f172a;

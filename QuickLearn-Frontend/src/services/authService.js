@@ -71,6 +71,22 @@ export async function resetPassword(payload) {
   });
 }
 
+export async function updatePassword(payload) {
+  return request('/api/auth/update-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    credentials: 'include',
+  });
+}
+
+export async function deleteAccount() {
+  return request('/api/auth/account', {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+}
+
 async function request(path, options = {}) {
   const res = await fetch(`${API_BASE}${path}`, options);
   if (!res.ok) {
@@ -150,6 +166,8 @@ export const authService = {
   getCurrentUser,
   forgotPassword,
   resetPassword,
+  updatePassword,
+  deleteAccount,
   getToken,
   setToken,
   removeToken,

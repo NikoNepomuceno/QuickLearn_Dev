@@ -162,7 +162,7 @@ body.dark .mobile-menu-btn:hover {
   position: sticky;
   top: 0;
   height: 100vh;
-  width: 230px;
+  width: 260px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -174,6 +174,13 @@ body.dark .mobile-menu-btn:hover {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
   transition: all 0.3s ease;
   overflow: hidden; /* prevent scrollbars */
+}
+
+/* Dark mode sidebar */
+body.dark .sidebar {
+  background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+  border-right-color: rgba(31, 42, 68, 0.3);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 /* Responsive sidebar behavior */
@@ -197,6 +204,12 @@ body.dark .mobile-menu-btn:hover {
     box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
   }
 
+  /* Dark mode mobile sidebar */
+  body.dark .sidebar {
+    background: rgba(15, 23, 42, 0.95) !important;
+    box-shadow: 0 0 0 1px rgba(31, 42, 68, 0.3);
+  }
+
   .sidebar.open {
     left: 0;
   }
@@ -218,6 +231,11 @@ body.dark .mobile-menu-btn:hover {
   color: #334155;
   letter-spacing: -0.5px;
   margin-bottom: 24px;
+}
+
+/* Dark mode brand */
+body.dark .brand {
+  color: #e2e8f0;
 }
 
 .nav {
@@ -254,6 +272,22 @@ body.dark .mobile-menu-btn:hover {
   box-shadow: inset 3px 0 0 #6366f1;
 }
 
+/* Dark mode navigation */
+body.dark .nav-item {
+  color: #94a3b8;
+}
+
+body.dark .nav-item:hover {
+  background: rgba(99, 102, 241, 0.2);
+  color: #a5b4fc;
+}
+
+body.dark .nav-item.router-link-active {
+  background: rgba(99, 102, 241, 0.3);
+  color: #a5b4fc;
+  box-shadow: inset 3px 0 0 #6366f1;
+}
+
 .logout {
   margin-top: 24px;
   padding: 10px 14px;
@@ -273,6 +307,16 @@ body.dark .mobile-menu-btn:hover {
 .logout:hover {
   background: #fecaca;
   transform: translateY(-2px);
+}
+
+/* Dark mode logout */
+body.dark .logout {
+  background: #7f1d1d;
+  color: #fca5a5;
+}
+
+body.dark .logout:hover {
+  background: #991b1b;
 }
 
 @media (max-height: 700px) {

@@ -139,7 +139,7 @@ function handleGitHubLogin() {
 
 .card {
   width: 100%;
-  max-width: 420px;
+  max-width: 500px;
   background: #fff;
   border-radius: 24px;
   padding: 32px;

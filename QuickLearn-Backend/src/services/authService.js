@@ -246,6 +246,82 @@ async function resetPassword({ token, password, confirmPassword }) {
 	}
 }
 
-module.exports = { register, verifyEmail, resendOtp, login, logout, forgotPassword, resetPassword };
+async function updatePassword({ userId, currentPassword, newPassword }) {
+	if (!currentPassword || !newPassword) throw new Error('Missing required fields');
+	if (!PASSWORD_REGEX.test(newPassword)) throw new Error('New password does not meet complexity requirements');
+
+	const pool = await getPool();
+	const conn = await pool.getConnection();
+	try {
+		await conn.beginTransaction();
+		
+		// Get user's current password hash
+		const [users] = await conn.execute('SELECT password_hash FROM users WHERE id = ? LIMIT 1', [userId]);
+		if (!users.length) throw new Error('User not found');
+		const user = users[0];
+		
+		// Verify current password
+		const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password_hash);
+		if (!isCurrentPasswordValid) throw new Error('Current password is incorrect');
+		
+		// Hash new password
+		const newPasswordHash = await bcrypt.hash(newPassword, 12);
+		
+		// Update password
+		await conn.execute('UPDATE users SET password_hash = ? WHERE id = ?', [newPasswordHash, userId]);
+		
+		await conn.commit();
+		return { message: 'Password updated successfully' };
+	} catch (err) {
+		await conn.rollback();
+		throw err;
+	} finally {
+		conn.release();
+	}
+}
+
+async function deleteAccount({ userId }) {
+	const pool = await getPool();
+	const conn = await pool.getConnection();
+	try {
+		await conn.beginTransaction();
+		
+		// Verify user exists
+		const [users] = await conn.execute('SELECT id FROM users WHERE id = ? LIMIT 1', [userId]);
+		if (!users.length) throw new Error('User not found');
+		
+		// Delete all user-related data in the correct order (respecting foreign key constraints)
+		// Delete quiz attempts first (references quizzes)
+		await conn.execute('DELETE FROM quiz_attempts WHERE user_id = ?', [userId]);
+		
+		// Delete quizzes (references users)
+		await conn.execute('DELETE FROM quizzes WHERE user_id = ?', [userId]);
+		
+		// Delete files (references users)
+		await conn.execute('DELETE FROM files WHERE user_id = ?', [userId]);
+		
+		// Delete email verifications
+		await conn.execute('DELETE FROM email_verifications WHERE user_id = ?', [userId]);
+		
+		// Delete password reset tokens
+		await conn.execute('DELETE FROM password_reset_tokens WHERE user_id = ?', [userId]);
+		
+		// Delete sessions
+		await conn.execute('DELETE FROM sessions WHERE user_id = ?', [userId]);
+		
+		// Finally, delete the user
+		await conn.execute('DELETE FROM users WHERE id = ?', [userId]);
+		
+		await conn.commit();
+		return { message: 'Account deleted successfully' };
+	} catch (err) {
+		await conn.rollback();
+		throw err;
+	} finally {
+		conn.release();
+	}
+}
+
+module.exports = { register, verifyEmail, resendOtp, login, logout, forgotPassword, resetPassword, updatePassword, deleteAccount };
 
 

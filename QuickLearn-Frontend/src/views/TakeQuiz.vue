@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import cloudQuizService from '../services/cloudQuizService'
 import VoiceQuiz from '../components/VoiceQuiz.vue'
-import { Clock, CheckCircle, ArrowRight, ArrowLeft, RotateCcw } from 'lucide-vue-next'
+import { Clock, CheckCircle, ArrowRight, ArrowLeft } from 'lucide-vue-next'
 
 const router = useRouter()
 const route = useRoute()
@@ -12,8 +12,7 @@ const quiz = ref(null)
 const currentQuestionIndex = ref(0)
 const answers = ref({})
 const enumerationAnswers = ref({}) // For enumeration questions
-const isSubmitted = ref(false)
-const showResults = ref(false)
+// Removed inline results view; results are shown on dedicated route
 const timeElapsed = ref(0)
 const startTime = ref(null)
 let timer = null
@@ -210,8 +209,6 @@ function previousQuestion() {
 }
 
 async function submitQuiz() {
-  isSubmitted.value = true
-  showResults.value = true
   if (timer) {
     clearInterval(timer)
   }
@@ -229,16 +226,12 @@ async function submitQuiz() {
   } catch (error) {
     console.error('Error saving quiz attempt:', error)
   }
+
+  // Redirect to the dedicated results view to avoid duplication
+  router.push({ name: 'quiz-results', params: { quizId: route.params.quizId || quiz.value?.id } })
 }
 
-function restartQuiz() {
-  currentQuestionIndex.value = 0
-  answers.value = {}
-  isSubmitted.value = false
-  showResults.value = false
-  timeElapsed.value = 0
-  startTimer()
-}
+// restartQuiz removed; navigation goes to results page instead
 
 function goHome() {
   router.push('/upload')
@@ -281,6 +274,7 @@ function handleVoiceStatusChange(status) {
 
 <template>
   <div class="quiz-page">
+    <!-- Floating Progress Indicator -->
     <div class="floating-progress">
       <div class="progress-circle">
         <svg class="progress-ring" width="60" height="60">
@@ -315,51 +309,59 @@ function handleVoiceStatusChange(status) {
       </div>
     </div>
 
-    <div class="quiz-main">
+    <div class="quiz-container">
+      <!-- Quiz Header -->
       <div class="quiz-header">
-        <button class="back-btn" @click="goHome">
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <path d="m12 19-7-7 7-7" />
-            <path d="m19 12H5" />
-          </svg>
-          Back to Home
-        </button>
-        <div class="quiz-title">
-          <h1>{{ quiz?.title || 'Quiz' }}</h1>
-          <p class="description">{{ quiz?.description }}</p>
-        </div>
-        <div class="quiz-meta">
-          <div class="timer">
-            <Clock :size="16" />
-            {{ timeFormatted }}
+        <div class="header-top">
+          <button class="back-btn" @click="goHome">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="m12 19-7-7 7-7" />
+              <path d="m19 12H5" />
+            </svg>
+            Back to Home
+          </button>
+          
+          <div class="quiz-meta">
+            <div class="timer">
+              <Clock :size="16" />
+              {{ timeFormatted }}
+            </div>
+            <div class="question-counter">
+              <span class="current">{{ currentQuestionIndex + 1 }}</span>
+              <span class="separator">of</span>
+              <span class="total">{{ totalQuestions }}</span>
+            </div>
           </div>
-          <div class="question-counter">
-            <span class="current">{{ currentQuestionIndex + 1 }}</span>
-            <span class="separator">of</span>
-            <span class="total">{{ totalQuestions }}</span>
-          </div>
         </div>
-        
-        <!-- Voice Quiz Component -->
-        <div class="voice-controls">
-          <VoiceQuiz
-            :question="currentQuestion"
-            :question-number="currentQuestionIndex + 1"
-            :is-enabled="isVoiceEnabled"
-            @answer-selected="handleVoiceAnswer"
-            @error="handleVoiceError"
-            @status-change="handleVoiceStatusChange"
-          />
+
+        <div class="header-content">
+          <div class="quiz-title">
+            <h1>{{ quiz?.title || 'Quiz' }}</h1>
+            <p class="description">{{ quiz?.description }}</p>
+          </div>
+          
+          <!-- Voice Quiz Component -->
+          <div class="voice-controls">
+            <VoiceQuiz
+              :question="currentQuestion"
+              :question-number="currentQuestionIndex + 1"
+              :is-enabled="isVoiceEnabled"
+              @answer-selected="handleVoiceAnswer"
+              @error="handleVoiceError"
+              @status-change="handleVoiceStatusChange"
+            />
+          </div>
         </div>
       </div>
 
+      <!-- Progress Bar -->
       <div class="progress-bar">
         <div class="progress-fill" :style="{ width: progress + '%' }"></div>
         <div class="progress-markers">
@@ -376,7 +378,8 @@ function handleVoiceStatusChange(status) {
         </div>
       </div>
 
-      <div v-if="!showResults" class="quiz-content">
+      <!-- Quiz Content -->
+      <div class="quiz-content">
         <div class="question-section">
           <div class="question-card">
             <div class="question-badge">
@@ -486,6 +489,7 @@ function handleVoiceStatusChange(status) {
           </div>
         </div>
 
+        <!-- Navigation -->
         <div class="navigation">
           <div class="nav-controls">
             <button
@@ -519,290 +523,6 @@ function handleVoiceStatusChange(status) {
           </div>
         </div>
       </div>
-
-      <div v-else class="results-section">
-        <div class="results-header">
-          <div class="celebration-icon">
-            <svg
-              width="64"
-              height="64"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5"
-            >
-              <path d="M9 12l2 2 4-4" />
-              <path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z" />
-            </svg>
-          </div>
-          <h2>Quiz Complete!</h2>
-          <p class="results-subtitle">Great job! Here's how you performed</p>
-
-          <div class="score-display">
-            <div class="score-circle">
-              <svg class="score-ring" width="140" height="140">
-                <circle
-                  class="score-ring-bg"
-                  stroke="#e5e7eb"
-                  stroke-width="8"
-                  fill="transparent"
-                  r="62"
-                  cx="70"
-                  cy="70"
-                />
-                <circle
-                  class="score-ring-fill"
-                  stroke="url(#scoreGradient)"
-                  stroke-width="8"
-                  fill="transparent"
-                  r="62"
-                  cx="70"
-                  cy="70"
-                  :stroke-dasharray="389.56"
-                  :stroke-dashoffset="389.56 - (389.56 * score) / 100"
-                />
-                <defs>
-                  <linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop
-                      offset="0%"
-                      :style="`stop-color:${score >= 80 ? '#10b981' : score >= 60 ? '#f59e0b' : '#ef4444'};stop-opacity:1`"
-                    />
-                    <stop
-                      offset="100%"
-                      :style="`stop-color:${score >= 80 ? '#059669' : score >= 60 ? '#d97706' : '#dc2626'};stop-opacity:1`"
-                    />
-                  </linearGradient>
-                </defs>
-              </svg>
-              <div class="score-content">
-                <span class="score-number">{{ score }}%</span>
-                <span class="score-label">{{
-                  score >= 80 ? 'Excellent!' : score >= 60 ? 'Good Job!' : 'Keep Trying!'
-                }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="results-stats">
-          <div class="stat-card correct">
-            <div class="stat-icon">
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <polyline points="20,6 9,17 4,12" />
-              </svg>
-            </div>
-            <div class="stat-content">
-              <span class="stat-value">{{
-                Object.values(answers).filter((answer, index) =>
-                  isAnswerCorrect(answer, quiz.questions[index].answer, quiz.questions[index].type),
-                ).length
-              }}</span>
-              <span class="stat-label">Correct</span>
-            </div>
-          </div>
-          <div class="stat-card incorrect">
-            <div class="stat-icon">
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </div>
-            <div class="stat-content">
-              <span class="stat-value">{{
-                Object.values(answers).filter(
-                  (answer, index) =>
-                    !isAnswerCorrect(
-                      answer,
-                      quiz.questions[index].answer,
-                      quiz.questions[index].type,
-                    ),
-                ).length
-              }}</span>
-              <span class="stat-label">Incorrect</span>
-            </div>
-          </div>
-          <div class="stat-card time">
-            <div class="stat-icon">
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <circle cx="12" cy="12" r="10" />
-                <polyline points="12,6 12,12 16,14" />
-              </svg>
-            </div>
-            <div class="stat-content">
-              <span class="stat-value">{{ timeFormatted }}</span>
-              <span class="stat-label">Time Taken</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="results-actions">
-          <button class="action-btn secondary" @click="restartQuiz">
-            <RotateCcw :size="16" />
-            Retake Quiz
-          </button>
-          <button class="action-btn primary" @click="goToUpload">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14,2 14,8 20,8" />
-              <line x1="16" y1="13" x2="8" y2="13" />
-              <line x1="16" y1="17" x2="8" y2="17" />
-              <polyline points="10,9 9,9 8,9" />
-            </svg>
-            Create New Quiz
-          </button>
-        </div>
-
-        <div class="detailed-results">
-          <div class="review-header">
-            <h3>
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path d="M9 11l3 3L22 4" />
-                <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
-              </svg>
-              Review Your Answers
-            </h3>
-            <p class="review-subtitle">See how you performed on each question</p>
-          </div>
-
-          <div class="answer-review">
-            <div
-              v-for="(question, index) in quiz.questions"
-              :key="index"
-              class="review-item"
-              :class="{
-                correct: isAnswerCorrect(answers[index], question.answer, question.type),
-                incorrect: !isAnswerCorrect(answers[index], question.answer, question.type),
-              }"
-            >
-              <div class="review-header-item">
-                <div class="question-number">
-                  <span class="q-num">{{ index + 1 }}</span>
-                </div>
-                <div class="result-indicator">
-                  <svg
-                    v-if="isAnswerCorrect(answers[index], question.answer, question.type)"
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <polyline points="20,6 9,17 4,12" />
-                  </svg>
-                  <svg
-                    v-else
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </div>
-              </div>
-
-              <div class="review-question">
-                {{ question.question }}
-              </div>
-
-              <div class="review-answers">
-                <div class="answer-row your-answer">
-                  <div class="answer-label">
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                    >
-                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                      <circle cx="12" cy="7" r="4" />
-                    </svg>
-                    Your answer:
-                  </div>
-                  <div class="answer-value">{{ answers[index] || 'Not answered' }}</div>
-                </div>
-
-                <div class="answer-row correct-answer">
-                  <div class="answer-label">
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                    >
-                      <polyline points="20,6 9,17 4,12" />
-                    </svg>
-                    Correct answer:
-                  </div>
-                  <div class="answer-value">{{ question.answer }}</div>
-                </div>
-
-                <div v-if="question.explanation" class="explanation">
-                  <div class="explanation-label">
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                    >
-                      <circle cx="12" cy="12" r="10" />
-                      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-                      <path d="M12 17h.01" />
-                    </svg>
-                    Explanation:
-                  </div>
-                  <div class="explanation-text">{{ question.explanation }}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   </div>
 </template>
@@ -817,6 +537,11 @@ function handleVoiceStatusChange(status) {
     radial-gradient(900px 500px at 120% 10%, rgba(118, 75, 162, 0.06), transparent 60%);
   min-height: 100vh;
   position: relative;
+}
+
+.quiz-container {
+  position: relative;
+  z-index: 1;
 }
 
 /* Floating Progress Indicator */
@@ -853,16 +578,27 @@ function handleVoiceStatusChange(status) {
   color: #374151;
 }
 
-.quiz-main {
-  min-width: 0;
+.quiz-header {
+  background: white;
+  border-radius: 20px;
+  padding: 32px;
+  margin-bottom: 24px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  border: 1px solid #f1f5f9;
 }
 
-.quiz-header {
+.header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.header-content {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 32px;
-  gap: 20px;
+  gap: 24px;
 }
 
 .back-btn {
@@ -888,6 +624,10 @@ function handleVoiceStatusChange(status) {
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
+.quiz-title {
+  flex: 1;
+}
+
 .quiz-title h1 {
   margin: 0 0 8px;
   font-size: 32px;
@@ -908,9 +648,8 @@ function handleVoiceStatusChange(status) {
 
 .quiz-meta {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 12px;
+  align-items: center;
+  gap: 16px;
 }
 
 .timer {
@@ -953,7 +692,7 @@ function handleVoiceStatusChange(status) {
 .voice-controls {
   display: flex;
   justify-content: center;
-  margin-top: 16px;
+  align-items: center;
 }
 
 .progress-bar {
@@ -1717,9 +1456,19 @@ function handleVoiceStatusChange(status) {
   }
 
   .quiz-header {
+    padding: 24px;
+  }
+
+  .header-top {
     flex-direction: column;
     align-items: stretch;
     gap: 16px;
+  }
+
+  .header-content {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 20px;
   }
 
   .quiz-meta {
@@ -1815,9 +1564,19 @@ function handleVoiceStatusChange(status) {
   }
 
   .quiz-header {
+    padding: 20px;
+  }
+
+  .header-top {
     flex-direction: column;
     align-items: stretch;
     gap: 12px;
+  }
+
+  .header-content {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
   }
 
   .quiz-title h1 {

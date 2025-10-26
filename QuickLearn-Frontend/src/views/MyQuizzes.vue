@@ -1,6 +1,7 @@
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import Sidebar from '../components/Sidebar.vue'
+import ConfirmModal from '../components/ConfirmModal.vue'
 import { downloadQuizAsPDF } from '../services/quizService'
 import cloudQuizService from '../services/cloudQuizService'
 import { useRouter } from 'vue-router'
@@ -21,6 +22,15 @@ const quizzes = ref([])
 const openMenuId = ref(null)
 const isLoading = ref(false)
 const error = ref(null)
+const showDeleteModal = ref(false)
+const quizToDelete = ref(null)
+
+const deleteMessage = computed(() => {
+  if (!quizToDelete.value) {
+    return 'Are you sure you want to delete this quiz? This action cannot be undone.'
+  }
+  return `Are you sure you want to delete "${quizToDelete.value.title || 'Untitled Quiz'}"? This action cannot be undone.`
+})
 
 onMounted(async () => {
   await loadQuizzes()
@@ -98,19 +108,30 @@ function downloadQuiz(quiz) {
   downloadQuizAsPDF(quiz)
 }
 
-async function deleteQuiz(quiz) {
-  if (!confirm(`Are you sure you want to delete "${quiz.title}"? This action cannot be undone.`)) {
-    return
-  }
+function showDeleteConfirmation(quiz) {
+  quizToDelete.value = quiz
+  showDeleteModal.value = true
+}
+
+async function confirmDelete() {
+  if (!quizToDelete.value) return
 
   try {
-    await cloudQuizService.deleteQuiz(quiz.id)
+    await cloudQuizService.deleteQuiz(quizToDelete.value.id)
     window.$toast?.success('Moved to Trash. Items are auto-deleted after 30 days.')
     await loadQuizzes() // Reload the list
   } catch (err) {
     console.error('Error deleting quiz:', err)
     window.$toast?.error('Failed to delete quiz')
+  } finally {
+    showDeleteModal.value = false
+    quizToDelete.value = null
   }
+}
+
+function cancelDelete() {
+  showDeleteModal.value = false
+  quizToDelete.value = null
 }
 
 function toggleMenu(quiz, event) {
@@ -205,7 +226,7 @@ function getFileIcon(fileType) {
                   <Download :size="16" />
                   Download
                 </button>
-                <button class="dropdown-item danger" @click="() => deleteQuiz(quiz)">
+                <button class="dropdown-item danger" @click="() => showDeleteConfirmation(quiz)">
                   <Trash2 :size="16" />
                   Delete
                 </button>
@@ -224,6 +245,7 @@ function getFileIcon(fileType) {
               </div>
             </div>
           </div>
+          <div v-else class="file-info placeholder" aria-hidden="true"></div>
 
           <div class="progress">
             <div class="bar-bg"></div>
@@ -262,6 +284,17 @@ function getFileIcon(fileType) {
         </div>
       </div>
     </div>
+
+    <!-- Delete Confirmation Modal -->
+    <ConfirmModal
+      v-model="showDeleteModal"
+      title="Delete Quiz"
+      :message="deleteMessage"
+      confirm-text="Delete"
+      cancel-text="Cancel"
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
+    />
   </div>
 </template>
 
@@ -360,6 +393,9 @@ function getFileIcon(fileType) {
   justify-content: space-between;
   gap: 12px;
 }
+.row {
+  min-height: 68px;
+}
 .meta .name {
   font-weight: 700;
   color: #111827;
@@ -368,6 +404,13 @@ function getFileIcon(fileType) {
   color: #6b7280;
   font-size: 13px;
   margin-top: 4px;
+}
+.meta .desc {
+  display: -webkit-box;
+  line-clamp: 2;
+  -webkit-line-clamp: 2; 
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .menu {
@@ -437,6 +480,12 @@ function getFileIcon(fileType) {
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   margin: 12px 0;
+}
+.file-info {
+  min-height: 56px; /* reserve space so progress bars align */
+}
+.file-info.placeholder {
+  visibility: hidden; /* keep spacing without visual element when no file is present */
 }
 
 .file-icon {

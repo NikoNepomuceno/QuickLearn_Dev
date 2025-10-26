@@ -8,7 +8,6 @@ import ForgotPassword from '../views/ForgotPassword.vue'
 import ResetPassword from '../views/ResetPassword.vue'
 import MyQuizzes from '../views/MyQuizzes.vue'
 import QuizResults from '../views/QuizResults.vue'
-import TestCloudStorage from '../views/TestCloudStorage.vue'
 import Trash from '../views/Trash.vue'
 import { getCurrentUser } from '../services/authService'
 import VerifyEmail from '../views/VerifyEmail.vue'
@@ -23,7 +22,6 @@ const router = createRouter({
     { path: '/quiz/:quizId?', name: 'quiz', component: TakeQuiz, meta: { requiresAuth: true } },
     { path: '/quiz/:quizId/results', name: 'quiz-results', component: QuizResults, meta: { requiresAuth: true } },
     { path: '/my-quizzes', name: 'my-quizzes', component: MyQuizzes, meta: { requiresAuth: true } },
-    { path: '/test-cloud', name: 'test-cloud', component: TestCloudStorage },
     { path: '/trash', name: 'trash', component: Trash, meta: { requiresAuth: true } },
     { path: '/login', name: 'login', component: Login, meta: { guestOnly: true } },
     { path: '/register', name: 'register', component: Register, meta: { guestOnly: true } },
