@@ -8,13 +8,11 @@ import { authService } from '@/services/authService'
 
 const router = useRouter()
 
-// Loading states
 const isLoading = ref(false)
 const isUpdatingPassword = ref(false)
 const isDeletingAccount = ref(false)
 const isUpdatingNotifications = ref(false)
 
-// Theme management
 const currentTheme = ref('system')
 const themes = [
   { value: 'system', label: 'System' },

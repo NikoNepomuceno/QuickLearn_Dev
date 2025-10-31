@@ -24,7 +24,6 @@ const props = defineProps({
 const emit = defineEmits(['close', 'confirm'])
 
 const selectedPages = ref(new Set())
-const customPrompt = ref(props.defaultPrompt)
 const showPreview = ref({})
 
 // Watch for changes in pages prop to reset selections
@@ -72,8 +71,7 @@ function handleConfirm() {
   }))
   
   emit('confirm', {
-    selectedPages: selectedPageData,
-    customPrompt: customPrompt.value.trim()
+    selectedPages: selectedPageData
   })
 }
 
@@ -84,14 +82,12 @@ function handleClose() {
 function getPagePreview(content, maxLength = 200) {
   if (!content) return 'No content available'
   
-  // Clean up the content for better display
   let cleaned = content
-    .replace(/\n\s*\n\s*\n/g, '\n\n') // Replace multiple newlines with double
-    .replace(/\s+/g, ' ') // Replace multiple spaces with single space
-    .replace(/\n\s+/g, '\n') // Remove leading spaces from lines
+    .replace(/\n\s*\n\s*\n/g, '\n\n') 
+    .replace(/\s+/g, ' ') 
+    .replace(/\n\s+/g, '\n') 
     .trim()
   
-  // Extract meaningful content (skip page numbers, headers, etc.)
   const lines = cleaned.split('\n')
   const meaningfulLines = lines.filter(line => {
     const trimmed = line.trim()
@@ -121,7 +117,7 @@ function getPagePreview(content, maxLength = 200) {
         <div class="header-info">
           <FileText :size="20" class="file-icon" />
           <div>
-            <h2>Select Pages for Quiz Generation</h2>
+            <h2>Select Pages</h2>
             <p class="file-name">{{ fileName }}</p>
           </div>
         </div>
@@ -131,19 +127,6 @@ function getPagePreview(content, maxLength = 200) {
       </div>
 
       <div class="modal-body">
-        <!-- Custom Instructions Section -->
-        <div class="prompt-section">
-          <label for="custom-prompt" class="prompt-label">
-            Additional Instructions (Optional)
-          </label>
-          <textarea
-            id="custom-prompt"
-            v-model="customPrompt"
-            placeholder="Add specific instructions for the AI about the quiz content, difficulty, or focus areas..."
-            class="prompt-textarea"
-            rows="3"
-          ></textarea>
-        </div>
 
         <!-- Page Selection Section -->
         <div class="pages-section">
@@ -213,7 +196,7 @@ function getPagePreview(content, maxLength = 200) {
             :disabled="selectedPages.size === 0"
             @click="handleConfirm"
           >
-            Generate Quiz
+            Continue
           </button>
         </div>
       </div>
@@ -301,37 +284,9 @@ function getPagePreview(content, maxLength = 200) {
   padding: 24px;
 }
 
-.prompt-section {
-  margin-bottom: 24px;
-}
-
-.prompt-label {
-  display: block;
-  font-weight: 600;
-  color: #1f2937;
-  margin-bottom: 8px;
-}
-
-.prompt-textarea {
-  width: 100%;
-  padding: 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  font-size: 14px;
-  resize: vertical;
-  min-height: 80px;
-  font-family: inherit;
-}
-
-.prompt-textarea:focus {
-  outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
 
 .pages-section {
-  border-top: 1px solid #e6e8ec;
-  padding-top: 24px;
+  /* Removed border-top since it's now the only section */
 }
 
 .section-header {
@@ -595,22 +550,8 @@ body.dark .close-btn:hover {
   color: #e5e7eb;
 }
 
-body.dark .prompt-label {
-  color: #e5e7eb;
-}
-
-body.dark .prompt-textarea {
-  background: #1f2a44;
-  border-color: #334155;
-  color: #e5e7eb;
-}
-
-body.dark .prompt-textarea:focus {
-  border-color: #667eea;
-}
-
 body.dark .pages-section {
-  border-color: #1f2a44;
+  /* Removed border styles since it's now the only section */
 }
 
 body.dark .section-header h3 {

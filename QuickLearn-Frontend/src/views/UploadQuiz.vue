@@ -4,6 +4,8 @@ import { useRouter } from 'vue-router'
 import QuizConfirmationModal from '../components/QuizConfirmationModal.vue'
 import QuizConfigModal from '../components/QuizConfigModal.vue'
 import PageSelectionModal from '../components/PageSelectionModal.vue'
+import GenerationTypeModal from '../components/GenerationTypeModal.vue'
+import SummarySuccessModal from '../components/SummarySuccessModal.vue'
 import Sidebar from '../components/Sidebar.vue'
 import { downloadQuizAsPDF } from '../services/quizService'
 import cloudQuizService from '../services/cloudQuizService'
@@ -22,10 +24,15 @@ const progressPercent = ref(0)
 const showConfirmationModal = ref(false)
 const showConfigModal = ref(false)
 const showPageSelectionModal = ref(false)
+const showGenerationTypeModal = ref(false)
+const showSummarySuccessModal = ref(false)
 const shareLink = ref('')
 const showShareSuccess = ref(false)
 const filePages = ref([])
 const filePageCount = ref(0)
+const selectedGenerationType = ref('')
+const customInstructions = ref('')
+const generatedSummary = ref(null)
 let progressTimer = null
 onMounted(() => {
   try {
@@ -54,17 +61,6 @@ const fileSize = computed(() => {
 const fileName = computed(() => {
   return selectedFile.value?.name || 'No file selected'
 })
-
-// const fileIcon = computed(() => {
-//   if (!selectedFile.value) return '📄'
-//   const ext = selectedFile.value.name.split('.').pop().toLowerCase()
-//   switch (ext) {
-//     case 'pdf': return '📕'
-//     case 'docx': return '📘'
-//     case 'txt': return '📄'
-//     default: return '📄'
-//   }
-// })
 
 async function onFileChange(event) {
   const files = event.target.files
@@ -146,8 +142,8 @@ async function handleFileUpload() {
     filePages.value = parseResult.pages || []
     filePageCount.value = parseResult.pageCount || 1
     
-    // Show page selection modal
-    showPageSelectionModal.value = true
+    // Show generation type selection modal
+    showGenerationTypeModal.value = true
   } catch (err) {
     errorMessage.value = err?.message || 'Failed to parse file.'
     window.$toast?.error(errorMessage.value)
@@ -332,6 +328,22 @@ function copyShareLink() {
   }
 }
 
+// Generation type modal handlers
+function handleGenerationTypeCancel() {
+  showGenerationTypeModal.value = false
+  selectedGenerationType.value = ''
+  customInstructions.value = ''
+}
+
+function handleGenerationTypeConfirm(payload) {
+  showGenerationTypeModal.value = false
+  selectedGenerationType.value = payload.type
+  customInstructions.value = payload.customInstructions
+  
+  // Show page selection modal
+  showPageSelectionModal.value = true
+}
+
 // Page selection modal handlers
 function handlePageSelectionCancel() {
   showPageSelectionModal.value = false
@@ -340,14 +352,75 @@ function handlePageSelectionCancel() {
 function handlePageSelectionConfirm(payload) {
   showPageSelectionModal.value = false
   
-  // Show config modal with the selected pages and custom prompt
-  showConfigModal.value = true
-  
   // Store the page selection data for later use
   window.pageSelectionData = {
     selectedPages: payload.selectedPages,
-    customPrompt: payload.customPrompt
+    customInstructions: customInstructions.value,
+    generationType: selectedGenerationType.value
   }
+  
+  if (selectedGenerationType.value === 'quiz') {
+    // Show config modal for quiz generation
+    showConfigModal.value = true
+  } else if (selectedGenerationType.value === 'summary') {
+    // Generate summary directly
+    generateSummary()
+  }
+}
+
+// Summary generation function
+async function generateSummary() {
+  errorMessage.value = ''
+  quiz.value = null
+  showAnswers.value = {}
+
+  if (!selectedFile.value) {
+    const message = 'Please choose a .txt, .pdf, or .docx file.'
+    errorMessage.value = message
+    window.$toast?.error(message)
+    return
+  }
+
+  // Check if user is authenticated
+  if (!(await cloudQuizService.isAuthenticated())) {
+    window.$toast?.error('Please log in to create summaries')
+    router.push('/login')
+    return
+  }
+
+  isLoading.value = true
+  startProgress()
+  
+  try {
+    const pageSelectionData = window.pageSelectionData || {}
+    const summaryOptions = {
+      customInstructions: pageSelectionData.customInstructions || customInstructions.value,
+      selectedPages: pageSelectionData.selectedPages || []
+    }
+
+    const result = await cloudQuizService.createSummaryFromFile(selectedFile.value, summaryOptions)
+    
+    // Store the generated summary
+    generatedSummary.value = result.summary
+    
+    // Clear the stored page selection data
+    delete window.pageSelectionData
+    
+    // Show success modal
+    showSummarySuccessModal.value = true
+  } catch (err) {
+    errorMessage.value = err?.message || 'Summary generation failed.'
+    window.$toast?.error(errorMessage.value)
+  } finally {
+    completeProgress()
+    isLoading.value = false
+  }
+}
+
+// Summary success modal handlers
+function handleSummarySuccessClose() {
+  showSummarySuccessModal.value = false
+  generatedSummary.value = null
 }
 </script>
 
@@ -453,7 +526,9 @@ function handlePageSelectionConfirm(payload) {
             <h3>Supported Formats</h3>
             <div class="formats-grid">
               <div class="format-card">
-                <div class="format-icon">📄</div>
+                <div class="format-icon">
+                  <img src="/img/file.png" alt="PDF" />
+                </div>
                 <div class="format-info">
                   <div class="format-tag">PDF</div>
                   <div class="format-name">Portable Document Format</div>
@@ -461,7 +536,9 @@ function handlePageSelectionConfirm(payload) {
                 </div>
               </div>
               <div class="format-card">
-                <div class="format-icon">📄</div>
+                <div class="format-icon">
+                  <img src="/img/docx.png" alt="DOCX" />
+                </div>
                 <div class="format-info">
                   <div class="format-tag">DOCX</div>
                   <div class="format-name">Microsoft Word Document</div>
@@ -469,11 +546,23 @@ function handlePageSelectionConfirm(payload) {
                 </div>
               </div>
               <div class="format-card">
-                <div class="format-icon">📄</div>
+                <div class="format-icon">
+                  <img src="/img/txt-file.png" alt="TXT" />
+                </div>
                 <div class="format-info">
                   <div class="format-tag">TXT</div>
                   <div class="format-name">Plain Text File</div>
                   <div class="format-examples">Simple notes, code snippets, lists</div>
+                </div>
+              </div>
+              <div class="format-card">
+                <div class="format-icon">
+                  <img src="/img/pptx.png" alt="PPTX" />
+                </div>
+                <div class="format-info">
+                  <div class="format-tag">PPTX</div>
+                  <div class="format-name">PowerPoint</div>
+                  <div class="format-examples">Presentations, slides, visual content</div>
                 </div>
               </div>
             </div>
@@ -509,6 +598,14 @@ function handlePageSelectionConfirm(payload) {
         </div>
       </div>
 
+      <!-- Generation Type Modal -->
+      <GenerationTypeModal
+        :visible="showGenerationTypeModal"
+        :file-name="fileName"
+        @close="handleGenerationTypeCancel"
+        @confirm="handleGenerationTypeConfirm"
+      />
+
       <!-- Page Selection Modal -->
       <PageSelectionModal
         :visible="showPageSelectionModal"
@@ -535,6 +632,13 @@ function handlePageSelectionConfirm(payload) {
         @take-quiz="handleTakeQuiz"
         @download-quiz="handleDownloadQuiz"
         @share-quiz="handleShareQuiz"
+      />
+
+      <!-- Summary Success Modal -->
+      <SummarySuccessModal
+        :visible="showSummarySuccessModal"
+        :summary="generatedSummary"
+        @close="handleSummarySuccessClose"
       />
 
       <!-- Share Success Message -->
@@ -619,7 +723,7 @@ function handlePageSelectionConfirm(payload) {
   }
 
   .format-card {
-    padding: 12px;
+    padding: 10px;
   }
 
   .process-step {
@@ -921,17 +1025,17 @@ function handlePageSelectionConfirm(payload) {
 .formats-grid {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 .format-card {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 16px;
+  gap: 10px;
+  padding: 12px;
   background: #f8faff;
   border: 1px solid #e6e8ec;
-  border-radius: 10px;
+  border-radius: 8px;
   transition: all 0.2s ease;
 }
 
@@ -942,8 +1046,14 @@ function handlePageSelectionConfirm(payload) {
 }
 
 .format-icon {
-  font-size: 24px;
+  font-size: 20px;
   flex-shrink: 0;
+}
+
+.format-icon img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
 }
 
 .format-info {
@@ -955,20 +1065,21 @@ function handlePageSelectionConfirm(payload) {
   background: #667eea;
   color: white;
   font-weight: 700;
-  font-size: 12px;
-  padding: 4px 8px;
-  border-radius: 6px;
-  margin-bottom: 4px;
+  font-size: 11px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  margin-bottom: 3px;
 }
 
 .format-name {
   font-weight: 600;
   color: #1f2937;
-  margin-bottom: 2px;
+  margin-bottom: 1px;
+  font-size: 14px;
 }
 
 .format-examples {
-  font-size: 13px;
+  font-size: 12px;
   color: #6b7280;
 }
 
@@ -1418,6 +1529,10 @@ body.dark .format-examples {
 }
 
 body.dark .process-panel h3 {
+  color: #e5e7eb;
+}
+
+body.dark .tips-panel h3 {
   color: #e5e7eb;
 }
 

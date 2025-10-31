@@ -3,6 +3,7 @@ const express = require('express');
 const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
 const quizRoutes = require('./routes/quizRoutes');
+const notesRoutes = require('./routes/notesRoutes');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 
@@ -36,6 +37,7 @@ app.get('/health', (req, res) => {
 });
 
 app.use('/api/quiz', quizRoutes);
+app.use('/api/notes', notesRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 

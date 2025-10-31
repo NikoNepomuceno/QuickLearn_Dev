@@ -66,9 +66,32 @@ async function generateAdvancedQuiz(text, options = {}) {
 	}
 }
 
+// AI-powered summary generation using DeepSeek
+async function generateAIPoweredSummary(text, options = {}) {
+	const {
+		customInstructions = '',
+		focusAreas = []
+	} = options;
+
+	if (!process.env.DEEPSEEK_API_KEY) {
+		throw new Error('DeepSeek API key not configured. Please set DEEPSEEK_API_KEY environment variable.');
+	}
+
+    try {
+        return await deepSeekService.generateSummary(text, {
+            customInstructions,
+            focusAreas
+        });
+	} catch (error) {
+		console.error('DeepSeek summary generation failed:', error);
+		throw new Error('Failed to generate summary with DeepSeek AI. Please try again.');
+	}
+}
+
 module.exports = { 
 	generateAIPoweredQuiz, // AI-powered function using DeepSeek
-	generateAdvancedQuiz // Advanced AI function using DeepSeek
+	generateAdvancedQuiz, // Advanced AI function using DeepSeek
+	generateAIPoweredSummary // AI-powered summary function using DeepSeek
 };
 
 

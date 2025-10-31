@@ -475,6 +475,194 @@ Return as valid JSON with this structure:
             throw new Error('Failed to generate advanced quiz. Please try again.');
         }
     }
+
+    async generateSummary(text, options = {}) {
+        const {
+            customInstructions = '',
+            focusAreas = []
+        } = options;
+
+        try {
+            // Initialize client if not already done
+            this.initializeClient();
+            
+            const prompt = this.buildSummaryPrompt(text, {
+                customInstructions,
+                focusAreas
+            });
+
+            const response = await this.makeApiCallWithRetry({
+                model: 'deepseek-chat',
+                messages: [
+                    {
+                        role: 'system',
+                        content: 'You are an expert educational content summarizer specializing in creating clear, concise, and well-structured summaries. You excel at identifying key concepts, main points, and important details while maintaining accuracy and readability.'
+                    },
+                    {
+                        role: 'user',
+                        content: prompt
+                    }
+                ],
+                temperature: 0.5,
+                max_tokens: 4000,
+                stream: false
+            });
+
+            const summaryContent = response.choices[0].message.content;
+            return this.parseSummaryResponse(summaryContent, text);
+        } catch (error) {
+            console.error('DeepSeek Summary API Error:', error);
+            // Return fallback summary instead of throwing error
+            console.log('Falling back to simple summary generation...');
+            return this.createFallbackSummary(text);
+        }
+    }
+
+    buildSummaryPrompt(text, options) {
+        const { customInstructions, focusAreas } = options;
+        
+        let prompt = `Please analyze the following text and create a comprehensive lesson summary.
+
+TEXT TO ANALYZE:
+${text.substring(0, 12000)} ${text.length > 12000 ? '...[truncated]' : ''}
+
+REQUIREMENTS:
+- Focus on main concepts, key points, and important details
+- Use clear, concise language suitable for study and review
+- Organize information logically with proper structure
+- Include bullet points and lists where appropriate
+- Highlight the most important information
+- Make complex explanations into short, focused sentences
+- Ensure the summary is comprehensive yet easy to understand
+
+${focusAreas.length > 0 ? `- Pay special attention to these areas: ${focusAreas.join(', ')}` : ''}
+
+${customInstructions ? `- Additional instructions: ${customInstructions}` : ''}
+
+OUTPUT FORMAT (JSON):
+{
+  "title": "Summary Title based on content",
+  "description": "Brief description of what the summary covers",
+  "keyPoints": [
+    "Main point 1",
+    "Main point 2",
+    "Main point 3"
+  ],
+  "sections": [
+    {
+      "title": "Section Title",
+      "content": "Section content with key information",
+      "subpoints": [
+        "Important detail 1",
+        "Important detail 2"
+      ]
+    }
+  ],
+  "conclusions": [
+    "Key takeaway 1",
+    "Key takeaway 2"
+  ]
+}
+
+STRICT OUTPUT RULES:
+- Respond with ONLY the JSON. Do not include code fences, markdown, or commentary.
+- Ensure the JSON is valid and properly formatted.
+- Focus on the most important and relevant information.
+- Use bullet points and lists to make information digestible.
+- Keep explanations concise but comprehensive.`;
+
+        return prompt;
+    }
+
+    parseSummaryResponse(aiResponse, originalText) {
+        try {
+            console.log('AI Summary Response received, length:', aiResponse.length);
+            console.log('First 500 chars of AI response:', aiResponse.substring(0, 500));
+            
+            // Normalize common wrappers (remove code fences, stray commentary)
+            let content = aiResponse.trim();
+            content = content.replace(/^```json\s*|^```\s*|\s*```$/gmi, '');
+            
+            // Try full parse first
+            try {
+                const parsed = JSON.parse(content);
+                console.log('Successfully parsed JSON summary');
+                return this.validateAndCleanSummary(parsed, originalText);
+            } catch {}
+
+            // Fallback: extract the largest JSON-looking block
+            const jsonMatch = content.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                const summaryData = JSON.parse(jsonMatch[0]);
+                return this.validateAndCleanSummary(summaryData, originalText);
+            }
+            throw new Error('No valid JSON found in AI response');
+        } catch (error) {
+            console.error('Error parsing AI summary response:', error);
+            // Fallback to a simple summary if parsing fails
+            return this.createFallbackSummary(originalText);
+        }
+    }
+
+    validateAndCleanSummary(summaryData, originalText) {
+        const cleanedSummary = {
+            title: summaryData.title || 'Content Summary',
+            description: summaryData.description || 'Summary of the uploaded content',
+            keyPoints: summaryData.keyPoints || [],
+            sections: summaryData.sections || [],
+            conclusions: summaryData.conclusions || []
+        };
+
+        // Ensure we have at least some content
+        if (cleanedSummary.keyPoints.length === 0 && cleanedSummary.sections.length === 0) {
+            return this.createFallbackSummary(originalText);
+        }
+
+        return cleanedSummary;
+    }
+
+    createFallbackSummary(text) {
+        // Simple fallback summary generation
+        const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 20);
+        const words = text.toLowerCase().match(/\b\w{4,}\b/g) || [];
+        const commonWords = {};
+        
+        // Count word frequency
+        words.forEach(word => {
+            commonWords[word] = (commonWords[word] || 0) + 1;
+        });
+        
+        // Get most common words
+        const topWords = Object.entries(commonWords)
+            .sort(([,a], [,b]) => b - a)
+            .slice(0, 5)
+            .map(([word]) => word);
+
+        const keyPoints = sentences.slice(0, 3).map(sentence => 
+            sentence.trim().substring(0, 100) + (sentence.length > 100 ? '...' : '')
+        );
+
+        return {
+            title: 'Content Summary',
+            description: 'Summary generated from uploaded content',
+            keyPoints: keyPoints.length > 0 ? keyPoints : [
+                'The content discusses important concepts and information.',
+                'Key topics are covered in detail.',
+                'The material provides valuable insights.'
+            ],
+            sections: [
+                {
+                    title: 'Main Concepts',
+                    content: 'The content covers several important concepts and ideas that are essential for understanding the topic.',
+                    subpoints: topWords.slice(0, 3)
+                }
+            ],
+            conclusions: [
+                'The content provides valuable information on the topic.',
+                'Key concepts are well-explained and easy to understand.'
+            ]
+        };
+    }
 }
 
 module.exports = new DeepSeekService();
