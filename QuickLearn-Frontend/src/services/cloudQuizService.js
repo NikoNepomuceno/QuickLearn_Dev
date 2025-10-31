@@ -1,4 +1,3 @@
-// Cloud-based quiz service for handling quiz operations with backend API
 import { authService } from './authService'
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3000'
@@ -408,8 +407,99 @@ class CloudQuizService {
       throw error
     }
   }
+
+  /**
+   * Create summary from file
+   */
+  async createSummaryFromFile(file, options = {}) {
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      if (options.selectedPages && options.selectedPages.length > 0) {
+        formData.append('selectedPages', JSON.stringify(options.selectedPages))
+      }
+      if (options.customInstructions) {
+        formData.append('customInstructions', options.customInstructions)
+      }
+      if (options.focusAreas && options.focusAreas.length > 0) {
+        formData.append('focusAreas', options.focusAreas.join(','))
+      }
+
+      const headers = {}
+      const token = authService.getToken()
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+
+      const response = await fetch(`${API_BASE}/api/quiz/summary`, {
+        method: 'POST',
+        headers,
+        body: formData,
+        credentials: 'include'
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(errorText || `Summary generation failed with status ${response.status}`)
+      }
+
+      const data = await response.json()
+      return data
+    } catch (error) {
+      console.error('Error creating summary from file:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get user's summaries (notes)
+   */
+  async getUserSummaries(limit = 20, offset = 0) {
+    try {
+      const response = await fetch(`${API_BASE}/api/notes?limit=${limit}&offset=${offset}`, {
+        headers: this.getAuthHeaders(),
+        credentials: 'include'
+      })
+
+      if (!response.ok) {
+        // If the backend does not implement notes listing yet, avoid crashing the page
+        if (response.status === 404) {
+          return []
+        }
+        throw new Error(`Failed to get summaries: ${response.status}`)
+      }
+
+      const data = await response.json()
+      return data.summaries || data.notes || []
+    } catch (error) {
+      console.error('Error getting user summaries:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Delete a summary by id
+   */
+  async deleteSummary(id) {
+    try {
+      const response = await fetch(`${API_BASE}/api/notes/${id}`, {
+        method: 'DELETE',
+        headers: this.getAuthHeaders(),
+        credentials: 'include'
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to delete summary: ${response.status}`)
+      }
+
+      return true
+    } catch (error) {
+      console.error('Error deleting summary:', error)
+      throw error
+    }
+  }
 }
 
-// Export singleton instance
 export const cloudQuizService = new CloudQuizService()
 export default cloudQuizService

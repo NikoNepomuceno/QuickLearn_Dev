@@ -316,6 +316,51 @@ router.get('/:uuid/file', authenticateToken, async (req, res) => {
 	}
 });
 
+// Generate summary from file
+router.post('/summary', authenticateToken, upload.single('file'), async (req, res) => {
+	try {
+		if (!req.file) {
+			return res.status(400).json({ error: 'No file uploaded. Field name should be "file".' });
+		}
+
+		// Parse selectedPages from JSON string if it exists
+		let selectedPages = [];
+		if (req.body.selectedPages) {
+			try {
+				selectedPages = JSON.parse(req.body.selectedPages);
+			} catch (error) {
+				console.error('Error parsing selectedPages:', error);
+				selectedPages = [];
+			}
+		}
+
+		const summaryOptions = {
+			customInstructions: req.body.customInstructions || '',
+			focusAreas: req.body.focusAreas ? req.body.focusAreas.split(',') : [],
+			selectedPages: selectedPages
+		};
+
+		const result = await CloudStorageService.createSummaryWithFile(
+			req.file.buffer,
+			req.file.originalname,
+			req.user.id,
+			summaryOptions
+		);
+
+		return res.json({
+			summary: result.summary,
+			metadata: result.metadata
+		});
+	} catch (err) {
+		console.error('Error handling /summary:', err);
+		console.error('Error stack:', err.stack);
+		return res.status(500).json({
+			error: err.message || 'Failed to generate summary',
+			details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+		});
+	}
+});
+
 // Health check for AI service
 router.get('/system/ai-status', (req, res) => {
 	const hasApiKey = !!process.env.DEEPSEEK_API_KEY;

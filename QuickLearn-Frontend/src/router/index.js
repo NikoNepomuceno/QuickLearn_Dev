@@ -13,6 +13,7 @@ import { getCurrentUser } from '../services/authService'
 import VerifyEmail from '../views/VerifyEmail.vue'
 import SettingsPage from '@/views/SettingsPage.vue'
 import UserProfile from '@/views/UserProfile.vue'
+import NotesPage from '@/views/NotesPage.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -29,13 +30,12 @@ const router = createRouter({
     { path: '/reset-password', name: 'reset-password', component: ResetPassword, meta: { guestOnly: true } },
     { path: '/verify-email', name: 'verify-email', component: VerifyEmail, meta: { guestOnly: true } },
     { path: '/settings', name: 'settings', component: SettingsPage, meta: { requiresAuth: true }},
-    { path: '/user-profile', name: 'user-profile', component: UserProfile, meta: { requiresAuth: true }
-    }
+    { path: '/user-profile', name: 'user-profile', component: UserProfile, meta: { requiresAuth: true } },
+    { path: '/notes', name: 'notes', component: NotesPage, meta: { requiresAuth: true } }
   ],
 })
 
 router.beforeEach(async (to, from) => {
-  // Skip auth check for routes that don't require it
   const needsCheck = to.meta?.requiresAuth || to.meta?.guestOnly
   if (!needsCheck) return
 
@@ -52,16 +52,13 @@ router.beforeEach(async (to, from) => {
     }
   }
 
-  // Redirect unauthenticated users away from protected routes
   if (to.meta?.requiresAuth && !user) {
     return { name: 'login', replace: true }
   }
 
-  // Restrict direct navigation to verify-email unless coming from registration
   if (to.name === 'verify-email') {
     try {
       const flag = sessionStorage.getItem('verifyEmailPending')
-      // allow only if flag is set or coming directly from register page
       const cameFromRegister = from.name === 'register'
       if (!flag && !cameFromRegister) {
         return { name: 'register', replace: true }
@@ -69,7 +66,6 @@ router.beforeEach(async (to, from) => {
     } catch {}
   }
 
-  // Redirect authenticated users away from guest-only routes
   if (user && (to.meta?.guestOnly || to.name === 'home')) {
     return { name: 'upload', replace: true }
   }

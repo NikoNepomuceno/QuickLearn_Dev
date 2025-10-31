@@ -3,7 +3,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { logoutUser, clearLegacyTokens } from '../services/authService'
 import ConfirmModal from './ConfirmModal.vue'
-import { BookOpen, Upload, Brain, LogOut, Trash, Menu, X, Settings, User } from 'lucide-vue-next'
+import { BookOpen, Upload, Brain, LogOut, Trash, Menu, X, Settings, User, Book } from 'lucide-vue-next'
 
 const router = useRouter()
 const showConfirm = ref(false)
@@ -89,6 +89,12 @@ onBeforeUnmount(() => {
         <span>My Quizzes</span>
       </router-link>
 
+      <!-- Notes Page -->
+      <router-link class="nav-item" to="/notes" @click="closeSidebar">
+        <Book class="icon" :size="20" />
+        <span>Notes</span>
+      </router-link>
+
       <!-- UserProfile -->
        <router-link class="nav-item" to="/user-profile" @click="closeSidebar">
         <User class="icon" :size="20" />
@@ -147,7 +153,6 @@ onBeforeUnmount(() => {
   transform: scale(1.05);
 }
 
-/* Dark mode mobile menu button */
 body.dark .mobile-menu-btn {
   background: rgba(15, 23, 42, 0.6);
   border-color: rgba(31, 42, 68, 0.3);
@@ -173,17 +178,15 @@ body.dark .mobile-menu-btn:hover {
   backdrop-filter: blur(10px);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
   transition: all 0.3s ease;
-  overflow: hidden; /* prevent scrollbars */
+  overflow: hidden;
 }
 
-/* Dark mode sidebar */
 body.dark .sidebar {
   background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
   border-right-color: rgba(31, 42, 68, 0.3);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
-/* Responsive sidebar behavior */
 @media (max-width: 1024px) {
   .mobile-menu-btn {
     display: flex;
@@ -204,7 +207,6 @@ body.dark .sidebar {
     box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
   }
 
-  /* Dark mode mobile sidebar */
   body.dark .sidebar {
     background: rgba(15, 23, 42, 0.95) !important;
     box-shadow: 0 0 0 1px rgba(31, 42, 68, 0.3);
@@ -233,7 +235,6 @@ body.dark .sidebar {
   margin-bottom: 24px;
 }
 
-/* Dark mode brand */
 body.dark .brand {
   color: #e2e8f0;
 }
@@ -272,7 +273,6 @@ body.dark .brand {
   box-shadow: inset 3px 0 0 #6366f1;
 }
 
-/* Dark mode navigation */
 body.dark .nav-item {
   color: #94a3b8;
 }
