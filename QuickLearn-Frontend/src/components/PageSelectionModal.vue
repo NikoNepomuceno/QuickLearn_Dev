@@ -66,10 +66,10 @@ function togglePreview(pageIndex) {
 function handleConfirm() {
   const selectedPageIndices = Array.from(selectedPages.value)
   const selectedPageData = selectedPageIndices.map(index => ({
-    index: index + 1, // 1-based page numbers
+    index: index + 1,
     content: props.pages[index]
   }))
-  
+
   emit('confirm', {
     selectedPages: selectedPageData
   })
@@ -81,31 +81,31 @@ function handleClose() {
 
 function getPagePreview(content, maxLength = 200) {
   if (!content) return 'No content available'
-  
+
   let cleaned = content
-    .replace(/\n\s*\n\s*\n/g, '\n\n') 
-    .replace(/\s+/g, ' ') 
-    .replace(/\n\s+/g, '\n') 
+    .replace(/\n\s*\n\s*\n/g, '\n\n')
+    .replace(/\s+/g, ' ')
+    .replace(/\n\s+/g, '\n')
     .trim()
-  
+
   const lines = cleaned.split('\n')
   const meaningfulLines = lines.filter(line => {
     const trimmed = line.trim()
     // Skip empty lines, page numbers, and common headers
-    return trimmed.length > 0 && 
-           !trimmed.match(/^\d+$/) && 
+    return trimmed.length > 0 &&
+           !trimmed.match(/^\d+$/) &&
            !trimmed.match(/^Page \d+/) &&
            !trimmed.match(/^[A-Z][a-z]+ \d+/) &&
            trimmed.length > 3
   })
-  
+
   const meaningfulContent = meaningfulLines.join(' ').trim()
-  
+
   // Get preview
-  const preview = meaningfulContent.length > maxLength 
-    ? meaningfulContent.substring(0, maxLength) + '...' 
+  const preview = meaningfulContent.length > maxLength
+    ? meaningfulContent.substring(0, maxLength) + '...'
     : meaningfulContent
-  
+
   return preview || 'Content preview not available'
 }
 </script>
@@ -133,7 +133,7 @@ function getPagePreview(content, maxLength = 200) {
           <div class="section-header">
             <h3>Select Pages ({{ pages.length }} pages found)</h3>
             <div class="selection-controls">
-              <button 
+              <button
                 class="select-all-btn"
                 :class="{ active: allPagesSelected, partial: somePagesSelected }"
                 @click="toggleAllPages"
@@ -145,8 +145,8 @@ function getPagePreview(content, maxLength = 200) {
           </div>
 
           <div class="pages-grid">
-            <div 
-              v-for="(page, index) in pages" 
+            <div
+              v-for="(page, index) in pages"
               :key="index"
               class="page-preview-card"
               :class="{ selected: selectedPages.has(index) }"
@@ -191,7 +191,7 @@ function getPagePreview(content, maxLength = 200) {
           <button class="cancel-btn" @click="handleClose">
             Cancel
           </button>
-          <button 
+          <button
             class="confirm-btn"
             :disabled="selectedPages.size === 0"
             @click="handleConfirm"
