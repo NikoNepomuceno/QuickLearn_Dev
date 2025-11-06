@@ -5,11 +5,13 @@ import QuizConfirmationModal from '../components/QuizConfirmationModal.vue'
 import QuizConfigModal from '../components/QuizConfigModal.vue'
 import PageSelectionModal from '../components/PageSelectionModal.vue'
 import GenerationTypeModal from '../components/GenerationTypeModal.vue'
+import QuizModeModal from '../components/QuizModeModal.vue'
 import SummarySuccessModal from '../components/SummarySuccessModal.vue'
 import Sidebar from '../components/Sidebar.vue'
 import { downloadQuizAsPDF } from '../services/quizService'
 import cloudQuizService from '../services/cloudQuizService'
 import { Upload, FileText, X, Lightbulb, Target, Copy } from 'lucide-vue-next'
+import { adaptiveApi } from '../features/adaptive'
 
 const router = useRouter()
 const selectedFile = ref(null)
@@ -25,12 +27,14 @@ const showConfirmationModal = ref(false)
 const showConfigModal = ref(false)
 const showPageSelectionModal = ref(false)
 const showGenerationTypeModal = ref(false)
+const showQuizModeModal = ref(false)
 const showSummarySuccessModal = ref(false)
 const shareLink = ref('')
 const showShareSuccess = ref(false)
 const filePages = ref([])
 const filePageCount = ref(0)
 const selectedGenerationType = ref('')
+const selectedQuizMode = ref('')
 const customInstructions = ref('')
 const generatedSummary = ref(null)
 let progressTimer = null
@@ -189,6 +193,7 @@ async function uploadFile(options = {}) {
   isLoading.value = true
   startProgress()
   try {
+    const pageSelectionData = window.pageSelectionData || {}
     const quizOptions = {
       count: options.count || count.value,
       difficulty: options.difficulty || 'medium',
@@ -198,6 +203,7 @@ async function uploadFile(options = {}) {
       includeReasoning: options.includeReasoning !== false,
       customInstructions: options.customInstructions || '',
       selectedPages: options.selectedPages || [],
+      quizMode: pageSelectionData.quizMode || 'quicklearn',
     }
 
     const result = await cloudQuizService.createQuizFromFile(selectedFile.value, quizOptions)
@@ -335,13 +341,32 @@ function handleGenerationTypeCancel() {
   customInstructions.value = ''
 }
 
+// Quiz mode modal handlers
+function handleQuizModeCancel() {
+  showQuizModeModal.value = false
+  selectedQuizMode.value = ''
+}
+
+function handleQuizModeConfirm(payload) {
+  showQuizModeModal.value = false
+  selectedQuizMode.value = payload.mode
+  
+  // Show page selection modal after mode selection
+  showPageSelectionModal.value = true
+}
+
 function handleGenerationTypeConfirm(payload) {
   showGenerationTypeModal.value = false
   selectedGenerationType.value = payload.type
   customInstructions.value = payload.customInstructions
   
-  // Show page selection modal
-  showPageSelectionModal.value = true
+  if (payload.type === 'quiz') {
+    // Show quiz mode selection modal first
+    showQuizModeModal.value = true
+  } else if (payload.type === 'summary') {
+    // Show page selection modal directly for summaries
+    showPageSelectionModal.value = true
+  }
 }
 
 // Page selection modal handlers
@@ -356,15 +381,66 @@ function handlePageSelectionConfirm(payload) {
   window.pageSelectionData = {
     selectedPages: payload.selectedPages,
     customInstructions: customInstructions.value,
-    generationType: selectedGenerationType.value
+    generationType: selectedGenerationType.value,
+    quizMode: selectedQuizMode.value
   }
   
   if (selectedGenerationType.value === 'quiz') {
-    // Show config modal for quiz generation
-    showConfigModal.value = true
+    // Check if adaptive mode is selected
+    if (selectedQuizMode.value === 'adaptive') {
+      // Start adaptive session
+      startAdaptiveSession()
+    } else {
+      // Show config modal for standard quiz generation
+      showConfigModal.value = true
+    }
   } else if (selectedGenerationType.value === 'summary') {
     // Generate summary directly
     generateSummary()
+  }
+}
+
+// Start an adaptive quiz session
+async function startAdaptiveSession() {
+  if (!selectedFile.value) {
+    const message = 'Please choose a file first.'
+    errorMessage.value = message
+    window.$toast?.error(message)
+    return
+  }
+
+  // Check if user is authenticated
+  if (!(await cloudQuizService.isAuthenticated())) {
+    window.$toast?.error('Please log in to create adaptive quizzes')
+    router.push('/login')
+    return
+  }
+
+  isLoading.value = true
+  startProgress()
+
+  try {
+    const pageSelectionData = window.pageSelectionData || {}
+    const options = {
+      selectedPages: pageSelectionData.selectedPages || [],
+      customInstructions: pageSelectionData.customInstructions || customInstructions.value,
+      maxQuestions: 20 // Default max questions for adaptive mode
+    }
+
+    const result = await adaptiveApi.createSession(selectedFile.value, options)
+    
+    // Clear the stored page selection data
+    delete window.pageSelectionData
+    
+    // Navigate to adaptive quiz session
+    router.push(`/adaptive/${result.sessionId}`)
+    window.$toast?.success('Adaptive session started!')
+  } catch (err) {
+    errorMessage.value = err?.message || 'Failed to start adaptive session.'
+    window.$toast?.error(errorMessage.value)
+  } finally {
+    completeProgress()
+    isLoading.value = false
   }
 }
 
@@ -604,6 +680,14 @@ function handleSummarySuccessClose() {
         :file-name="fileName"
         @close="handleGenerationTypeCancel"
         @confirm="handleGenerationTypeConfirm"
+      />
+
+      <!-- Quiz Mode Modal -->
+      <QuizModeModal
+        :visible="showQuizModeModal"
+        :file-name="fileName"
+        @close="handleQuizModeCancel"
+        @confirm="handleQuizModeConfirm"
       />
 
       <!-- Page Selection Modal -->

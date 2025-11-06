@@ -6,6 +6,7 @@ const props = defineProps({
   cancelText: { type: String, default: 'Cancel' },
   modelValue: { type: Boolean, default: false },
   confirmDisabled: { type: Boolean, default: false },
+  variant: { type: String, default: 'danger' }, // 'danger' | 'primary'
 })
 const emit = defineEmits(['update:modelValue', 'confirm', 'cancel'])
 
@@ -34,8 +35,8 @@ function confirm() {
         <div class="actions">
           <button class="btn ghost" @click="close">{{ props.cancelText }}</button>
           <button 
-            class="btn danger" 
-            :class="{ disabled: props.confirmDisabled }"
+            class="btn"
+            :class="[props.variant, { disabled: props.confirmDisabled }]"
             :disabled="props.confirmDisabled"
             @click="confirm"
           >
@@ -97,6 +98,21 @@ function confirm() {
   box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
 }
 .danger.disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.primary {
+  background: #4338ca;
+  color: #fff;
+  border: none;
+}
+.primary:hover:not(.disabled) {
+  background: #3730a3;
+  box-shadow: 0 2px 6px rgba(67, 56, 202, 0.35);
+}
+.primary.disabled {
   background: #9ca3af;
   cursor: not-allowed;
   opacity: 0.6;

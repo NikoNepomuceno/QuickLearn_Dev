@@ -74,3 +74,62 @@ AFTER `profile_picture_url`;
 ALTER TABLE `users`
 ADD COLUMN IF NOT EXISTS `bio` TEXT NULL
 AFTER `display_name`;
+-- 5. Create adaptive sessions tables
+-- adaptive_sessions stores session lifecycle and content
+CREATE TABLE IF NOT EXISTS `adaptive_sessions` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `user_id` BIGINT UNSIGNED NOT NULL,
+    `uuid` CHAR(36) NOT NULL,
+    `status` VARCHAR(20) NOT NULL DEFAULT 'active',
+    `current_difficulty` ENUM('easy', 'medium', 'hard') NOT NULL DEFAULT 'medium',
+    `asked` INT NOT NULL DEFAULT 0,
+    `correct` INT NOT NULL DEFAULT 0,
+    `wrong_streak` INT NOT NULL DEFAULT 0,
+    `max_questions` INT NOT NULL DEFAULT 20,
+    `preferences` JSON NULL,
+    `source_file_id` BIGINT UNSIGNED NULL,
+    `text_length` INT NULL,
+    `content` MEDIUMTEXT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uniq_adaptive_sessions_uuid` (`uuid`),
+    KEY `idx_adaptive_sessions_user_id` (`user_id`),
+    KEY `idx_adaptive_sessions_status` (`status`),
+    CONSTRAINT `fk_adaptive_sessions_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+-- adaptive_questions stores each served question and answer key
+CREATE TABLE IF NOT EXISTS `adaptive_questions` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `session_id` BIGINT UNSIGNED NOT NULL,
+    `uuid` CHAR(36) NULL,
+    `difficulty` ENUM('easy', 'medium', 'hard') NOT NULL,
+    `type` VARCHAR(32) NOT NULL,
+    `stem` TEXT NOT NULL,
+    `choices` JSON NULL,
+    `correct_answer` JSON NULL,
+    `explanation` TEXT NULL,
+    `topic` VARCHAR(128) NULL,
+    `served_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `answered_at` DATETIME NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_adaptive_questions_session_id` (`session_id`),
+    KEY `idx_adaptive_questions_answered_at` (`answered_at`),
+    CONSTRAINT `fk_adaptive_questions_session_id` FOREIGN KEY (`session_id`) REFERENCES `adaptive_sessions` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+-- adaptive_answers stores user submissions
+CREATE TABLE IF NOT EXISTS `adaptive_answers` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `session_id` BIGINT UNSIGNED NOT NULL,
+    `question_id` BIGINT UNSIGNED NOT NULL,
+    `user_answer` JSON NULL,
+    `is_correct` TINYINT(1) NOT NULL DEFAULT 0,
+    `latency_ms` INT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_adaptive_answers_session_id` (`session_id`),
+    KEY `idx_adaptive_answers_question_id` (`question_id`),
+    CONSTRAINT `fk_adaptive_answers_session_id` FOREIGN KEY (`session_id`) REFERENCES `adaptive_sessions` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT `fk_adaptive_answers_question_id` FOREIGN KEY (`question_id`) REFERENCES `adaptive_questions` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;

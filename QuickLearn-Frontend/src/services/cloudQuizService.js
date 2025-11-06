@@ -499,6 +499,28 @@ class CloudQuizService {
       throw error
     }
   }
+
+  /**
+   * Get user's adaptive sessions
+   */
+  async getUserAdaptiveSessions(limit = 20, offset = 0) {
+    try {
+      const response = await fetch(`${API_BASE}/api/adaptive/sessions?limit=${limit}&offset=${offset}`, {
+        headers: this.getAuthHeaders(),
+        credentials: 'include'
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to get adaptive sessions: ${response.status}`)
+      }
+
+      const data = await response.json()
+      return data.sessions || []
+    } catch (error) {
+      console.error('Error getting adaptive sessions:', error)
+      throw error
+    }
+  }
 }
 
 export const cloudQuizService = new CloudQuizService()

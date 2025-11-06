@@ -14,6 +14,7 @@ import VerifyEmail from '../views/VerifyEmail.vue'
 import SettingsPage from '@/views/SettingsPage.vue'
 import UserProfile from '@/views/UserProfile.vue'
 import NotesPage from '@/views/NotesPage.vue'
+import { adaptiveRoutes } from '../features/adaptive'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -31,7 +32,9 @@ const router = createRouter({
     { path: '/verify-email', name: 'verify-email', component: VerifyEmail, meta: { guestOnly: true } },
     { path: '/settings', name: 'settings', component: SettingsPage, meta: { requiresAuth: true }},
     { path: '/user-profile', name: 'user-profile', component: UserProfile, meta: { requiresAuth: true } },
-    { path: '/notes', name: 'notes', component: NotesPage, meta: { requiresAuth: true } }
+    { path: '/notes', name: 'notes', component: NotesPage, meta: { requiresAuth: true } },
+    // Adaptive quiz routes
+    ...adaptiveRoutes
   ],
 })
 

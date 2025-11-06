@@ -19,11 +19,13 @@ import {
 
 const router = useRouter()
 const quizzes = ref([])
+const adaptiveSessions = ref([])
 const openMenuId = ref(null)
 const isLoading = ref(false)
 const error = ref(null)
 const showDeleteModal = ref(false)
 const quizToDelete = ref(null)
+const activeTab = ref('all') // 'all', 'quicklearn', 'adaptive'
 
 const deleteMessage = computed(() => {
   if (!quizToDelete.value) {
@@ -39,6 +41,22 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', onOutsideClick)
+})
+
+const filteredQuizzes = computed(() => {
+  if (activeTab.value === 'adaptive') return []
+  if (activeTab.value === 'quicklearn') return quizzes.value
+  return quizzes.value // 'all' shows regular quizzes first
+})
+
+const filteredAdaptiveSessions = computed(() => {
+  if (activeTab.value === 'quicklearn') return []
+  if (activeTab.value === 'adaptive') return adaptiveSessions.value
+  return adaptiveSessions.value // 'all' shows adaptive sessions
+})
+
+const hasAnyContent = computed(() => {
+  return quizzes.value.length > 0 || adaptiveSessions.value.length > 0
 })
 
 async function loadQuizzes() {
@@ -64,7 +82,14 @@ async function loadQuizzes() {
       }
     }
 
-    quizzes.value = await cloudQuizService.getUserQuizzes()
+    // Load both regular quizzes and adaptive sessions
+    const [regularQuizzes, sessions] = await Promise.all([
+      cloudQuizService.getUserQuizzes().catch(() => []),
+      cloudQuizService.getUserAdaptiveSessions().catch(() => [])
+    ])
+    
+    quizzes.value = regularQuizzes
+    adaptiveSessions.value = sessions
   } catch (err) {
     console.error('Error loading quizzes:', err)
     error.value = err.message || 'Failed to load quizzes'
@@ -92,6 +117,14 @@ function getPrimaryCtaText(quiz) {
 
 function openQuiz(quiz) {
   router.push({ name: 'quiz', params: { quizId: quiz.id } })
+}
+
+function openAdaptiveSession(session) {
+  if (session.status === 'completed') {
+    router.push(`/adaptive/${session.id}/summary`)
+  } else {
+    router.push(`/adaptive/${session.id}`)
+  }
 }
 
 async function shareQuiz(quiz) {
@@ -191,7 +224,7 @@ function getFileIcon(fileType) {
       </div>
 
       <!-- Empty State -->
-      <div v-else-if="quizzes.length === 0" class="empty">
+      <div v-else-if="!hasAnyContent" class="empty">
         <div class="empty-card">
           <div class="icon">
             <FolderOpen :size="48" />
@@ -205,81 +238,166 @@ function getFileIcon(fileType) {
         </div>
       </div>
 
-      <!-- Quiz Grid -->
-      <div v-else class="grid">
-        <div v-for="quiz in quizzes" :key="quiz.id" class="card">
-          <div class="row">
-            <div class="meta">
-              <div class="name">{{ quiz.title || 'Untitled Quiz' }}</div>
-              <div class="desc">{{ quiz.description }}</div>
-            </div>
-            <div class="menu">
-              <button class="icon-btn" title="More" @click="(e) => toggleMenu(quiz, e)">
-                <MoreVertical :size="16" />
-              </button>
-              <div class="dropdown" v-if="openMenuId === quiz.id">
-                <button class="dropdown-item" @click="() => shareQuiz(quiz)">
-                  <Share2 :size="16" />
-                  Share
-                </button>
-                <button class="dropdown-item" @click="() => downloadQuiz(quiz)">
-                  <Download :size="16" />
-                  Download
-                </button>
-                <button class="dropdown-item danger" @click="() => showDeleteConfirmation(quiz)">
-                  <Trash2 :size="16" />
-                  Delete
+      <!-- Tabs -->
+      <div v-else class="tabs-container">
+        <div class="tabs">
+          <button 
+            class="tab" 
+            :class="{ active: activeTab === 'all' }"
+            @click="activeTab = 'all'"
+          >
+            All ({{ quizzes.length + adaptiveSessions.length }})
+          </button>
+          <button 
+            class="tab" 
+            :class="{ active: activeTab === 'quicklearn' }"
+            @click="activeTab = 'quicklearn'"
+          >
+            QuickLearn ({{ quizzes.length }})
+          </button>
+          <button 
+            class="tab" 
+            :class="{ active: activeTab === 'adaptive' }"
+            @click="activeTab = 'adaptive'"
+          >
+            Adaptive ({{ adaptiveSessions.length }})
+          </button>
+        </div>
+      </div>
+
+      <!-- Content -->
+      <div v-if="hasAnyContent">
+        <!-- Adaptive Sessions -->
+        <div v-if="filteredAdaptiveSessions.length > 0" class="category-section">
+          <h2 v-if="activeTab === 'all'" class="category-title">🧠 Adaptive Sessions</h2>
+          <div class="grid">
+            <div v-for="session in filteredAdaptiveSessions" :key="session.id" class="card adaptive-card">
+              <div class="row">
+                <div class="meta">
+                  <div class="name">{{ session.title }}</div>
+                  <div class="desc">{{ session.description }}</div>
+                </div>
+                <div class="adaptive-badge">Adaptive</div>
+              </div>
+
+              <!-- Adaptive Stats -->
+              <div class="adaptive-stats">
+                <div class="stat-item">
+                  <span class="stat-label">Accuracy</span>
+                  <span class="stat-value">{{ session.stats.accuracy }}%</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Questions</span>
+                  <span class="stat-value">{{ session.stats.asked }}/{{ session.maxQuestions || 20 }}</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Difficulty</span>
+                  <span class="stat-value difficulty" :class="session.stats.currentDifficulty">
+                    {{ session.stats.currentDifficulty }}
+                  </span>
+                </div>
+              </div>
+
+              <div class="progress">
+                <div class="bar-bg"></div>
+                <div
+                  class="bar-fill"
+                  :style="{
+                    width: session.stats.accuracy + '%',
+                    background: getBarColor(session.stats.accuracy),
+                  }"
+                ></div>
+              </div>
+
+              <div class="actions">
+                <button class="primary" @click="() => openAdaptiveSession(session)">
+                  <Play :size="16" />
+                  {{ session.status === 'completed' ? 'View Results' : 'Continue Session' }}
                 </button>
               </div>
             </div>
           </div>
+        </div>
 
-          <!-- File Information -->
-          <div v-if="quiz.sourceFile && quiz.sourceFile.name" class="file-info">
-            <div class="file-icon">{{ getFileIcon(quiz.sourceFile.type) }}</div>
-            <div class="file-details">
-              <div class="file-name">{{ quiz.sourceFile.name }}</div>
-              <div class="file-meta">
-                {{ quiz.sourceFile.type?.toUpperCase() || 'FILE' }} •
-                {{ formatFileSize(quiz.sourceFile.size) }}
+        <!-- Regular Quizzes -->
+        <div v-if="filteredQuizzes.length > 0" class="category-section">
+          <h2 v-if="activeTab === 'all'" class="category-title">⚡ QuickLearn Quizzes</h2>
+          <div class="grid">
+            <div v-for="quiz in filteredQuizzes" :key="quiz.id" class="card">
+              <div class="row">
+                <div class="meta">
+                  <div class="name">{{ quiz.title || 'Untitled Quiz' }}</div>
+                  <div class="desc">{{ quiz.description }}</div>
+                </div>
+                <div class="menu">
+                  <button class="icon-btn" title="More" @click="(e) => toggleMenu(quiz, e)">
+                    <MoreVertical :size="16" />
+                  </button>
+                  <div class="dropdown" v-if="openMenuId === quiz.id">
+                    <button class="dropdown-item" @click="() => shareQuiz(quiz)">
+                      <Share2 :size="16" />
+                      Share
+                    </button>
+                    <button class="dropdown-item" @click="() => downloadQuiz(quiz)">
+                      <Download :size="16" />
+                      Download
+                    </button>
+                    <button class="dropdown-item danger" @click="() => showDeleteConfirmation(quiz)">
+                      <Trash2 :size="16" />
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- File Information -->
+              <div v-if="quiz.sourceFile && quiz.sourceFile.name" class="file-info">
+                <div class="file-icon">{{ getFileIcon(quiz.sourceFile.type) }}</div>
+                <div class="file-details">
+                  <div class="file-name">{{ quiz.sourceFile.name }}</div>
+                  <div class="file-meta">
+                    {{ quiz.sourceFile.type?.toUpperCase() || 'FILE' }} •
+                    {{ formatFileSize(quiz.sourceFile.size) }}
+                  </div>
+                </div>
+              </div>
+              <div v-else class="file-info placeholder" aria-hidden="true"></div>
+
+              <div class="progress">
+                <div class="bar-bg"></div>
+                <div
+                  class="bar-fill"
+                  :style="{
+                    width: (cloudQuizService.getQuizSummary(quiz).lastScore ?? 0) + '%',
+                    background: getBarColor(cloudQuizService.getQuizSummary(quiz).lastScore),
+                  }"
+                ></div>
+              </div>
+              <div class="progress-meta">
+                <span v-if="cloudQuizService.getQuizSummary(quiz).lastScore != null" class="score">
+                  Last score: {{ cloudQuizService.getQuizSummary(quiz).lastScore }}%
+                </span>
+                <span v-else class="score none">Not taken yet</span>
+                <span class="attempts"
+                  >Attempts: {{ cloudQuizService.getQuizSummary(quiz).attemptsCount }}</span
+                >
+              </div>
+
+              <div class="actions">
+                <button class="primary" @click="() => openQuiz(quiz)">
+                  <Play :size="16" />
+                  {{ getPrimaryCtaText(quiz) }}
+                </button>
+                <button
+                  v-if="cloudQuizService.getQuizSummary(quiz).attemptsCount > 0"
+                  class="secondary"
+                  @click="() => router.push({ name: 'quiz-results', params: { quizId: quiz.id } })"
+                >
+                  <BarChart3 :size="16" />
+                  View Results
+                </button>
               </div>
             </div>
-          </div>
-          <div v-else class="file-info placeholder" aria-hidden="true"></div>
-
-          <div class="progress">
-            <div class="bar-bg"></div>
-            <div
-              class="bar-fill"
-              :style="{
-                width: (cloudQuizService.getQuizSummary(quiz).lastScore ?? 0) + '%',
-                background: getBarColor(cloudQuizService.getQuizSummary(quiz).lastScore),
-              }"
-            ></div>
-          </div>
-          <div class="progress-meta">
-            <span v-if="cloudQuizService.getQuizSummary(quiz).lastScore != null" class="score">
-              Last score: {{ cloudQuizService.getQuizSummary(quiz).lastScore }}%
-            </span>
-            <span v-else class="score none">Not taken yet</span>
-            <span class="attempts"
-              >Attempts: {{ cloudQuizService.getQuizSummary(quiz).attemptsCount }}</span
-            >
-          </div>
-
-          <div class="actions">
-            <button class="primary" @click="() => openQuiz(quiz)">
-              <Play :size="16" />
-              {{ getPrimaryCtaText(quiz) }}
-            </button>
-            <button
-              v-if="cloudQuizService.getQuizSummary(quiz).attemptsCount > 0"
-              class="secondary"
-              @click="() => router.push({ name: 'quiz-results', params: { quizId: quiz.id } })"
-            >
-              <BarChart3 :size="16" />
-              View Results
-            </button>
           </div>
         </div>
       </div>
@@ -367,6 +485,52 @@ function getFileIcon(fileType) {
   margin-bottom: 16px;
 }
 
+.tabs-container {
+  margin-bottom: 24px;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 2px solid #e5e7eb;
+  padding-bottom: 0;
+}
+
+.tab {
+  padding: 12px 20px;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: #6b7280;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  bottom: -2px;
+}
+
+.tab:hover {
+  color: #667eea;
+}
+
+.tab.active {
+  color: #667eea;
+  border-bottom-color: #667eea;
+}
+
+.category-section {
+  margin-bottom: 32px;
+}
+
+.category-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 16px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #e5e7eb;
+}
+
 .grid {
   display: flex;
   flex-wrap: wrap;
@@ -382,6 +546,68 @@ function getFileIcon(fileType) {
   flex-direction: column;
   flex: 0 0 320px;
   min-width: 320px;
+}
+
+.card.adaptive-card {
+  border-left: 4px solid #667eea;
+}
+
+.adaptive-badge {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.adaptive-stats {
+  display: flex;
+  gap: 12px;
+  margin: 12px 0;
+  padding: 12px;
+  background: #f8faff;
+  border: 1px solid #e6e8ec;
+  border-radius: 8px;
+}
+
+.stat-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat-label {
+  font-size: 11px;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.stat-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.stat-value.difficulty {
+  text-transform: capitalize;
+}
+
+.stat-value.difficulty.easy {
+  color: #10b981;
+}
+
+.stat-value.difficulty.medium {
+  color: #f59e0b;
+}
+
+.stat-value.difficulty.hard {
+  color: #ef4444;
 }
 
 .row {
@@ -662,6 +888,41 @@ body.dark .header h1 {
 
 body.dark .subtitle {
   color: #9ca3af;
+}
+
+body.dark .tabs {
+  border-bottom-color: #1f2a44;
+}
+
+body.dark .tab {
+  color: #9ca3af;
+}
+
+body.dark .tab:hover {
+  color: #a5b4fc;
+}
+
+body.dark .tab.active {
+  color: #a5b4fc;
+  border-bottom-color: #667eea;
+}
+
+body.dark .category-title {
+  color: #e5e7eb;
+  border-bottom-color: #1f2a44;
+}
+
+body.dark .adaptive-stats {
+  background: #1f2a44;
+  border-color: #334155;
+}
+
+body.dark .stat-label {
+  color: #9ca3af;
+}
+
+body.dark .stat-value {
+  color: #e5e7eb;
 }
 
 body.dark .empty-card {

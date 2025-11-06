@@ -2,6 +2,7 @@
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import Sidebar from '@/components/Sidebar.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
+import ExportModal from '@/components/ExportModal.vue'
 import { useRouter } from 'vue-router'
 import BeatLoader from 'vue-spinner/src/BeatLoader.vue'
 import cloudQuizService from '@/services/cloudQuizService.js'
@@ -16,6 +17,8 @@ const notes = ref([])
 const openMenuId = ref(null)
 const showDeleteModal = ref(false)
 const noteToDelete = ref(null)
+const showExportModal = ref(false)
+const noteToExport = ref(null)
 
 const deleteMessage = computed(() => {
   if (!noteToDelete.value) return 'Are you sure you want to delete this note?'
@@ -58,6 +61,17 @@ function onOutsideClick() {
 function toggleMenu(note, event) {
   event?.stopPropagation?.()
   openMenuId.value = openMenuId.value === note.id ? null : note.id
+}
+
+function openDownloadModal(note) {
+  noteToExport.value = note
+  showExportModal.value = true
+  openMenuId.value = null
+}
+
+function closeExportModal() {
+  showExportModal.value = false
+  noteToExport.value = null
 }
 
 function getFileIcon(fileType) {
@@ -215,17 +229,9 @@ function cancelDelete() {
                 <MoreVertical :size="16" />
               </button>
               <div class="dropdown" v-if="openMenuId === note.id">
-                <button class="dropdown-item" @click="() => downloadAsPDF(note)">
+                <button class="dropdown-item" @click="() => openDownloadModal(note)">
                   <Download :size="16" />
-                  PDF
-                </button>
-                <button class="dropdown-item" @click="() => downloadAsDOCX(note)">
-                  <FileText :size="16" />
-                  DOC
-                </button>
-                <button class="dropdown-item" @click="() => downloadAsTXT(note)">
-                  <FileText :size="16" />
-                  TXT
+                  Download
                 </button>
                 <button class="dropdown-item" @click="() => copyNote(note)">
                   <Copy :size="16" />
@@ -269,6 +275,14 @@ function cancelDelete() {
       @confirm="confirmDelete"
       @cancel="cancelDelete"
     />
+
+    <ExportModal
+      :visible="showExportModal"
+      :summary="noteToExport"
+      title="Download Summary"
+      message="Choose a format and download your summary."
+      @close="closeExportModal"
+    />
   </div>
 </template>
 
@@ -280,9 +294,14 @@ function cancelDelete() {
 
 .content {
   flex: 1;
-  padding: 24px;
   max-width: none;
   margin-left: 40px;
+}
+
+@media (max-width: 1024px) {
+  .content {
+    padding-bottom: 120px;
+  }
 }
 
 .header h1 {
@@ -443,6 +462,33 @@ function cancelDelete() {
 .file-meta { color: #6b7280; font-size: 11px; margin-top: 2px; }
 
 .summary-stats { display: flex; justify-content: space-between; color: #6b7280; font-size: 12px; margin-top: 8px; }
+
+@media (max-width: 768px) {
+  .content {
+    padding: 16px;
+    padding-bottom: 100px;
+  }
+
+  .header h1 { font-size: 24px; }
+  .subtitle { font-size: 14px; }
+
+  .grid { grid-template-columns: 1fr; gap: 12px; }
+
+  .card { flex: 1 1 100%; min-width: auto; padding: 16px; }
+}
+
+@media (max-width: 480px) {
+  .content {
+    padding: 12px;
+    padding-bottom: 80px;
+  }
+
+  .header h1 { font-size: 20px; }
+  .card { padding: 12px; }
+  .file-info { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .file-details { width: 100%; }
+  .dropdown { right: -10px; min-width: 120px; }
+}
 
 /* Dark mode variants */
 body.dark .content { color: #e5e7eb; }

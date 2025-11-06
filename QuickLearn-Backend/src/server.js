@@ -6,6 +6,7 @@ const quizRoutes = require('./routes/quizRoutes');
 const notesRoutes = require('./routes/notesRoutes');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
+const adaptiveRoutes = require('./routes/adaptiveRoutes');
 
 const app = express();
 
@@ -40,6 +41,7 @@ app.use('/api/quiz', quizRoutes);
 app.use('/api/notes', notesRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/adaptive', adaptiveRoutes);
 
 module.exports = app;
 
