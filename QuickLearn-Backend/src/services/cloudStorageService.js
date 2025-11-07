@@ -204,6 +204,17 @@ class CloudStorageService {
                 userAnswers: attemptData.userAnswers
             });
 
+            // Realtime: broadcast leaderboard updates for this user
+            try {
+                const { broadcastLeaderboardFor } = require('../realtime/leaderboard');
+                // Access the shared IO instance via process global if set by index.js
+                if (global.__io) {
+                    await broadcastLeaderboardFor(global.__io, Number(userId));
+                }
+            } catch (e) {
+                // Ignore realtime errors
+            }
+
             return attempt.toJSON();
         } catch (error) {
             console.error('Error saving quiz attempt:', error);

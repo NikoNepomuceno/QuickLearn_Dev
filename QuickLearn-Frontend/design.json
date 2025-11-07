@@ -1,0 +1,646 @@
+{
+    "component": "Responsive Leaderboard UI",
+    "description": "A nature-themed leaderboard interface with top 3 winners on podiums and a scrollable list, optimized for both mobile and desktop viewports",
+    
+    "responsive_breakpoints": {
+      "mobile": "320px - 767px",
+      "tablet": "768px - 1023px",
+      "desktop": "1024px+"
+    },
+    
+    "layout": {
+      "mobile": {
+        "container": {
+          "width": "100vw (max 480px)",
+          "height": "100vh",
+          "background": "linear-gradient(180deg, #A8B896 0%, #C9D7B8 100%)",
+          "padding": "env(safe-area-inset)",
+          "overflow": "hidden"
+        }
+      },
+      
+      "desktop": {
+        "container": {
+          "width": "1200px max-width",
+          "height": "auto (min 800px)",
+          "background": "linear-gradient(180deg, #A8B896 0%, #C9D7B8 100%)",
+          "margin": "0 auto",
+          "padding": "40px",
+          "display": "flex",
+          "flex_direction": "row or column based on design preference"
+        }
+      }
+    },
+    
+    "header": {
+      "mobile": {
+        "type": "navigation bar",
+        "height": "56px",
+        "background": "transparent",
+        "elements": [
+          {
+            "element": "back_button",
+            "position": "left",
+            "size": "24px",
+            "icon": "chevron-left",
+            "color": "#3D2817",
+            "padding": "16px"
+          },
+          {
+            "element": "title",
+            "text": "Leader Board",
+            "position": "center",
+            "font_family": "Inter, SF Pro, sans-serif",
+            "font_size": "18px",
+            "font_weight": "600",
+            "color": "#3D2817"
+          }
+        ]
+      },
+      
+      "desktop": {
+        "type": "header section",
+        "height": "80px",
+        "background": "transparent",
+        "elements": [
+          {
+            "element": "back_button",
+            "position": "left",
+            "size": "32px",
+            "icon": "chevron-left",
+            "color": "#3D2817",
+            "padding": "24px"
+          },
+          {
+            "element": "title",
+            "text": "Leader Board",
+            "position": "center or left (after back button)",
+            "font_family": "Inter, SF Pro, sans-serif",
+            "font_size": "32px",
+            "font_weight": "700",
+            "color": "#3D2817"
+          }
+        ]
+      }
+    },
+    
+    "podium_section": {
+      "mobile": {
+        "background": "#FFD9A8",
+        "border_radius": "32px 32px 0 0",
+        "padding": "24px 20px 32px",
+        "height": "280px",
+        "margin_top": "16px",
+        
+        "decorative_trees": [
+          {
+            "position": "absolute top-left",
+            "offset": "10px, 15px",
+            "size": "40px height",
+            "color": "#8B6F47",
+            "opacity": "0.4"
+          },
+          {
+            "position": "absolute top-right",
+            "offset": "10px, 15px",
+            "size": "45px height",
+            "color": "#8B6F47",
+            "opacity": "0.4"
+          },
+          {
+            "position": "absolute middle-right",
+            "offset": "50%, 10px",
+            "size": "38px height",
+            "color": "#8B6F47",
+            "opacity": "0.3"
+          }
+        ]
+      },
+      
+      "desktop": {
+        "background": "#FFD9A8",
+        "border_radius": "48px 48px 0 0",
+        "padding": "48px 60px 60px",
+        "height": "400px",
+        "margin_top": "24px",
+        "width": "100%",
+        
+        "decorative_trees": [
+          {
+            "position": "absolute top-left",
+            "offset": "20px, 30px",
+            "size": "70px height",
+            "color": "#8B6F47",
+            "opacity": "0.4"
+          },
+          {
+            "position": "absolute top-right",
+            "offset": "20px, 30px",
+            "size": "75px height",
+            "color": "#8B6F47",
+            "opacity": "0.4"
+          },
+          {
+            "position": "absolute middle-left",
+            "offset": "40%, 25px",
+            "size": "60px height",
+            "color": "#8B6F47",
+            "opacity": "0.3"
+          },
+          {
+            "position": "absolute middle-right",
+            "offset": "40%, 25px",
+            "size": "65px height",
+            "color": "#8B6F47",
+            "opacity": "0.3"
+          }
+        ]
+      },
+      
+      "winners_layout": {
+        "arrangement": "2-1-3 (second, first, third)",
+        "display": "flex",
+        "justify_content": "center",
+        "align_items": "flex-end",
+        "gap": {
+          "mobile": "12px",
+          "desktop": "24px"
+        },
+        
+        "first_place": {
+          "mobile": {
+            "avatar": {
+              "size": "64px",
+              "character": "dark gray walrus/seal",
+              "background": "#4A5246",
+              "border": "3px solid white",
+              "facial_features": "two white eyes, simple expression",
+              "position": "relative"
+            },
+            "crown": {
+              "element": "medal/badge",
+              "background": "#FFB84D",
+              "text": "Winner",
+              "size": "56px width",
+              "position": "absolute, -10px above avatar",
+              "font_size": "10px",
+              "font_weight": "600",
+              "color": "white"
+            },
+            "podium": {
+              "height": "100px",
+              "width": "70px",
+              "background": "#6B7A5D",
+              "border_radius": "12px",
+              "number": "1",
+              "number_color": "white",
+              "number_size": "32px",
+              "number_weight": "700"
+            }
+          },
+          
+          "desktop": {
+            "avatar": {
+              "size": "96px",
+              "character": "dark gray walrus/seal",
+              "background": "#4A5246",
+              "border": "4px solid white",
+              "facial_features": "two white eyes, simple expression"
+            },
+            "crown": {
+              "element": "medal/badge",
+              "background": "#FFB84D",
+              "text": "Winner",
+              "size": "84px width",
+              "position": "absolute, -15px above avatar",
+              "font_size": "14px",
+              "font_weight": "600",
+              "color": "white"
+            },
+            "podium": {
+              "height": "140px",
+              "width": "110px",
+              "background": "#6B7A5D",
+              "border_radius": "16px",
+              "number": "1",
+              "number_color": "white",
+              "number_size": "48px",
+              "number_weight": "700"
+            }
+          }
+        },
+        
+        "second_place": {
+          "mobile": {
+            "avatar": {
+              "size": "56px",
+              "character": "light mint/green seal",
+              "background": "#B8D4B8",
+              "border": "3px solid white",
+              "facial_features": "two dark eyes, simple expression"
+            },
+            "podium": {
+              "height": "80px",
+              "width": "70px",
+              "background": "#8B5A4E",
+              "border_radius": "12px",
+              "number": "2",
+              "number_color": "white",
+              "number_size": "32px",
+              "number_weight": "700"
+            }
+          },
+          
+          "desktop": {
+            "avatar": {
+              "size": "80px",
+              "character": "light mint/green seal",
+              "background": "#B8D4B8",
+              "border": "4px solid white",
+              "facial_features": "two dark eyes, simple expression"
+            },
+            "podium": {
+              "height": "120px",
+              "width": "110px",
+              "background": "#8B5A4E",
+              "border_radius": "16px",
+              "number": "2",
+              "number_color": "white",
+              "number_size": "48px",
+              "number_weight": "700"
+            }
+          }
+        },
+        
+        "third_place": {
+          "mobile": {
+            "avatar": {
+              "size": "56px",
+              "character": "orange/brown bear",
+              "background": "#E69A3F",
+              "border": "3px solid white",
+              "facial_features": "two dark eyes, rounded ears"
+            },
+            "podium": {
+              "height": "80px",
+              "width": "70px",
+              "background": "#D4923A",
+              "border_radius": "12px",
+              "number": "3",
+              "number_color": "white",
+              "number_size": "32px",
+              "number_weight": "700"
+            }
+          },
+          
+          "desktop": {
+            "avatar": {
+              "size": "80px",
+              "character": "orange/brown bear",
+              "background": "#E69A3F",
+              "border": "4px solid white",
+              "facial_features": "two dark eyes, rounded ears"
+            },
+            "podium": {
+              "height": "120px",
+              "width": "110px",
+              "background": "#D4923A",
+              "border_radius": "16px",
+              "number": "3",
+              "number_color": "white",
+              "number_size": "48px",
+              "number_weight": "700"
+            }
+          }
+        }
+      }
+    },
+    
+    "rankings_list": {
+      "mobile": {
+        "background": "white",
+        "border_radius": "24px 24px 0 0",
+        "padding": "20px 16px",
+        "margin_top": "-8px",
+        "max_height": "calc(100vh - 380px)",
+        "overflow_y": "auto",
+        
+        "list_item": {
+          "height": "72px",
+          "padding": "12px 16px",
+          "margin_bottom": "8px",
+          "border_radius": "16px",
+          "background": "white",
+          "border": "2px solid transparent",
+          "display": "flex",
+          "align_items": "center",
+          "gap": "12px",
+          
+          "hover_state": {
+            "border_color": "#3D2817",
+            "transform": "scale(1.01)",
+            "transition": "all 0.2s ease"
+          },
+          
+          "selected_state": {
+            "border_color": "#3D2817",
+            "box_shadow": "0 2px 8px rgba(0,0,0,0.1)"
+          }
+        }
+      },
+      
+      "desktop": {
+        "background": "white",
+        "border_radius": "32px 32px 0 0",
+        "padding": "32px 40px",
+        "margin_top": "-12px",
+        "max_height": "600px",
+        "overflow_y": "auto",
+        
+        "list_item": {
+          "height": "88px",
+          "padding": "16px 24px",
+          "margin_bottom": "12px",
+          "border_radius": "20px",
+          "background": "white",
+          "border": "2px solid transparent",
+          "display": "flex",
+          "align_items": "center",
+          "gap": "20px",
+          
+          "hover_state": {
+            "border_color": "#3D2817",
+            "transform": "scale(1.005)",
+            "transition": "all 0.3s ease",
+            "box_shadow": "0 4px 12px rgba(0,0,0,0.08)",
+            "cursor": "pointer"
+          },
+          
+          "selected_state": {
+            "border_color": "#3D2817",
+            "box_shadow": "0 4px 16px rgba(0,0,0,0.12)"
+          }
+        }
+      },
+      
+      "rank_number": {
+        "mobile": {
+          "width": "32px",
+          "font_size": "18px",
+          "font_weight": "700",
+          "color": "#3D2817",
+          "text_align": "left"
+        },
+        "desktop": {
+          "width": "48px",
+          "font_size": "24px",
+          "font_weight": "700",
+          "color": "#3D2817",
+          "text_align": "left"
+        }
+      },
+      
+      "user_avatar": {
+        "mobile": {
+          "size": "48px",
+          "border_radius": "50%",
+          "border": "none",
+          "variants": [
+            {
+              "character": "orange monkey",
+              "background": "#E69A3F"
+            },
+            {
+              "character": "green frog",
+              "background": "#B8D4B8"
+            },
+            {
+              "character": "brown bear",
+              "background": "#8B6F47"
+            }
+          ]
+        },
+        "desktop": {
+          "size": "64px",
+          "border_radius": "50%",
+          "border": "none"
+        }
+      },
+      
+      "user_info": {
+        "mobile": {
+          "flex": "1",
+          "name": {
+            "font_size": "15px",
+            "font_weight": "600",
+            "color": "#3D2817",
+            "margin_bottom": "4px"
+          },
+          "points": {
+            "display": "flex",
+            "align_items": "center",
+            "gap": "6px",
+            "coin_icon": {
+              "size": "14px",
+              "color": "#FFB84D"
+            },
+            "text": {
+              "font_size": "13px",
+              "font_weight": "500",
+              "color": "#666666"
+            }
+          }
+        },
+        "desktop": {
+          "flex": "1",
+          "name": {
+            "font_size": "18px",
+            "font_weight": "600",
+            "color": "#3D2817",
+            "margin_bottom": "6px"
+          },
+          "points": {
+            "display": "flex",
+            "align_items": "center",
+            "gap": "8px",
+            "coin_icon": {
+              "size": "18px",
+              "color": "#FFB84D"
+            },
+            "text": {
+              "font_size": "16px",
+              "font_weight": "500",
+              "color": "#666666"
+            }
+          }
+        }
+      },
+      
+      "rank_change": {
+        "mobile": {
+          "display": "flex",
+          "align_items": "center",
+          "gap": "4px",
+          "padding": "4px 8px",
+          "border_radius": "8px",
+          
+          "positive": {
+            "background": "#E8F5E8",
+            "color": "#4CAF50",
+            "icon": "▲",
+            "font_size": "14px",
+            "font_weight": "600"
+          },
+          "negative": {
+            "background": "#FFEBEE",
+            "color": "#F44336",
+            "icon": "▼",
+            "font_size": "14px",
+            "font_weight": "600"
+          }
+        },
+        "desktop": {
+          "display": "flex",
+          "align_items": "center",
+          "gap": "6px",
+          "padding": "6px 12px",
+          "border_radius": "10px",
+          
+          "positive": {
+            "background": "#E8F5E8",
+            "color": "#4CAF50",
+            "icon": "▲",
+            "font_size": "16px",
+            "font_weight": "600"
+          },
+          "negative": {
+            "background": "#FFEBEE",
+            "color": "#F44336",
+            "icon": "▼",
+            "font_size": "16px",
+            "font_weight": "600"
+          }
+        }
+      }
+    },
+    
+    "sample_data": [
+      {
+        "rank": "04",
+        "name": "Jennifer",
+        "avatar": "orange_monkey",
+        "points": "780 pts",
+        "change": "+3",
+        "change_type": "positive"
+      },
+      {
+        "rank": "05",
+        "name": "William",
+        "avatar": "green_frog",
+        "points": "755 pts",
+        "change": "-1",
+        "change_type": "negative"
+      },
+      {
+        "rank": "06",
+        "name": "Samantha",
+        "avatar": "brown_bear",
+        "points": "698 pts",
+        "change": "-2",
+        "change_type": "negative",
+        "highlighted": true
+      },
+      {
+        "rank": "05",
+        "name": "Emery",
+        "avatar": "beige_character",
+        "points": "638 pts",
+        "change": "-1",
+        "change_type": "negative"
+      },
+      {
+        "rank": "05",
+        "name": "Lydia",
+        "avatar": "green_frog",
+        "points": "560 pts",
+        "change": "-1",
+        "change_type": "negative"
+      }
+    ],
+    
+    "color_palette": {
+      "primary_green": "#A8B896",
+      "light_green": "#C9D7B8",
+      "peach_background": "#FFD9A8",
+      "first_place_green": "#6B7A5D",
+      "second_place_brown": "#8B5A4E",
+      "third_place_orange": "#D4923A",
+      "white": "#FFFFFF",
+      "dark_text": "#3D2817",
+      "gray_text": "#666666",
+      "gold_coin": "#FFB84D",
+      "tree_brown": "#8B6F47",
+      "positive_green": "#4CAF50",
+      "positive_bg": "#E8F5E8",
+      "negative_red": "#F44336",
+      "negative_bg": "#FFEBEE"
+    },
+    
+    "typography": {
+      "font_family": "Inter, -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif",
+      "font_weights": {
+        "regular": "400",
+        "medium": "500",
+        "semibold": "600",
+        "bold": "700"
+      }
+    },
+    
+    "animations": {
+      "list_item_hover": {
+        "duration": "0.2s",
+        "easing": "ease-in-out",
+        "properties": ["transform", "border-color", "box-shadow"]
+      },
+      "avatar_load": {
+        "duration": "0.3s",
+        "easing": "ease-out",
+        "effect": "fade-in with slight scale"
+      },
+      "rank_change_pulse": {
+        "duration": "0.5s",
+        "easing": "ease-in-out",
+        "effect": "subtle pulse on positive changes"
+      }
+    },
+    
+    "accessibility": {
+      "aria_labels": {
+        "back_button": "Go back",
+        "leaderboard": "User rankings leaderboard",
+        "list_item": "User {name}, rank {rank}, {points} points, {change} rank change"
+      },
+      "keyboard_navigation": true,
+      "focus_visible": {
+        "outline": "2px solid #3D2817",
+        "outline_offset": "2px"
+      },
+      "screen_reader": {
+        "announce_rank_changes": true,
+        "announce_current_user": true
+      }
+    },
+    
+    "interactions": {
+      "mobile": {
+        "scroll_behavior": "smooth",
+        "pull_to_refresh": "optional",
+        "list_item_tap": "show user profile or details"
+      },
+      "desktop": {
+        "scroll_behavior": "smooth",
+        "list_item_click": "show user profile or details",
+        "hover_effects": "enabled"
+      }
+    }
+  }

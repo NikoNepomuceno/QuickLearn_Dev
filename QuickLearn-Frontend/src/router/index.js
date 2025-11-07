@@ -15,6 +15,7 @@ import SettingsPage from '@/views/SettingsPage.vue'
 import UserProfile from '@/views/UserProfile.vue'
 import NotesPage from '@/views/NotesPage.vue'
 import { adaptiveRoutes } from '../features/adaptive'
+import { leaderboardRoutes } from '../features/leaderboard'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -34,7 +35,9 @@ const router = createRouter({
     { path: '/user-profile', name: 'user-profile', component: UserProfile, meta: { requiresAuth: true } },
     { path: '/notes', name: 'notes', component: NotesPage, meta: { requiresAuth: true } },
     // Adaptive quiz routes
-    ...adaptiveRoutes
+    ...adaptiveRoutes,
+    // Leaderboard routes
+    ...leaderboardRoutes
   ],
 })
 

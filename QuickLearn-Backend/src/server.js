@@ -7,6 +7,8 @@ const notesRoutes = require('./routes/notesRoutes');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const adaptiveRoutes = require('./routes/adaptiveRoutes');
+const friendsRoutes = require('./routes/friendsRoutes');
+const leaderboardRoutes = require('./routes/leaderboardRoutes');
 
 const app = express();
 
@@ -42,6 +44,8 @@ app.use('/api/notes', notesRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/adaptive', adaptiveRoutes);
+app.use('/api/friends', friendsRoutes);
+app.use('/api/leaderboard', leaderboardRoutes);
 
 module.exports = app;
 

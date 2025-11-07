@@ -16,6 +16,7 @@ import { adaptiveApi } from '../features/adaptive'
 const router = useRouter()
 const selectedFile = ref(null)
 const isLoading = ref(false)
+const loadingMessage = ref('')
 const errorMessage = ref('')
 const quiz = ref(null)
 const count = ref(10)
@@ -137,6 +138,7 @@ async function handleFileUpload() {
     return
   }
 
+  loadingMessage.value = 'Analyzing your file…'
   isLoading.value = true
   startProgress()
 
@@ -190,6 +192,8 @@ async function uploadFile(options = {}) {
     return
   }
 
+  // Quiz generation loading text
+  loadingMessage.value = 'Analyzing your file and generating questions…'
   isLoading.value = true
   startProgress()
   try {
@@ -416,6 +420,7 @@ async function startAdaptiveSession() {
     return
   }
 
+  loadingMessage.value = 'Starting adaptive session…'
   isLoading.value = true
   startProgress()
 
@@ -464,6 +469,8 @@ async function generateSummary() {
     return
   }
 
+  // Summary generation loading text
+  loadingMessage.value = 'Generating your summary…'
   isLoading.value = true
   startProgress()
   
@@ -746,7 +753,7 @@ function handleSummarySuccessClose() {
     <BeatLoader 
       v-if="isLoading"
       :loading="isLoading" 
-      text="Analyzing your file and generating questions…" 
+      :text="loadingMessage || 'Analyzing your file and generating questions…'" 
       color="#667eea"
       size="20px"
       :overlay="true"
@@ -771,7 +778,7 @@ function handleSummarySuccessClose() {
 
 @media (max-width: 1024px) {
   .upload-page {
-    padding-bottom: 120px; /* Add space for floating sidebar */
+    padding-bottom: 120px;
   }
 }
 

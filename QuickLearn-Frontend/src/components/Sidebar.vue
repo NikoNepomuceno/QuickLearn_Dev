@@ -3,7 +3,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { logoutUser, clearLegacyTokens } from '../services/authService'
 import ConfirmModal from './ConfirmModal.vue'
-import { BookOpen, Upload, Brain, LogOut, Trash, Menu, X, Settings, Book } from 'lucide-vue-next'
+import { BookOpen, Upload, Brain, LogOut, Trash, Menu, X, Settings, Book, Trophy } from 'lucide-vue-next'
 
 const router = useRouter()
 const showConfirm = ref(false)
@@ -93,6 +93,12 @@ onBeforeUnmount(() => {
       <router-link class="nav-item" to="/notes" @click="closeSidebar">
         <Book class="icon" :size="20" />
         <span>Notes</span>
+      </router-link>
+
+      <!-- Leaderboards Page -->
+      <router-link class="nav-item" to="/leaderboards" @click="closeSidebar">
+        <Trophy class="icon" :size="20" />
+        <span>Leaderboards</span>
       </router-link>
 
       <!-- Settings Page -->
