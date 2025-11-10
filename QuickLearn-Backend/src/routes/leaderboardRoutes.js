@@ -23,7 +23,7 @@ router.get('/', authenticateToken, async (req, res) => {
 		const allIds = Array.from(new Set([userId, ...friendIds]));
 		if (!allIds.length) return res.json({ data: [] });
 		const [points] = await pool.query(
-			`SELECT qa.user_id AS userId, COALESCE(SUM(qa.score), 0) AS points
+			`SELECT qa.user_id AS userId, COALESCE(SUM(COALESCE(qa.points_earned, qa.score)), 0) AS points
 			 FROM quiz_attempts qa
 			 WHERE qa.user_id IN (${allIds.map(() => '?').join(',')})
 			 GROUP BY qa.user_id`,
@@ -45,6 +45,8 @@ router.get('/', authenticateToken, async (req, res) => {
 		}))
 		.sort((a, b) => b.points - a.points)
 		.slice(0, limit);
+		res.set('Cache-Control', 'private, max-age=15, stale-while-revalidate=30');
+		res.set('Vary', 'Origin, Authorization, Cookie');
 		return res.json({ data });
 	} catch (err) {
 		console.error('Leaderboard endpoint error:', err);

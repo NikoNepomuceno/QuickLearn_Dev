@@ -22,6 +22,16 @@ npm start
 
 Then visit `http://localhost:3000/health` to check status.
 
+## Performance flags (set in your .env)
+```
+ENABLE_GLOBAL_RATELIMIT=1
+ENABLE_LB_CACHE=1
+ENABLE_WS_DEFLATE=1
+ENABLE_RESPONSE_TIME=0
+MYSQL_POOL_LIMIT=20
+DEBUG_AI=0
+```
+
 ## API
 ### POST `/api/quiz/from-file`
 - Content-Type: `multipart/form-data`

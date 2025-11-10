@@ -15,6 +15,8 @@ const enumerationAnswers = ref({}) // For enumeration questions
 // Removed inline results view; results are shown on dedicated route
 const timeElapsed = ref(0)
 const startTime = ref(null)
+const questionTimesMs = ref([]) // per-question timings in milliseconds
+const questionStartedAt = ref(null) // timestamp when current question started
 let timer = null
 
 const currentQuestion = computed(() => {
@@ -154,7 +156,12 @@ onMounted(async () => {
       const quizData = await cloudQuizService.getQuizByUuid(route.params.quizId)
       if (quizData) {
         quiz.value = quizData
+        // init per-question timing buckets
+        const count = quizData.questions?.length || 0
+        questionTimesMs.value = Array.from({ length: count }, () => 0)
         startTimer()
+        // mark the first question start time
+        questionStartedAt.value = Date.now()
       } else {
         window.$toast?.error('Quiz not found')
         router.push('/')
@@ -174,6 +181,17 @@ function startTimer() {
   timer = setInterval(() => {
     timeElapsed.value = Math.floor((Date.now() - startTime.value) / 1000)
   }, 1000)
+}
+
+function accumulateTimeForCurrent() {
+  if (questionStartedAt.value == null) return
+  const now = Date.now()
+  const elapsedMs = now - questionStartedAt.value
+  const idx = currentQuestionIndex.value
+  if (idx >= 0 && idx < (questionTimesMs.value?.length || 0)) {
+    questionTimesMs.value[idx] = (Number(questionTimesMs.value[idx]) || 0) + Math.max(0, elapsedMs)
+  }
+  questionStartedAt.value = now
 }
 
 function selectAnswer(answer) {
@@ -198,17 +216,21 @@ function getEnumerationPreview() {
 
 function nextQuestion() {
   if (currentQuestionIndex.value < totalQuestions.value - 1) {
+    accumulateTimeForCurrent()
     currentQuestionIndex.value++
   }
 }
 
 function previousQuestion() {
   if (currentQuestionIndex.value > 0) {
+    accumulateTimeForCurrent()
     currentQuestionIndex.value--
   }
 }
 
 async function submitQuiz() {
+  // capture final question time slice
+  accumulateTimeForCurrent()
   if (timer) {
     clearInterval(timer)
   }
@@ -221,6 +243,7 @@ async function submitQuiz() {
         score: score.value,
         timeSeconds: elapsed,
         userAnswers,
+        questionTimesMs: questionTimesMs.value
       })
     }
   } catch (error) {

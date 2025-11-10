@@ -4,6 +4,103 @@ const File = require('../models/File');
 const { parseUploadedFile } = require('../utils/parseFile');
 const { generateAIPoweredQuiz, generateAdvancedQuiz, generateAIPoweredSummary } = require('./quizService');
 
+// ----- Scoring helpers -----
+function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+function normalizeValue(v) {
+    if (v === null || v === undefined) return '';
+    if (Array.isArray(v)) return v.map(x => String(x).trim().toLowerCase()).filter(Boolean);
+    return String(v).trim().toLowerCase();
+}
+function isAnswerCorrectBackend(userAnswer, correctAnswer, questionType) {
+    if (questionType === 'enumeration') {
+        const u = normalizeValue(userAnswer);
+        const c = normalizeValue(correctAnswer);
+        if (!Array.isArray(u) || !Array.isArray(c) || c.length === 0) return false;
+        // require every correct item to appear in user list
+        const variations = {
+            javascript: ['js', 'javascript', 'ecmascript'],
+            js: ['javascript', 'js', 'ecmascript'],
+            html: ['hypertext markup language', 'html'],
+            css: ['cascading style sheets', 'css'],
+            dom: ['document object model', 'dom'],
+            api: ['application programming interface', 'api']
+        };
+        return c.every(item => {
+            if (u.includes(item)) return true;
+            if (variations[item]) return variations[item].some(alt => u.includes(alt));
+            return false;
+        });
+    } else {
+        const u = normalizeValue(userAnswer);
+        const c = normalizeValue(correctAnswer);
+        if (!u || !c) return false;
+        if (u === c) return true;
+        const variations = {
+            dom: ['document object model', 'dom'],
+            'document object model': ['dom', 'document object model'],
+            javascript: ['js', 'javascript', 'ecmascript'],
+            js: ['javascript', 'js', 'ecmascript'],
+            ecmascript: ['javascript', 'js', 'ecmascript'],
+            html: ['hypertext markup language', 'html'],
+            'hypertext markup language': ['html', 'hypertext markup language'],
+            css: ['cascading style sheets', 'css'],
+            'cascading style sheets': ['css', 'cascading style sheets'],
+            api: ['application programming interface', 'api'],
+            'application programming interface': ['api', 'application programming interface'],
+            url: ['uniform resource locator', 'url'],
+            'uniform resource locator': ['url', 'uniform resource locator'],
+            http: ['hypertext transfer protocol', 'http'],
+            'hypertext transfer protocol': ['http', 'hypertext transfer protocol'],
+            https: ['hypertext transfer protocol secure', 'https'],
+            'hypertext transfer protocol secure': ['https', 'hypertext transfer protocol secure'],
+            json: ['javascript object notation', 'json'],
+            'javascript object notation': ['json', 'javascript object notation'],
+            xml: ['extensible markup language', 'xml'],
+            'extensible markup language': ['xml', 'extensible markup language'],
+            sql: ['structured query language', 'sql'],
+            'structured query language': ['sql', 'structured query language'],
+            true: ['yes', 'correct', 'true', '1'],
+            false: ['no', 'incorrect', 'false', '0']
+        };
+        if (variations[c]?.includes(u)) return true;
+        if (variations[u]?.includes(c)) return true;
+        return false;
+    }
+}
+
+function computeSpeedPoints({ questions, userAnswers, questionTimesMs, totalTimeSeconds }) {
+    const qCount = Array.isArray(questions) ? questions.length : 0;
+    if (qCount === 0) return { pointsEarned: 0, usedTimes: [] };
+    // Config
+    const MAX = Number(process.env.POINTS_MAX_PER_CORRECT || 100);
+    const MIN = Number(process.env.POINTS_MIN_PER_CORRECT || 20);
+    const FULL_MS = Number(process.env.SPEED_FULL_POINTS_MS || 3000);
+    const MIN_MS = Number(process.env.SPEED_MIN_POINTS_MS || 30000);
+
+    // Build per-question times
+    let times = Array.isArray(questionTimesMs) && questionTimesMs.length === qCount
+        ? questionTimesMs.map(t => Number(t) || 0)
+        : null;
+    if (!times) {
+        const totalMs = Math.max(0, Number(totalTimeSeconds || 0) * 1000);
+        const even = Math.floor(totalMs / qCount);
+        times = Array.from({ length: qCount }, () => even);
+    }
+
+    let total = 0;
+    for (let i = 0; i < qCount; i++) {
+        const q = questions[i];
+        const userAns = Array.isArray(userAnswers) ? userAnswers[i] : null;
+        const correct = isAnswerCorrectBackend(userAns, q?.answer, q?.type || 'multiple_choice');
+        if (!correct) continue;
+        const t = clamp(Number(times[i]) || 0, FULL_MS, MIN_MS);
+        const weight = 1 - ((t - FULL_MS) / (MIN_MS - FULL_MS)); // 1 at FULL_MS, 0 at MIN_MS
+        const pts = MIN + weight * (MAX - MIN);
+        total += Math.round(pts);
+    }
+    return { pointsEarned: total, usedTimes: times };
+}
+
 class CloudStorageService {
     /**
      * Create a quiz with file upload to Cloudinary
@@ -196,12 +293,21 @@ class CloudStorageService {
                 throw new Error('Quiz not found');
             }
 
+            const { pointsEarned, usedTimes } = computeSpeedPoints({
+                questions: quiz.questions || [],
+                userAnswers: attemptData.userAnswers || [],
+                questionTimesMs: attemptData.questionTimesMs || null,
+                totalTimeSeconds: attemptData.timeSeconds
+            });
+
             const attempt = await QuizAttempt.create({
                 quizId: quiz.id,
                 userId: userId,
                 score: attemptData.score,
                 timeSeconds: attemptData.timeSeconds,
-                userAnswers: attemptData.userAnswers
+                userAnswers: attemptData.userAnswers,
+                pointsEarned,
+                questionTimesMs: usedTimes
             });
 
             // Realtime: broadcast leaderboard updates for this user

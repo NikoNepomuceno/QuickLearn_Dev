@@ -1,4 +1,20 @@
 const OpenAI = require('openai');
+const crypto = require('crypto');
+
+const DEBUG_AI = process.env.DEBUG_AI === '1';
+const resultCache = new Map(); // key -> { data, exp }
+const inflight = new Map(); // key -> Promise
+
+function shaKey(payload) {
+	return crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+}
+function cacheGet(key) {
+	const hit = resultCache.get(key);
+	return hit && hit.exp > Date.now() ? hit.data : null;
+}
+function cacheSet(key, data, ttlMs) {
+	resultCache.set(key, { data, exp: Date.now() + ttlMs });
+}
 
 class DeepSeekService {
     constructor() {
@@ -31,6 +47,12 @@ class DeepSeekService {
         } = options;
 
         try {
+            // Cache key on truncated text + options to limit memory
+            const key = shaKey({ t: String(text || '').slice(0, 4096), numQuestions, difficulty, questionTypes, focusAreas });
+            const cached = cacheGet(key);
+            if (cached) return cached;
+            if (inflight.has(key)) return inflight.get(key);
+
             // Initialize client if not already done
             this.initializeClient();
             
@@ -41,7 +63,7 @@ class DeepSeekService {
                 focusAreas
             });
 
-            const response = await this.makeApiCallWithRetry({
+            const task = this.makeApiCallWithRetry({
                 model: 'deepseek-chat',
                 messages: [
                     {
@@ -56,14 +78,20 @@ class DeepSeekService {
                 temperature: 0.7,
                 max_tokens: 6000,
                 stream: false
+            }).then(response => {
+                const quizContent = response.choices[0].message.content;
+                const out = this.parseQuizResponse(quizContent, text, numQuestions, questionTypes);
+                cacheSet(key, out, 2 * 60 * 1000); // 2 minutes
+                return out;
+            }).finally(() => {
+                inflight.delete(key);
             });
-
-            const quizContent = response.choices[0].message.content;
-            return this.parseQuizResponse(quizContent, text, numQuestions, questionTypes);
+            inflight.set(key, task);
+            return await task;
         } catch (error) {
-            console.error('DeepSeek API Error:', error);
+            if (DEBUG_AI) console.error('DeepSeek API Error:', error);
             // Return fallback quiz instead of throwing error
-            console.log('Falling back to simple quiz generation...');
+            if (DEBUG_AI) console.log('Falling back to simple quiz generation...');
             return this.createFallbackQuiz(text, numQuestions, questionTypes);
         }
     }
@@ -73,16 +101,16 @@ class DeepSeekService {
         
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
-                console.log(`DeepSeek API attempt ${attempt}/${maxRetries}`);
+                if (DEBUG_AI) console.log(`DeepSeek API attempt ${attempt}/${maxRetries}`);
                 const response = await this.client.chat.completions.create(requestData);
                 return response;
             } catch (error) {
                 lastError = error;
-                console.error(`DeepSeek API attempt ${attempt} failed:`, error.message);
+                if (DEBUG_AI) console.error(`DeepSeek API attempt ${attempt} failed:`, error.message);
                 
                 if (attempt < maxRetries) {
                     const delay = Math.pow(2, attempt) * 1000; // Exponential backoff
-                    console.log(`Retrying in ${delay}ms...`);
+                    if (DEBUG_AI) console.log(`Retrying in ${delay}ms...`);
                     await new Promise(resolve => setTimeout(resolve, delay));
                 }
             }
@@ -94,7 +122,7 @@ class DeepSeekService {
     buildQuizPrompt(text, options) {
         const { numQuestions, difficulty, questionTypes, focusAreas } = options;
         
-        console.log('Building prompt with question types:', questionTypes);
+        if (DEBUG_AI) console.log('Building prompt with question types:', questionTypes);
         
         let prompt = `Please analyze the following text and create ${numQuestions} high-quality quiz questions.
 
@@ -191,8 +219,8 @@ Please ensure the JSON is valid and properly formatted.`;
 
     parseQuizResponse(aiResponse, originalText, desiredCount = 5, requestedTypes = null) {
         try {
-            console.log('AI Response received, length:', aiResponse.length);
-            console.log('First 500 chars of AI response:', aiResponse.substring(0, 500));
+            if (DEBUG_AI) console.log('AI Response received, length:', aiResponse.length);
+            if (DEBUG_AI) console.log('First 500 chars of AI response:', aiResponse.substring(0, 500));
             
             // Normalize common wrappers (remove code fences, stray commentary)
             let content = aiResponse.trim();
@@ -200,7 +228,7 @@ Please ensure the JSON is valid and properly formatted.`;
             // Try full parse first
             try {
                 const parsed = JSON.parse(content);
-                console.log('Successfully parsed JSON, questions count:', parsed.questions?.length);
+                if (DEBUG_AI) console.log('Successfully parsed JSON, questions count:', parsed.questions?.length);
                 return this.validateAndCleanQuiz(parsed, originalText, desiredCount, requestedTypes);
             } catch {}
 
@@ -212,7 +240,7 @@ Please ensure the JSON is valid and properly formatted.`;
             }
             throw new Error('No valid JSON found in AI response');
         } catch (error) {
-            console.error('Error parsing AI response:', error);
+            if (DEBUG_AI) console.error('Error parsing AI response:', error);
             // Fallback to a simple quiz if parsing fails
             return this.createFallbackQuiz(originalText, desiredCount, requestedTypes);
         }
@@ -232,7 +260,7 @@ Please ensure the JSON is valid and properly formatted.`;
                     
                     // Filter by requested types if specified
                     if (requestedTypes && !requestedTypes.includes(questionType)) {
-                        console.log(`Filtering out question type: ${questionType} (not in requested types: ${requestedTypes.join(', ')})`);
+                        if (DEBUG_AI) console.log(`Filtering out question type: ${questionType} (not in requested types: ${requestedTypes.join(', ')})`);
                         return;
                     }
                     

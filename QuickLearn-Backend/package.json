@@ -14,7 +14,9 @@
   "dependencies": {
     "bcrypt": "^6.0.0",
     "cloudinary": "^2.7.0",
+    "compression": "^1.8.1",
     "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
     "dotenv": "^17.2.2",
     "express": "^5.1.0",
     "express-rate-limit": "^8.1.0",
@@ -26,6 +28,7 @@
     "nodemailer": "^7.0.6",
     "openai": "^5.20.2",
     "pdf-parse": "^1.1.1",
+    "response-time": "^2.3.4",
     "socket.io": "^4.8.1",
     "uuid": "^13.0.0"
   },

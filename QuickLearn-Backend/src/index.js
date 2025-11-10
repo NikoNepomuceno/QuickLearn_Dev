@@ -11,7 +11,11 @@ const server = http.createServer(app);
 // Initialize Socket.IO with CORS aligned to API CORS
 const allowedOrigin = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
 const io = new Server(server, {
-	cors: { origin: allowedOrigin, credentials: true }
+	cors: { origin: allowedOrigin, credentials: true },
+	perMessageDeflate: process.env.ENABLE_WS_DEFLATE === '1' ? {
+		threshold: 1024,
+		concurrencyLimit: 8
+	} : false
 });
 // Expose IO for services to broadcast
 global.__io = io;

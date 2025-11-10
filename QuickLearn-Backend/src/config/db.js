@@ -10,9 +10,14 @@ async function getPool() {
 			user: process.env.MYSQL_USER || 'root',
 			password: process.env.MYSQL_PASSWORD || '',
 			database: process.env.MYSQL_DATABASE || 'quicklearn',
-			connectionLimit: 10,
+			connectionLimit: Number(process.env.MYSQL_POOL_LIMIT || 20),
 			waitForConnections: true,
-			namedPlaceholders: true
+			queueLimit: 0,
+			namedPlaceholders: true,
+			enableKeepAlive: true,
+			keepAliveInitialDelay: 0,
+			maxIdle: 10,
+			idleTimeout: 60_000
 		});
 	}
 	return pool;

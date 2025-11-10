@@ -8,6 +8,8 @@ class QuizAttempt {
         this.score = data.score;
         this.timeSeconds = data.time_seconds;
         this.userAnswers = data.user_answers;
+        this.pointsEarned = data.points_earned;
+        this.questionTimesMs = data.question_times_ms;
         this.takenAt = data.taken_at;
     }
 
@@ -16,14 +18,16 @@ class QuizAttempt {
         
         const [result] = await pool.execute(
             `INSERT INTO quiz_attempts (
-                quiz_id, user_id, score, time_seconds, user_answers
-            ) VALUES (?, ?, ?, ?, ?)`,
+                quiz_id, user_id, score, time_seconds, user_answers, points_earned, question_times_ms
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
             [
                 attemptData.quizId,
                 attemptData.userId,
                 attemptData.score || 0,
                 attemptData.timeSeconds || null,
-                JSON.stringify(attemptData.userAnswers || [])
+                JSON.stringify(attemptData.userAnswers || []),
+                Number.isFinite(attemptData.pointsEarned) ? Math.floor(attemptData.pointsEarned) : 0,
+                attemptData.questionTimesMs ? JSON.stringify(attemptData.questionTimesMs) : null
             ]
         );
 
@@ -41,6 +45,7 @@ class QuizAttempt {
         
         const attempt = new QuizAttempt(rows[0]);
         attempt.userAnswers = JSON.parse(attempt.userAnswers || '[]');
+        attempt.questionTimesMs = attempt.questionTimesMs ? JSON.parse(attempt.questionTimesMs) : null;
         return attempt;
     }
 
@@ -57,6 +62,7 @@ class QuizAttempt {
         return rows.map(row => {
             const attempt = new QuizAttempt(row);
             attempt.userAnswers = JSON.parse(attempt.userAnswers || '[]');
+            attempt.questionTimesMs = attempt.questionTimesMs ? JSON.parse(attempt.questionTimesMs) : null;
             return attempt;
         });
     }
@@ -74,6 +80,7 @@ class QuizAttempt {
         return rows.map(row => {
             const attempt = new QuizAttempt(row);
             attempt.userAnswers = JSON.parse(attempt.userAnswers || '[]');
+            attempt.questionTimesMs = attempt.questionTimesMs ? JSON.parse(attempt.questionTimesMs) : null;
             return attempt;
         });
     }
@@ -131,6 +138,8 @@ class QuizAttempt {
             score: this.score,
             timeSeconds: this.timeSeconds,
             userAnswers: this.userAnswers,
+            pointsEarned: this.pointsEarned,
+            questionTimesMs: this.questionTimesMs,
             takenAt: this.takenAt
         };
     }

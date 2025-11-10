@@ -187,6 +187,16 @@ function getScoreLabel(score) {
                 </div>
               </div>
 
+              <div class="detail-item">
+                <div class="detail-icon">
+                  <CheckCircle :size="20" />
+                </div>
+                <div class="detail-content">
+                  <div class="detail-label">Total Points</div>
+                  <div class="detail-value">{{ lastAttempt?.pointsEarned ?? 0 }} pts</div>
+                </div>
+              </div>
+
               <div class="detail-item" v-if="lastAttempt?.timeSeconds">
                 <div class="detail-icon">
                   <Clock :size="20" />

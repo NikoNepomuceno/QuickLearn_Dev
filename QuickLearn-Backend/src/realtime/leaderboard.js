@@ -1,5 +1,19 @@
 const { getPool } = require('../config/db');
 
+// Optional short-TTL caches (enabled with ENABLE_LB_CACHE=1)
+const friendsCache = new Map(); // userId -> { data, exp }
+const lbCache = new Map(); // viewerId -> { data, exp }
+const lastBroadcastAt = new Map(); // userId -> timestamp
+
+function nowMs() { return Date.now(); }
+function getWithTtl(map, key) {
+	const v = map.get(key);
+	return v && v.exp > nowMs() ? v.data : null;
+}
+function setWithTtl(map, key, data, ttlMs) {
+	map.set(key, { data, exp: nowMs() + ttlMs });
+}
+
 async function getFriendsOfUser(userId) {
 	const pool = await getPool();
 	// Accepted friendships bidirectionally
@@ -17,7 +31,7 @@ async function getUserPoints(userIds) {
 	const pool = await getPool();
 	// Compute from quiz_attempts as initial model
 	const [rows] = await pool.query(
-		`SELECT qa.user_id AS userId, COALESCE(SUM(qa.score), 0) AS points
+		`SELECT qa.user_id AS userId, COALESCE(SUM(COALESCE(qa.points_earned, qa.score)), 0) AS points
 		 FROM quiz_attempts qa
 		 WHERE qa.user_id IN (${userIds.map(() => '?').join(',')})
 		 GROUP BY qa.user_id`,
@@ -62,6 +76,28 @@ async function getLeaderboardForUser(userId) {
 		.sort((a, b) => b.points - a.points);
 }
 
+async function getFriendsEffective(userId) {
+	if (process.env.ENABLE_LB_CACHE === '1') {
+		const hit = getWithTtl(friendsCache, userId);
+		if (hit) return hit;
+		const data = await getFriendsOfUser(userId);
+		setWithTtl(friendsCache, userId, data, 15_000);
+		return data;
+	}
+	return getFriendsOfUser(userId);
+}
+
+async function getLeaderboardEffective(userId) {
+	if (process.env.ENABLE_LB_CACHE === '1') {
+		const hit = getWithTtl(lbCache, userId);
+		if (hit) return hit;
+		const data = await getLeaderboardForUser(userId);
+		setWithTtl(lbCache, userId, data, 5_000);
+		return data;
+	}
+	return getLeaderboardForUser(userId);
+}
+
 function setupLeaderboardRealtime(io) {
 	io.on('connection', socket => {
 		const viewerId = Number(socket.data.userId);
@@ -73,7 +109,7 @@ function setupLeaderboardRealtime(io) {
 
 		socket.on('leaderboard:subscribe', async () => {
 			try {
-				const data = await getLeaderboardForUser(viewerId);
+				const data = await getLeaderboardEffective(viewerId);
 				socket.emit('leaderboard:update', { data });
 			} catch (e) {}
 		});
@@ -86,9 +122,15 @@ function setupLeaderboardRealtime(io) {
 
 async function broadcastLeaderboardFor(io, userId) {
 	// The affected viewers are: the user and all their friends
-	const audience = Array.from(new Set([Number(userId), ...await getFriendsOfUser(userId)]));
+	if (process.env.ENABLE_LB_CACHE === '1') {
+		const last = lastBroadcastAt.get(userId) || 0;
+		const n = nowMs();
+		if (n - last < 1000) return;
+		lastBroadcastAt.set(userId, n);
+	}
+	const audience = Array.from(new Set([Number(userId), ...await getFriendsEffective(userId)]));
 	await Promise.all(audience.map(async viewerId => {
-		const data = await getLeaderboardForUser(viewerId);
+		const data = await getLeaderboardEffective(viewerId);
 		io.to(`leaderboard:${viewerId}`).emit('leaderboard:update', { data });
 	}));
 }

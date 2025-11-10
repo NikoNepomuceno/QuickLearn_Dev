@@ -274,12 +274,12 @@ router.post('/trash/purge', authenticateToken, async (req, res) => {
 // Save quiz attempt
 router.post('/:uuid/attempts', authenticateToken, async (req, res) => {
 	try {
-		const { score, timeSeconds, userAnswers } = req.body;
+		const { score, timeSeconds, userAnswers, questionTimesMs } = req.body;
 
 		const attempt = await CloudStorageService.saveQuizAttempt(
 			req.params.uuid,
 			req.user.id,
-			{ score, timeSeconds, userAnswers }
+			{ score, timeSeconds, userAnswers, questionTimesMs }
 		);
 
 		return res.json({ attempt });

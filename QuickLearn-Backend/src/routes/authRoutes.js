@@ -4,10 +4,11 @@ const crypto = require('crypto');
 const { register, verifyEmail, resendOtp, login, logout, forgotPassword, resetPassword } = require('../services/authService');
 const { generateState, buildGoogleAuthUrl, exchangeCodeForTokens, fetchGoogleProfile, loginOrCreateFromGoogle } = require('../services/oauthService');
 const { getCookieOptions } = require('../middleware/auth');
+const { loginLimiter } = require('../middleware/rateLimiter');
 
 const router = express.Router();
 
-router.post('/register', async (req, res) => {
+router.post('/register', loginLimiter, async (req, res) => {
 	try {
 		const { username, email, password, confirmPassword } = req.body || {};
 		const result = await register({ username, email, password, confirmPassword, ip: req.ip, userAgent: req.headers['user-agent'] });
@@ -17,7 +18,7 @@ router.post('/register', async (req, res) => {
 	}
 });
 
-router.post('/verify-email', async (req, res) => {
+router.post('/verify-email', loginLimiter, async (req, res) => {
 	try {
 		const { email, otp } = req.body || {};
 		const result = await verifyEmail({ email, otp });
@@ -27,7 +28,7 @@ router.post('/verify-email', async (req, res) => {
 	}
 });
 
-router.post('/resend-otp', async (req, res) => {
+router.post('/resend-otp', loginLimiter, async (req, res) => {
 	try {
 		const { email } = req.body || {};
 		const result = await resendOtp({ email });
@@ -43,7 +44,7 @@ function getLoginKey(req) {
     return `${identifier.toLowerCase()}|${req.ip}`;
 }
 
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimiter, async (req, res) => {
 	try {
         const { identifier, password } = req.body || {};
         const key = getLoginKey(req);
@@ -71,6 +72,16 @@ router.post('/login', async (req, res) => {
 });
 
 
+router.post('/forgot-password', loginLimiter, async (req, res) => {
+	try {
+		const { email } = req.body || {};
+		const result = await forgotPassword({ email });
+		return res.json(result);
+	} catch (err) {
+		return res.status(400).json({ error: err.message || 'Forgot password failed' });
+	}
+});
+
 router.post('/logout', async (req, res) => {
 	try {
         // Clear access cookie
@@ -91,16 +102,6 @@ router.get('/me', (req, res) => {
     } catch (err) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
-});
-
-router.post('/forgot-password', async (req, res) => {
-	try {
-		const { email } = req.body || {};
-		const result = await forgotPassword({ email });
-		return res.json(result);
-	} catch (err) {
-		return res.status(400).json({ error: err.message || 'Forgot password failed' });
-	}
 });
 
 router.post('/reset-password', async (req, res) => {
