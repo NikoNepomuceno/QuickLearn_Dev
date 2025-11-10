@@ -71,6 +71,16 @@ const passwordForm = ref({
 const showDeleteModal = ref(false)
 const deleteConfirmation = ref('')
 
+// Subscription and usage limits
+const subscriptionTier = ref('free')
+const usageLimits = ref({
+  quizzesUsed: 3,
+  quizzesLimit: 10,
+  summariesUsed: 2,
+  summariesLimit: 10,
+  questionTypesAvailable: 2
+})
+
 // Initialize theme on mount
 onMounted(() => {
   initializeTheme()
@@ -218,6 +228,15 @@ async function deleteAccount() {
     isDeletingAccount.value = false
     closeDeleteModal()
   }
+}
+
+// Subscription functions
+function handleUpgrade() {
+  window.$toast?.info('Coming soon! Premium features will be available shortly.')
+}
+
+function getUsagePercentage(used, limit) {
+  return Math.min(100, (used / limit) * 100)
 }
 
 // Profile management functions
@@ -652,6 +671,116 @@ function formatTimeSpent(minutes) {
                 <div class="info-item">
                   <span class="info-label">User ID</span>
                   <span class="info-value">{{ userProfile.id }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Usage & Limits Section -->
+          <div class="settings-panel">
+            <div class="panel-header">
+              <h2>Usage & Limits</h2>
+              <p>Track your monthly usage and subscription details</p>
+            </div>
+
+            <!-- Current Plan -->
+            <div class="setting-group">
+              <div class="setting-label">
+                <h3>Current Plan</h3>
+                <p>Your active subscription tier</p>
+              </div>
+              <div class="tier-badge-container">
+                <span class="tier-badge" :class="subscriptionTier">
+                  {{ subscriptionTier.toUpperCase() }}
+                </span>
+                <button class="upgrade-btn" @click="handleUpgrade">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 19V5M5 12l7-7 7 7"/>
+                  </svg>
+                  Upgrade Plan
+                </button>
+              </div>
+            </div>
+
+            <!-- Usage Statistics -->
+            <div class="setting-group">
+              <div class="setting-label">
+                <h3>Monthly Usage</h3>
+                <p>Your resource consumption this billing cycle</p>
+              </div>
+              
+              <div class="usage-stats">
+                <!-- Quizzes Used -->
+                <div class="usage-item">
+                  <div class="usage-header">
+                    <span class="usage-label">Quizzes Generated</span>
+                    <span class="usage-count">{{ usageLimits.quizzesUsed }} / {{ usageLimits.quizzesLimit }}</span>
+                  </div>
+                  <div class="usage-bar">
+                    <div 
+                      class="usage-fill" 
+                      :style="{ width: getUsagePercentage(usageLimits.quizzesUsed, usageLimits.quizzesLimit) + '%' }"
+                      :class="{ warning: getUsagePercentage(usageLimits.quizzesUsed, usageLimits.quizzesLimit) > 80 }"
+                    ></div>
+                  </div>
+                </div>
+
+                <!-- Summaries Used -->
+                <div class="usage-item">
+                  <div class="usage-header">
+                    <span class="usage-label">AI Summaries</span>
+                    <span class="usage-count">{{ usageLimits.summariesUsed }} / {{ usageLimits.summariesLimit }}</span>
+                  </div>
+                  <div class="usage-bar">
+                    <div 
+                      class="usage-fill" 
+                      :style="{ width: getUsagePercentage(usageLimits.summariesUsed, usageLimits.summariesLimit) + '%' }"
+                      :class="{ warning: getUsagePercentage(usageLimits.summariesUsed, usageLimits.summariesLimit) > 80 }"
+                    ></div>
+                  </div>
+                </div>
+
+                <!-- Question Types -->
+                <div class="usage-item">
+                  <div class="usage-header">
+                    <span class="usage-label">Question Types Available</span>
+                    <span class="usage-count">{{ usageLimits.questionTypesAvailable }}</span>
+                  </div>
+                  <p class="usage-note">Upgrade to unlock all question types including Mixed mode</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Plan Features -->
+            <div class="setting-group">
+              <div class="setting-label">
+                <h3>Plan Features</h3>
+                <p>What's included in your current plan</p>
+              </div>
+              <div class="features-list-settings">
+                <div class="feature-item">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="20,6 9,17 4,12"/>
+                  </svg>
+                  <span>Up to 20 questions per quiz</span>
+                </div>
+                <div class="feature-item">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="20,6 9,17 4,12"/>
+                  </svg>
+                  <span>Up to 2 question types per quiz</span>
+                </div>
+                <div class="feature-item">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="20,6 9,17 4,12"/>
+                  </svg>
+                  <span>Basic AI analysis</span>
+                </div>
+                <div class="feature-item">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="20,6 9,17 4,12"/>
+                  </svg>
+                  <span>Standard processing speed</span>
                 </div>
               </div>
             </div>
@@ -1854,6 +1983,156 @@ body.dark .info-label {
 
 body.dark .info-value {
   color: #e5e7eb;
+}
+
+/* Usage & Limits Styles */
+.tier-badge-container {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.tier-badge {
+  display: inline-block;
+  padding: 8px 20px;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 0.875rem;
+  letter-spacing: 0.05em;
+}
+
+.tier-badge.free {
+  background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
+  color: white;
+}
+
+.tier-badge.pro {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.tier-badge.premium {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+}
+
+.upgrade-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.upgrade-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.upgrade-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.usage-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.usage-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.usage-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.usage-label {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #334155;
+}
+
+body.dark .usage-label {
+  color: #e5e7eb;
+}
+
+.usage-count {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #667eea;
+}
+
+.usage-bar {
+  width: 100%;
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+body.dark .usage-bar {
+  background: #1f2a44;
+}
+
+.usage-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.usage-fill.warning {
+  background: linear-gradient(90deg, #f59e0b 0%, #ef4444 100%);
+}
+
+.usage-note {
+  font-size: 0.875rem;
+  color: #64748b;
+  margin: 0;
+}
+
+body.dark .usage-note {
+  color: #9ca3af;
+}
+
+.features-list-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.feature-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: #334155;
+}
+
+body.dark .feature-item {
+  background: #0b1222;
+  color: #e5e7eb;
+}
+
+.feature-item svg {
+  color: #28ca42;
+  flex-shrink: 0;
 }
 
 /* Responsive Design */

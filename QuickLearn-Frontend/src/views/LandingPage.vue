@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { DotLottieVue } from '@lottiefiles/dotlottie-vue'
 import PrivacyPolicyModal from '../components/PrivacyPolicyModal.vue'
 
 const router = useRouter()
@@ -20,6 +21,29 @@ function goRegister() {
   router.push({ path: '/register', query: { pp: '1' } })
 }
 function onAcceptPrivacy() {}
+
+// Pricing plan selection
+function selectPlan(tier) {
+  if (tier === 'free') {
+    goRegister()
+  } else {
+    window.$toast?.info('Coming soon! Premium features will be available shortly.')
+  }
+}
+
+// Smooth scroll to section
+function smoothScrollTo(event, sectionId) {
+  event.preventDefault()
+  const element = document.querySelector(sectionId)
+  if (element) {
+    element.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start'
+    })
+    // Close mobile menu after navigation
+    isMenuOpen.value = false
+  }
+}
 </script>
 
 <template>
@@ -31,9 +55,10 @@ function onAcceptPrivacy() {}
           <h2>QuickLearn</h2>
         </div>
         <div class="nav-menu" :class="{ active: isMenuOpen }">
-          <a href="#features" class="nav-link">Features</a>
-          <a href="#how-it-works" class="nav-link">How it Works</a>
-          <a href="#testimonials" class="nav-link">Testimonials</a>
+          <a href="#features" class="nav-link" @click="smoothScrollTo($event, '#features')">Features</a>
+          <a href="#how-it-works" class="nav-link" @click="smoothScrollTo($event, '#how-it-works')">How it Works</a>
+          <a href="#pricing" class="nav-link" @click="smoothScrollTo($event, '#pricing')">Pricing</a>
+          <a href="#testimonials" class="nav-link" @click="smoothScrollTo($event, '#testimonials')">Testimonials</a>
           <!-- <button class="nav-ghost" @click="goLogin">Log in</button> -->
           <button class="nav-cta" @click="goRegister">Get Started</button>
         </div>
@@ -58,8 +83,17 @@ function onAcceptPrivacy() {}
             and get instant quizzes, flashcards, and personalized study tools powered by AI.
           </p>
           <div class="hero-actions">
-            <button class="btn-primary" @click="goRegister">Try For Free</button>
-            <button class="btn-secondary">Watch Demo</button>
+            <button class="btn-primary btn-with-sparkle" @click="goRegister">
+              Try For Free
+              <div class="sparkle-animation">
+                <DotLottieVue
+                  style="height: 50px; width: 50px"
+                  autoplay
+                  loop
+                  src="https://lottie.host/36b984e4-9248-4ae1-9a72-ed5dd82e2c3d/du0n3KDTec.lottie"
+                />
+              </div>
+            </button>
           </div>
           <div class="hero-stats">
             <div class="stat">
@@ -214,6 +248,92 @@ function onAcceptPrivacy() {}
       </div>
     </section>
 
+    <!-- Plans and Pricing Section -->
+    <section id="pricing" class="pricing">
+      <div class="container">
+        <div class="section-header">
+          <h2>Choose Your Learning Plan</h2>
+          <p>Start free and upgrade as you grow</p>
+        </div>
+        <div class="pricing-grid">
+          <!-- Free Tier -->
+          <div class="pricing-card">
+            <div class="pricing-header">
+              <h3>Free</h3>
+              <div class="price">
+                <span class="currency">$</span>
+                <span class="amount">0</span>
+                <span class="period">/month</span>
+              </div>
+              <p class="pricing-subtitle">Perfect for trying out QuickLearn</p>
+            </div>
+            <ul class="features-list">
+              <li><span class="check">✓</span> Max 10 quizzes/month</li>
+              <li><span class="check">✓</span> Up to 20 questions per quiz</li>
+              <li><span class="check">✓</span> Up to 2 question types per quiz</li>
+              <li><span class="check">✓</span> Up to 10 AI summaries/month</li>
+              <li><span class="check">✓</span> Basic AI analysis</li>
+              <li><span class="check">✓</span> Standard processing speed</li>
+            </ul>
+            <button class="pricing-btn" @click="selectPlan('free')">Get Started Free</button>
+          </div>
+
+          <!-- Pro Tier -->
+          <div class="pricing-card featured">
+            <div class="badge">Most Popular</div>
+            <div class="pricing-header">
+              <h3>Pro</h3>
+              <div class="price">
+                <span class="currency">$</span>
+                <span class="amount">9.99</span>
+                <span class="period">/month</span>
+              </div>
+              <p class="pricing-subtitle">For serious students</p>
+            </div>
+            <ul class="features-list">
+              <li><span class="check">✓</span> 100 quizzes/month</li>
+              <li><span class="check">✓</span> Up to 50 questions per quiz</li>
+              <li><span class="check">✓</span> Unlimited question types (Mixed allowed)</li>
+              <li><span class="check">✓</span> Up to 50 AI summaries/month</li>
+              <li><span class="check">✓</span> Advanced AI options</li>
+              <li><span class="check">✓</span> Faster processing</li>
+              <li><span class="check">✓</span> Page selection & flashcards</li>
+              <li><span class="check">✓</span> Progress tracking</li>
+              <li><span class="check">✓</span> Brand-free exports</li>
+            </ul>
+            <button class="pricing-btn primary" @click="selectPlan('pro')">Choose Pro</button>
+          </div>
+
+          <!-- Premium Tier -->
+          <div class="pricing-card">
+            <div class="pricing-header">
+              <h3>Premium</h3>
+              <div class="price">
+                <span class="currency">$</span>
+                <span class="amount">19.99</span>
+                <span class="period">/month</span>
+              </div>
+              <p class="pricing-subtitle">Ultimate learning power</p>
+            </div>
+            <ul class="features-list">
+              <li><span class="check">✓</span> Unlimited quizzes</li>
+              <li><span class="check">✓</span> Up to 50 questions per quiz</li>
+              <li><span class="check">✓</span> All advanced AI controls</li>
+              <li><span class="check">✓</span> Unlimited summaries & flashcards</li>
+              <li><span class="check">✓</span> Priority processing</li>
+              <li><span class="check">✓</span> Advanced analytics</li>
+              <li><span class="check">✓</span> AI study assistant/chat</li>
+              <li><span class="check">✓</span> Priority support</li>
+            </ul>
+            <button class="pricing-btn" @click="selectPlan('premium')">Choose Premium</button>
+          </div>
+        </div>
+        <div class="pricing-footer">
+          <p>All plans include secure cloud storage and email support</p>
+        </div>
+      </div>
+    </section>
+
     <!-- Testimonials Section -->
     <section id="testimonials" class="testimonials">
       <div class="container">
@@ -322,6 +442,11 @@ function onAcceptPrivacy() {}
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+}
+
+/* Smooth scroll for the entire page */
+html {
+  scroll-behavior: smooth;
 }
 
 .landing-page {
@@ -521,6 +646,34 @@ body.dark .hero-subtitle {
 .btn-primary.large {
   padding: 20px 40px;
   font-size: 1.2rem;
+}
+
+/* Button with sparkle animation */
+.btn-with-sparkle {
+  position: relative;
+  overflow: visible;
+}
+
+.sparkle-animation {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  width: 40px;
+  height: 40px;
+  pointer-events: none;
+  z-index: 10;
+  animation: pulse-sparkle 2s ease-in-out infinite;
+}
+
+@keyframes pulse-sparkle {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
 }
 
 .btn-secondary {
@@ -915,6 +1068,228 @@ body.dark .feature-card p {
   line-height: 1.6;
 }
 
+/* Pricing Section */
+.pricing {
+  padding: 100px 0;
+  background: white;
+}
+
+body.dark .pricing {
+  background: #0f172a;
+}
+
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 30px;
+  margin-top: 60px;
+  max-width: 1100px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.pricing-card {
+  background: white;
+  border: 2px solid #e9ecef;
+  border-radius: 20px;
+  padding: 40px 30px;
+  transition: all 0.3s ease;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+body.dark .pricing-card {
+  background: #0b1222;
+  border-color: #1f2a44;
+}
+
+.pricing-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 20px 40px rgba(102, 126, 234, 0.15);
+  border-color: #667eea;
+}
+
+body.dark .pricing-card:hover {
+  box-shadow: 0 20px 40px rgba(102, 126, 234, 0.25);
+}
+
+.pricing-card.featured {
+  border-color: #667eea;
+  border-width: 3px;
+  transform: scale(1.05);
+  box-shadow: 0 20px 40px rgba(102, 126, 234, 0.2);
+}
+
+body.dark .pricing-card.featured {
+  box-shadow: 0 20px 40px rgba(102, 126, 234, 0.3);
+}
+
+.pricing-card.featured:hover {
+  transform: scale(1.08) translateY(-5px);
+}
+
+.badge {
+  position: absolute;
+  top: -15px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 8px 20px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.pricing-header {
+  text-align: center;
+  margin-bottom: 30px;
+  padding-bottom: 30px;
+  border-bottom: 2px solid #f1f3f5;
+}
+
+body.dark .pricing-header {
+  border-bottom-color: #1f2a44;
+}
+
+.pricing-header h3 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #2d3748;
+  margin-bottom: 20px;
+}
+
+body.dark .pricing-header h3 {
+  color: #e5e7eb;
+}
+
+.price {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.currency {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #667eea;
+  margin-top: 10px;
+}
+
+.amount {
+  font-size: 3.5rem;
+  font-weight: 800;
+  color: #2d3748;
+  line-height: 1;
+}
+
+body.dark .amount {
+  color: #e5e7eb;
+}
+
+.period {
+  font-size: 1rem;
+  color: #6c757d;
+  margin-top: 20px;
+  margin-left: 4px;
+}
+
+body.dark .period {
+  color: #9ca3af;
+}
+
+.pricing-subtitle {
+  color: #6c757d;
+  font-size: 0.95rem;
+}
+
+body.dark .pricing-subtitle {
+  color: #9ca3af;
+}
+
+.features-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 30px 0;
+  flex-grow: 1;
+}
+
+.features-list li {
+  padding: 12px 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  color: #4a5568;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+body.dark .features-list li {
+  color: #9ca3af;
+}
+
+.check {
+  color: #28ca42;
+  font-weight: 700;
+  font-size: 1.2rem;
+  min-width: 20px;
+}
+
+.pricing-btn {
+  width: 100%;
+  padding: 16px 32px;
+  border: 2px solid #667eea;
+  background: transparent;
+  color: #667eea;
+  border-radius: 50px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-top: auto;
+}
+
+.pricing-btn:hover {
+  background: #667eea;
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+}
+
+.pricing-btn.primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+}
+
+.pricing-btn.primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(102, 126, 234, 0.5);
+}
+
+.pricing-footer {
+  text-align: center;
+  margin-top: 40px;
+  padding-top: 40px;
+  border-top: 1px solid #e9ecef;
+}
+
+body.dark .pricing-footer {
+  border-top-color: #1f2a44;
+}
+
+.pricing-footer p {
+  color: #6c757d;
+  font-size: 0.9rem;
+}
+
+body.dark .pricing-footer p {
+  color: #9ca3af;
+}
+
 /* Testimonials Section */
 .testimonials {
   padding: 100px 0;
@@ -1142,6 +1517,23 @@ body.dark .author-info span {
     grid-template-columns: 1fr;
   }
 
+  .pricing {
+    padding: 60px 0;
+  }
+
+  .pricing-grid {
+    grid-template-columns: 1fr;
+    gap: 30px;
+  }
+
+  .pricing-card.featured {
+    transform: scale(1);
+  }
+
+  .pricing-card.featured:hover {
+    transform: translateY(-5px);
+  }
+
   .testimonials-grid {
     grid-template-columns: 1fr;
   }
@@ -1367,6 +1759,19 @@ body.dark .author-info span {
 
   .author-info span {
     font-size: 12px;
+  }
+
+  .pricing-card {
+    padding: 30px 20px;
+  }
+
+  .amount {
+    font-size: 2.5rem;
+  }
+
+  .features-list li {
+    font-size: 14px;
+    padding: 10px 0;
   }
 
   .cta {
