@@ -1,66 +1,108 @@
 <script setup>
-import { ref } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import { registerUser } from '../services/authService'
-import PrivacyPolicyModal from '../components/PrivacyPolicyModal.vue'
-import { ArrowLeft, User, Mail, Lock, UserPlus, Eye, EyeOff } from 'lucide-vue-next'
+import { computed, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ArrowLeft, Eye, EyeOff, Lock, Mail, User, UserPlus } from 'lucide-vue-next'
 
+import AuthLayout from '@/components/layout/AuthLayout.vue'
+import BaseButton from '@/components/ui/BaseButton.vue'
+import BaseInput from '@/components/ui/BaseInput.vue'
+import FormField from '@/components/ui/FormField.vue'
+import PrivacyPolicyModal from '@/components/PrivacyPolicyModal.vue'
+import { registerUser } from '@/services/authService'
 
 const router = useRouter()
 const route = useRoute()
-const username = ref('')
-const email = ref('')
-const password = ref('')
-const confirmPassword = ref('')
+
+const form = reactive({
+  username: '',
+  email: '',
+  password: '',
+  confirmPassword: ''
+})
+
 const isLoading = ref(false)
-const error = ref('')
-const showPrivacy = ref(false)
-const acceptedPrivacy = ref(false)
 const showPassword = ref(false)
 const showConfirmPassword = ref(false)
+const acceptedPrivacy = ref(false)
+const showPrivacy = ref(false)
+const passwordTouched = ref(false)
 
-// Password validation
-const passwordRequirements = {
-  length: { text: 'At least 8 characters', met: false },
-  uppercase: { text: 'One uppercase letter (A-Z)', met: false },
-  digit: { text: 'One number (0-9)', met: false },
-  special: { text: 'One special character (!@#$%^&*)', met: false },
+const passwordChecklist = reactive({
+  length: false,
+  uppercase: false,
+  digit: false,
+  special: false
+})
+
+watch(
+  () => form.password,
+  (value) => {
+    if (value.length > 0) {
+      passwordTouched.value = true
+    }
+    passwordChecklist.length = value.length >= 8
+    passwordChecklist.uppercase = /[A-Z]/.test(value)
+    passwordChecklist.digit = /\d/.test(value)
+    passwordChecklist.special = /[^A-Za-z0-9]/.test(value)
+  }
+)
+
+const passwordValid = computed(() => Object.values(passwordChecklist).every(Boolean))
+
+function validate() {
+  if (!form.username.trim()) {
+    window.$toast?.error('Username is required.')
+    return false
+  }
+
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailPattern.test(form.email)) {
+    window.$toast?.error('Enter a valid email address.')
+    return false
+  }
+
+  if (!passwordValid.value) {
+    window.$toast?.error('Password does not meet the requirements.')
+    return false
+  }
+
+  const passwordsMatch = form.password && form.password === form.confirmPassword
+  if (!passwordsMatch) {
+    window.$toast?.error('Passwords must match.')
+    return false
+  }
+
+  if (!acceptedPrivacy.value) {
+    window.$toast?.error('Please accept the Privacy Policy.')
+    return false
+  }
+
+  return true
 }
 
-function validatePassword() {
-  const pwd = password.value
-  passwordRequirements.length.met = pwd.length >= 8
-  passwordRequirements.uppercase.met = /[A-Z]/.test(pwd)
-  passwordRequirements.digit.met = /\d/.test(pwd)
-  passwordRequirements.special.met = /[^A-Za-z0-9]/.test(pwd)
-}
+async function onSubmit() {
+  if (!validate()) return
 
-function isPasswordValid() {
-  return Object.values(passwordRequirements).every((req) => req.met)
-}
-
-async function onRegister(e) {
-  e.preventDefault()
-  error.value = ''
   isLoading.value = true
   try {
     await registerUser({
-      username: username.value,
-      email: email.value,
-      password: password.value,
-      confirmPassword: confirmPassword.value,
+      username: form.username.trim(),
+      email: form.email.trim(),
+      password: form.password,
+      confirmPassword: form.confirmPassword
     })
     window.$toast?.success('Account created! Check your email for the verification code.')
-    try { sessionStorage.setItem('verifyEmailPending', email.value) } catch {}
-    router.push({ name: 'verify-email', query: { email: email.value } })
+    try {
+      sessionStorage.setItem('verifyEmailPending', form.email.trim())
+    } catch {}
+    router.push({ name: 'verify-email', query: { email: form.email.trim() } })
   } catch (err) {
-    error.value = err?.message || 'Registration failed'
-    window.$toast?.error(error.value)
+    const message = err?.message || 'Registration failed'
+    window.$toast?.error(message)
   } finally {
     isLoading.value = false
   }
 }
-
 
 function goHome() {
   router.push('/')
@@ -75,13 +117,17 @@ function toggleConfirmPassword() {
 }
 
 function handleGoogleLogin() {
-	const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3000';
-	window.location.href = `${API_BASE}/api/auth/oauth/google/start`;
+  const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3000'
+  window.location.href = `${API_BASE}/api/auth/oauth/google/start`
 }
 
 function handleGitHubLogin() {
-  // TODO: Implement GitHub OAuth
-  console.log('GitHub login clicked')
+  window.$toast?.info('GitHub sign-up is coming soon!')
+}
+
+function handlePrivacyAccept() {
+  acceptedPrivacy.value = true
+  showPrivacy.value = false
 }
 
 if (route.query.pp === '1') {
@@ -90,696 +136,358 @@ if (route.query.pp === '1') {
 </script>
 
 <template>
-  <div class="auth-page">
-    <div class="card">
-      <button class="link" @click="goHome">
-        <ArrowLeft :size="16" />
-        Back to Home
-      </button>
-      
-      <!-- Avatar Icon -->
-      <div class="avatar-container">
-        <div class="avatar">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 12C14.7614 12 17 9.76142 17 7C17 4.23858 14.7614 2 12 2C9.23858 2 7 4.23858 7 7C7 9.76142 9.23858 12 12 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M20.59 22C20.59 18.13 16.74 15 12 15C7.26 15 3.41 18.13 3.41 22" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
+  <AuthLayout
+    title="Create your account"
+    subtitle="Generate quizzes, flashcards, and notes in seconds."
+    :show-back="true"
+    back-label="Back to Home"
+    @back="goHome"
+  >
+    <template #back-icon>
+      <ArrowLeft :size="16" />
+    </template>
+
+    <template #avatar>
+      <div class="auth-icon" aria-hidden="true">
+        <User :size="24" />
+      </div>
+    </template>
+
+    <form class="auth-form" @submit.prevent="onSubmit" novalidate autocomplete="off">
+      <FormField
+        label="Username"
+        required
+        for="register-username"
+      >
+        <BaseInput
+          id="register-username"
+          v-model="form.username"
+          placeholder="Choose a username"
+          autocomplete="off"
+          autocapitalize="none"
+          autocorrect="off"
+        >
+          <template #prefix>
+            <User :size="18" />
+          </template>
+        </BaseInput>
+      </FormField>
+
+      <FormField
+        label="Email"
+        required
+        for="register-email"
+      >
+        <BaseInput
+          id="register-email"
+          v-model="form.email"
+          type="email"
+          placeholder="you@example.com"
+          autocomplete="email"
+          autocapitalize="none"
+          autocorrect="off"
+        >
+          <template #prefix>
+            <Mail :size="18" />
+          </template>
+        </BaseInput>
+      </FormField>
+
+      <FormField
+        label="Password"
+        required
+        for="register-password"
+      >
+        <BaseInput
+          id="register-password"
+          v-model="form.password"
+          :type="showPassword ? 'text' : 'password'"
+          placeholder="Create a strong password"
+          autocomplete="new-password"
+        >
+          <template #prefix>
+            <Lock :size="18" />
+          </template>
+          <template #suffix>
+            <button
+              type="button"
+              class="icon-button"
+              @click="togglePassword"
+              :aria-pressed="showPassword"
+              :aria-label="showPassword ? 'Hide password' : 'Show password'"
+            >
+              <EyeOff v-if="showPassword" :size="18" />
+              <Eye v-else :size="18" />
+            </button>
+          </template>
+        </BaseInput>
+      </FormField>
+
+      <div v-if="passwordTouched" class="password-checklist" aria-live="polite">
+        <div
+          v-for="(met, key) in passwordChecklist"
+          :key="key"
+          :class="['password-checklist__item', { 'is-met': met }]"
+        >
+          <span class="password-checklist__icon" aria-hidden="true">
+            {{ met ? '✓' : '○' }}
+          </span>
+          <span class="password-checklist__text">
+            {{
+              key === 'length'
+                ? 'At least 8 characters'
+                : key === 'uppercase'
+                  ? 'One uppercase letter (A-Z)'
+                  : key === 'digit'
+                    ? 'One number (0-9)'
+                    : 'One special character (!@#$%^&*)'
+            }}
+          </span>
         </div>
       </div>
-      
-      <h1>Create Account</h1>
-      <p class="subtitle">Sign up to start generating quizzes.</p>
 
-      <form @submit="onRegister" class="form" autocomplete="off">
-        <!-- Autofill decoys -->
-        <input type="text" name="username" autocomplete="username" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;opacity:0;height:0;width:0;pointer-events:none;" />
-        <input type="password" name="password" autocomplete="current-password" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;opacity:0;height:0;width:0;pointer-events:none;" />
-        <div class="input-group">
-          <User class="input-icon" :size="18" /> 
-          <input v-model="username" type="text" required placeholder="Username" name="new-username" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="text" />
-        </div>
-        
-        <div class="input-group">
-          <Mail class="input-icon" :size="18" />
-          <input v-model="email" type="email" required placeholder="Email" name="new-email" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="email" />
-        </div>
-        
-        <div class="input-group">
-          <Lock class="input-icon" :size="18" />
-          <input v-model="password" :type="showPassword ? 'text' : 'password'" required @input="validatePassword" placeholder="Password" name="new-password" autocomplete="new-password" @paste.prevent @copy.prevent @cut.prevent @drop.prevent @contextmenu.prevent />
-          <button type="button" class="password-toggle" @click="togglePassword">
-            <Eye v-if="!showPassword" :size="18" />
-            <EyeOff v-else :size="18" />
-          </button>
-        </div>
-        
-        <div v-if="password" class="password-requirements">
-          <div class="requirement" :class="{ met: passwordRequirements.length.met }">
-            <span class="check">{{ passwordRequirements.length.met ? '✓' : '○' }}</span>
-            {{ passwordRequirements.length.text }}
-          </div>
-          <div class="requirement" :class="{ met: passwordRequirements.uppercase.met }">
-            <span class="check">{{ passwordRequirements.uppercase.met ? '✓' : '○' }}</span>
-            {{ passwordRequirements.uppercase.text }}
-          </div>
-          <div class="requirement" :class="{ met: passwordRequirements.digit.met }">
-            <span class="check">{{ passwordRequirements.digit.met ? '✓' : '○' }}</span>
-            {{ passwordRequirements.digit.text }}
-          </div>
-          <div class="requirement" :class="{ met: passwordRequirements.special.met }">
-            <span class="check">{{ passwordRequirements.special.met ? '✓' : '○' }}</span>
-            {{ passwordRequirements.special.text }}
-          </div>
-        </div>
-        
-        <div class="input-group">
-          <Lock class="input-icon" :size="18" />
-          <input v-model="confirmPassword" :type="showConfirmPassword ? 'text' : 'password'" required placeholder="Confirm Password" autocomplete="new-password" @paste.prevent @copy.prevent @cut.prevent @drop.prevent @contextmenu.prevent />
-          <button type="button" class="password-toggle" @click="toggleConfirmPassword">
-            <Eye v-if="!showConfirmPassword" :size="18" />
-            <EyeOff v-else :size="18" />
-          </button>
-        </div>
-        
-        <div v-if="confirmPassword && password !== confirmPassword" class="password-mismatch">
-          Passwords do not match
-        </div>
-        
-        <div class="pp-row">
-          <div class="pp-check">
-            <input id="pp-accept" v-model="acceptedPrivacy" type="checkbox" required />
-          </div>
-          <div class="pp-text">
-            <span>I agree to the</span>
-            <button type="button" class="link inline" @click="showPrivacy = true">
+      <FormField
+        label="Confirm password"
+        required
+        for="register-confirm"
+      >
+        <BaseInput
+          id="register-confirm"
+          v-model="form.confirmPassword"
+          :type="showConfirmPassword ? 'text' : 'password'"
+          placeholder="Retype your password"
+          autocomplete="new-password"
+        >
+          <template #prefix>
+            <Lock :size="18" />
+          </template>
+          <template #suffix>
+            <button
+              type="button"
+              class="icon-button"
+              @click="toggleConfirmPassword"
+              :aria-pressed="showConfirmPassword"
+              :aria-label="showConfirmPassword ? 'Hide password' : 'Show password'"
+            >
+              <EyeOff v-if="showConfirmPassword" :size="18" />
+              <Eye v-else :size="18" />
+            </button>
+          </template>
+        </BaseInput>
+      </FormField>
+
+      <div class="privacy-row">
+        <label class="privacy-row__label">
+          <input v-model="acceptedPrivacy" type="checkbox" />
+          <span>
+            I agree to the
+            <button type="button" class="privacy-row__link" @click="showPrivacy = true">
               Privacy Policy
             </button>
-          </div>
-        </div>
-        
-        <button
-          class="primary"
-          type="submit"
-          :disabled="
-            isLoading || !acceptedPrivacy || !isPasswordValid() || password !== confirmPassword
-          "
-        >
-          <UserPlus v-if="!isLoading" :size="18" />
-          <div v-else class="spinner"></div>
-          {{ isLoading ? 'Creating…' : 'Create Account' }}
-        </button>
-        
-        <p v-if="error" class="error">{{ error }}</p>
-        
-        <div class="divider">
-          <span>Or continue with</span>
-        </div>
-        
-        <div class="social-login">
-          <button class="social-btn google-btn" @click="handleGoogleLogin">
-            <svg width="20" height="20" viewBox="0 0 24 24">
-              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-            </svg>
-            Google
-          </button>
-          
-          <button class="social-btn github-btn" @click="handleGitHubLogin">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
-            </svg>
-            GitHub
-          </button>
-        </div>
-        
-        <div class="signup-link">
-          <span>Already have an account?</span>
-          <router-link to="/login">Sign in</router-link>
-        </div>
-      </form>
+          </span>
+        </label>
+      </div>
+
+      <BaseButton
+        variant="primary"
+        size="md"
+        block
+        type="submit"
+        :loading="isLoading"
+      >
+        <UserPlus :size="18" />
+        Create account
+      </BaseButton>
+
+    </form>
+
+    <div class="auth-divider">
+      <span>Or continue with</span>
     </div>
-    <PrivacyPolicyModal v-model="showPrivacy" @accept="acceptedPrivacy = true" />
-  </div>
+
+    <div class="social-buttons">
+      <BaseButton variant="secondary" block @click="handleGoogleLogin">
+        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+        </svg>
+        Google
+      </BaseButton>
+
+      <BaseButton variant="secondary" block @click="handleGitHubLogin">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M12 0C5.37 0 0 5.46 0 12.2c0 5.4 3.44 9.97 8.21 11.6.6.12.82-.27.82-.59v-2.28c-3.34.75-4.05-1.45-4.05-1.45-.55-1.41-1.33-1.78-1.33-1.78-1.1-.76.08-.74.08-.74 1.2.09 1.84 1.27 1.84 1.27 1.07 1.85 2.81 1.32 3.5 1.01.11-.8.42-1.32.76-1.62-2.66-.31-5.47-1.35-5.47-6 0-1.33.46-2.41 1.23-3.26-.12-.31-.52-1.58.12-3.3 0 0 1.01-.33 3.31 1.25.96-.27 1.98-.4 3-.4 1.02 0 2.04.14 3 .4 2.3-1.58 3.31-1.25 3.31-1.25.64 1.72.24 2.99.12 3.3.77.85 1.23 1.93 1.23 3.26 0 4.66-2.81 5.68-5.49 5.99.43.38.82 1.13.82 2.29v3.39c0 .32.21.71.82.59C20.56 22.17 24 17.6 24 12.2 24 5.46 18.63 0 12 0z" />
+        </svg>
+        GitHub
+      </BaseButton>
+    </div>
+
+    <template #footer>
+      <div class="auth-footer">
+        <span>Already have an account?</span>
+        <router-link class="auth-footer__link" to="/login">
+          Sign in
+        </router-link>
+      </div>
+    </template>
+  </AuthLayout>
+
+  <PrivacyPolicyModal v-model="showPrivacy" @accept="handlePrivacyAccept" />
 </template>
 
 <style scoped>
-.auth-page {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-  padding: 24px;
-  background: #E0E6F0;
+:global(html),
+:global(body) {
+  overflow-x: hidden;
 }
 
-.card {
-  width: 100%;
-  max-width: 500px;
-  background: #fff;
-  border-radius: 24px;
-  padding: 32px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-  position: relative;
-}
-
-.link {
-  background: none;
-  border: none;
-  color: #667eea;
-  cursor: pointer;
-  padding: 0;
-  margin-bottom: 16px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  transition: color 0.2s ease;
-  font-size: 14px;
-}
-
-.link:hover {
-  color: #5a67d8;
-}
-
-.link.inline {
-  margin: 0 0 0 4px;
-}
-
-.avatar-container {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 24px;
-}
-
-.avatar {
+.auth-icon {
   width: 64px;
   height: 64px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 50%;
-  display: flex;
+  border-radius: var(--radius-pill);
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: #fff;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+  box-shadow: var(--shadow-md);
 }
 
-h1 {
-  margin: 0 0 8px;
-  font-size: 28px;
-  font-weight: 700;
-  text-align: center;
-  color: #1a202c;
-}
-
-.subtitle {
-  color: #6b7280;
-  margin: 0 0 32px;
-  text-align: center;
-  font-size: 16px;
-}
-
-.form {
+.auth-form {
   display: grid;
-  gap: 20px;
+  gap: var(--space-5);
 }
 
-.input-group {
-  position: relative;
+.icon-button {
+  border: none;
+  background: none;
+  padding: var(--space-1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color var(--transition-base);
+}
+
+.icon-button:hover {
+  color: var(--color-primary);
+}
+
+.password-checklist {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-subtle);
+  font-size: var(--font-size-sm);
+}
+
+.password-checklist__item {
   display: flex;
   align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
 }
 
-.input-icon {
-  position: absolute;
-  left: 16px;
-  color: #9ca3af;
-  z-index: 1;
+.password-checklist__item.is-met {
+  color: var(--color-success);
+  font-weight: var(--font-weight-medium);
 }
 
-input {
-  padding: 16px 16px 16px 48px;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  font-size: 16px;
-  width: 100%;
-  transition: all 0.2s ease;
-  background: #fff;
+.password-checklist__icon {
+  font-size: 0.9rem;
+  width: 1.25rem;
 }
 
-input:focus {
-  outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+.privacy-row {
+  display: grid;
+  gap: var(--space-2);
 }
 
-.password-toggle {
-  position: absolute;
-  right: 16px;
+.privacy-row__label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.privacy-row__link {
   background: none;
   border: none;
-  color: #9ca3af;
+  color: var(--color-primary);
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: color 0.2s ease;
+  padding: 0;
 }
 
-.password-toggle:hover {
-  color: #667eea;
+.privacy-row__link:hover {
+  color: var(--color-primary-dark);
 }
 
-.password-requirements {
-  margin-top: 8px;
-  padding: 12px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-}
-
-.requirement {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 4px 0;
-  font-size: 13px;
-  color: #64748b;
-}
-
-.requirement.met {
-  color: #059669;
-}
-
-.check {
-  font-weight: bold;
-  font-size: 14px;
-}
-
-.password-mismatch {
-  margin-top: 4px;
-  color: #dc2626;
-  font-size: 13px;
-}
-
-.pp-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.pp-check {
-  display: flex;
-  align-items: center;
-}
-
-.pp-text {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: #6b7280;
-  font-size: 14px;
-}
-
-.primary {
-  padding: 16px;
-  border-radius: 12px;
-  border: none;
-  color: #fff;
-  font-weight: 600;
-  font-size: 16px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  transition: all 0.2s ease;
-  margin-top: 8px;
-}
-
-.primary:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
-}
-
-.primary:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top: 2px solid #fff;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
-}
-
-.error {
-  color: #e53e3e;
-  margin: 8px 0 0;
-  text-align: center;
-  font-size: 14px;
-}
-
-.divider {
+.auth-divider {
   position: relative;
   text-align: center;
-  margin: 24px 0;
-  color: #9ca3af;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-soft);
 }
 
-.divider::before {
+.auth-divider::before {
   content: '';
   position: absolute;
-  top: 50%;
-  left: 0;
-  right: 0;
+  inset: 50% 0 auto 0;
   height: 1px;
-  background: #e2e8f0;
-  z-index: 1;
+  background: var(--color-border);
+  transform: translateY(-50%);
 }
 
-.divider span {
-  background: #fff;
-  padding: 0 16px;
+.auth-divider span {
   position: relative;
-  z-index: 2;
+  z-index: 1;
+  padding: 0 var(--space-3);
+  background: var(--color-surface);
 }
 
-.social-login {
+.social-buttons {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 24px;
+  gap: var(--space-3);
 }
 
-.social-btn {
+.auth-footer {
   display: flex;
-  align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 12px 16px;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  background: #fff;
-  color: #4a5568;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
 }
 
-.social-btn:hover {
-  border-color: #cbd5e0;
-  background: #f7fafc;
-  transform: translateY(-1px);
-}
-
-.google-btn:hover {
-  border-color: #4285f4;
-  background: #f8f9ff;
-}
-
-.github-btn:hover {
-  border-color: #24292e;
-  background: #f6f8fa;
-}
-
-.signup-link {
-  text-align: center;
-  font-size: 14px;
-  color: #4a5568;
-}
-
-.signup-link a {
-  color: #667eea;
+.auth-footer__link {
+  color: var(--color-primary);
+  font-weight: var(--font-weight-semibold);
   text-decoration: none;
-  font-weight: 600;
-  transition: color 0.2s ease;
 }
 
-.signup-link a:hover {
-  color: #5a67d8;
-}
-
-
-
-/* Dark mode styles */
-body.dark .card {
-  background: #1a202c;
-  color: #e2e8f0;
-}
-
-/* Page background in dark mode */
-body.dark .auth-page {
-  background: #131C30;
-}
-
-body.dark h1 {
-  color: #e2e8f0;
-}
-
-body.dark .subtitle {
-  color: #a0aec0;
-}
-
-body.dark input {
-  background: #2d3748;
-  border-color: #4a5568;
-  color: #e2e8f0;
-}
-
-body.dark input:focus {
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-body.dark .input-icon {
-  color: #a0aec0;
-}
-
-body.dark .password-toggle {
-  color: #a0aec0;
-}
-
-body.dark .password-toggle:hover {
-  color: #667eea;
-}
-
-body.dark .password-requirements {
-  background: #2d3748;
-  border: 1px solid #4a5568;
-}
-
-body.dark .requirement {
-  color: #a0aec0;
-}
-
-body.dark .requirement.met {
-  color: #10b981;
-}
-
-body.dark .password-mismatch {
-  color: #fca5a5;
-}
-
-body.dark .pp-text {
-  color: #a0aec0;
-}
-
-body.dark .error {
-  color: #fc8181;
-}
-
-body.dark .divider {
-  color: #a0aec0;
-}
-
-body.dark .divider::before {
-  background: #4a5568;
-}
-
-body.dark .divider span {
-  background: #1a202c;
-}
-
-body.dark .social-btn {
-  background: #2d3748;
-  border-color: #4a5568;
-  color: #e2e8f0;
-}
-
-body.dark .social-btn:hover {
-  border-color: #718096;
-  background: #4a5568;
-}
-
-body.dark .signup-link {
-  color: #a0aec0;
-}
-
-body.dark .signup-link a {
-  color: #667eea;
-}
-
-
-/* Responsive design */
-@media (max-width: 768px) {
-  .auth-page {
-    padding: 16px;
-  }
-
-  .card {
-    padding: 24px;
-    max-width: 100%;
-  }
-
-  h1 {
-    font-size: 24px;
-  }
-
-  .subtitle {
-    font-size: 14px;
-  }
-
-  .form {
-    gap: 16px;
-  }
-
-  input {
-    padding: 14px 14px 14px 44px;
-    font-size: 16px;
-  }
-
-  .primary {
-    padding: 14px;
-    font-size: 16px;
-  }
-
-  .social-login {
-    grid-template-columns: 1fr;
-    gap: 8px;
-  }
-
-  .password-requirements {
-    padding: 10px;
-    font-size: 12px;
-  }
-
-  .requirement {
-    font-size: 12px;
-    margin: 3px 0;
-  }
-
-  .otp-container {
-    margin: 12px 0;
-  }
-
-  .otp-inputs {
-    gap: 6px;
-  }
-
-  .otp-input {
-    width: 40px;
-    height: 40px;
-    font-size: 16px;
-  }
-
-  .pp-row {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-  }
-
-  .pp-text {
-    font-size: 13px;
-    line-height: 1.4;
-  }
+.auth-footer__link:hover {
+  color: var(--color-primary-dark);
 }
 
 @media (max-width: 480px) {
-  .auth-page {
-    padding: 12px;
-  }
-
-  .card {
-    padding: 20px;
-  }
-
-  h1 {
-    font-size: 22px;
-  }
-
-  .avatar {
+  .auth-icon {
     width: 56px;
     height: 56px;
   }
+}
 
-  .form {
-    gap: 14px;
-  }
+body.dark .password-checklist {
+  background: var(--color-surface-subtle);
+  border-color: var(--color-border);
+}
 
-  input {
-    padding: 12px 12px 12px 40px;
-    font-size: 16px;
-  }
-
-  .primary {
-    padding: 12px;
-    font-size: 15px;
-  }
-
-  .social-btn {
-    padding: 10px 12px;
-    font-size: 13px;
-  }
-
-  .password-requirements {
-    padding: 8px;
-    font-size: 11px;
-  }
-
-  .requirement {
-    font-size: 11px;
-    margin: 2px 0;
-  }
-
-  .otp-inputs {
-    gap: 4px;
-  }
-
-  .otp-input {
-    width: 36px;
-    height: 36px;
-    font-size: 14px;
-  }
-
-  .resend-section {
-    margin-top: 12px;
-  }
-
-  .resend-text {
-    font-size: 13px;
-  }
-
-  .resend-btn {
-    padding: 6px 12px;
-    font-size: 13px;
-  }
+body.dark .auth-divider span {
+  background: var(--color-surface);
 }
 </style>

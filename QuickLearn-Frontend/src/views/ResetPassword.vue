@@ -1,525 +1,364 @@
-<template>
-  <div class="auth-page">
-    <div class="wave-bg" aria-hidden="true"></div>
-    <div class="card">
-      <button class="link" @click="goBack">
-        <ArrowLeft :size="16" />
-        Back to Login
-      </button>
-      <h1>Reset your password</h1>
-      <p class="subtitle">Enter your new password below.</p>
-      <form @submit.prevent="handleResetPassword" class="form">
-        <label>
-          <span>New Password</span>
-          <div class="input-group">
-            <Lock class="input-icon" :size="18" />
-            <input
-              v-model="password"
-              type="password"
-              required
-              placeholder="Enter new password"
-              autocomplete="new-password"
-            />
-          </div>
-        </label>
-        <label>
-          <span>Confirm Password</span>
-          <div class="input-group">
-            <Lock class="input-icon" :size="18" />
-            <input
-              v-model="confirmPassword"
-              type="password"
-              required
-              placeholder="Confirm new password"
-              autocomplete="new-password"
-            />
-          </div>
-        </label>
+<script setup>
+import { computed, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ArrowLeft, CheckCircle, Eye, EyeOff, Lock, Shield } from 'lucide-vue-next'
 
-        <!-- Password Requirements -->
-        <div class="password-requirements">
-          <p class="requirements-title">Password requirements:</p>
-          <ul class="requirements-list">
-            <li class="requirement-item">
-              <span :class="passwordLength ? 'requirement-check' : 'requirement-uncheck'">✓</span>
-              <span>At least 8 characters</span>
-            </li>
-            <li class="requirement-item">
-              <span :class="passwordUppercase ? 'requirement-check' : 'requirement-uncheck'">✓</span>
-              <span>One uppercase letter</span>
-            </li>
-            <li class="requirement-item">
-              <span :class="passwordNumber ? 'requirement-check' : 'requirement-uncheck'">✓</span>
-              <span>One number</span>
-            </li>
-            <li class="requirement-item">
-              <span :class="passwordSpecial ? 'requirement-check' : 'requirement-uncheck'">✓</span>
-              <span>One special character</span>
-            </li>
-          </ul>
-        </div>
+import AuthLayout from '@/components/layout/AuthLayout.vue'
+import BaseButton from '@/components/ui/BaseButton.vue'
+import BaseInput from '@/components/ui/BaseInput.vue'
+import FormField from '@/components/ui/FormField.vue'
+import { resetPassword } from '@/services/authService'
 
-        <button
-          class="primary"
-          type="submit"
-          :disabled="loading || !isPasswordValid"
-        >
-          <Shield v-if="!loading" :size="18" />
-          <div v-else class="spinner"></div>
-          {{ loading ? 'Resetting...' : 'Reset Password' }}
-        </button>
-        <p v-if="errorMessage" class="error">{{ errorMessage }}</p>
-      </form>
+const router = useRouter()
+const route = useRoute()
 
-      <!-- Success Message -->
-      <div v-if="successMessage" class="success-message">
-        <div class="success-icon">
-          <CheckCircle :size="20" />
-        </div>
-        <div class="success-content">
-          <p class="success-text">{{ successMessage }}</p>
-          <p class="success-link">
-            You can now <router-link to="/login" class="link">log in</router-link> with your new password.
-          </p>
-        </div>
-      </div>
-    </div>
-  </div>
-</template>
+const form = reactive({
+  password: '',
+  confirmPassword: ''
+})
 
-<script>
-import { resetPassword } from '../services/authService'
-import { useRouter } from 'vue-router'
-import { ArrowLeft, Lock, Shield, CheckCircle } from 'lucide-vue-next'
+const checklist = reactive({
+  length: false,
+  uppercase: false,
+  digit: false,
+  special: false
+})
 
-export default {
-  name: 'ResetPassword',
-  setup() {
-    const router = useRouter()
-    return { router }
+const fieldErrors = reactive({
+  password: '',
+  confirmPassword: '',
+  token: ''
+})
+
+const formMessage = ref('')
+const isSuccess = ref(false)
+const isLoading = ref(false)
+const showPassword = ref(false)
+const showConfirmPassword = ref(false)
+const token = ref(typeof route.query.token === 'string' ? route.query.token : '')
+
+watch(
+  () => form.password,
+  (value) => {
+    checklist.length = value.length >= 8
+    checklist.uppercase = /[A-Z]/.test(value)
+    checklist.digit = /\d/.test(value)
+    checklist.special = /[^A-Za-z0-9]/.test(value)
   },
-  data() {
-    return {
-      password: '',
-      confirmPassword: '',
-      loading: false,
-      successMessage: '',
-      errorMessage: '',
-      token: ''
-    }
-  },
-  computed: {
-    passwordLength() {
-      return this.password.length >= 8
-    },
-    passwordUppercase() {
-      return /[A-Z]/.test(this.password)
-    },
-    passwordNumber() {
-      return /\d/.test(this.password)
-    },
-    passwordSpecial() {
-      return /[^A-Za-z0-9]/.test(this.password)
-    },
-    isPasswordValid() {
-      return this.passwordLength &&
-             this.passwordUppercase &&
-             this.passwordNumber &&
-             this.passwordSpecial &&
-             this.password === this.confirmPassword
-    }
-  },
-  mounted() {
-    // Get token from URL query parameters
-    this.token = this.$route.query.token
-    if (!this.token) {
-      this.errorMessage = 'Invalid or missing reset token'
-    }
-  },
-  methods: {
-    goBack() {
-      this.router.push('/login')
-    },
-    async handleResetPassword() {
-      if (!this.token) {
-        this.errorMessage = 'Invalid or missing reset token'
-        return
-      }
+  { immediate: true }
+)
 
-      this.loading = true
-      this.errorMessage = ''
-      this.successMessage = ''
-
-      try {
-        const response = await resetPassword({
-          token: this.token,
-          password: this.password,
-          confirmPassword: this.confirmPassword
-        })
-        this.successMessage = response.message
-        this.password = ''
-        this.confirmPassword = ''
-      } catch (error) {
-        this.errorMessage = error.message || 'Failed to reset password'
-      } finally {
-        this.loading = false
-      }
-    }
+watch(
+  () => route.query.token,
+  (value) => {
+    token.value = typeof value === 'string' ? value : ''
   }
+)
+
+const passwordValid = computed(() => Object.values(checklist).every(Boolean))
+
+function validate() {
+  let valid = true
+
+  if (!token.value) {
+    fieldErrors.token = 'Reset link is invalid or has expired.'
+    valid = false
+  } else {
+    fieldErrors.token = ''
+  }
+
+  fieldErrors.password = passwordValid.value ? '' : 'Password does not meet the requirements.'
+  if (!passwordValid.value) valid = false
+
+  const matches = form.password && form.password === form.confirmPassword
+  fieldErrors.confirmPassword = matches ? '' : 'Passwords must match.'
+  if (!matches) valid = false
+
+  return valid
+}
+
+async function handleSubmit() {
+  formMessage.value = ''
+  isSuccess.value = false
+
+  if (!validate()) return
+
+  isLoading.value = true
+  try {
+    const response = await resetPassword({
+      token: token.value,
+      password: form.password,
+      confirmPassword: form.confirmPassword
+    })
+    formMessage.value = response.message || 'Password updated successfully.'
+    isSuccess.value = true
+    form.password = ''
+    form.confirmPassword = ''
+  } catch (err) {
+    formMessage.value = err?.message || 'Failed to reset password. Please try again.'
+    isSuccess.value = false
+    window.$toast?.error(formMessage.value)
+  } finally {
+    isLoading.value = false
+  }
+}
+
+function goBack() {
+  router.push('/login')
 }
 </script>
 
+<template>
+  <AuthLayout
+    title="Reset your password"
+    subtitle="Create a new password that people won't easily guess."
+    :show-back="true"
+    back-label="Back to Login"
+    @back="goBack"
+  >
+    <template #back-icon>
+      <ArrowLeft :size="16" />
+    </template>
+
+    <form class="auth-form" @submit.prevent="handleSubmit" novalidate>
+      <FormField
+        label="New password"
+        :error="fieldErrors.password"
+        required
+        for="reset-password"
+      >
+        <BaseInput
+          id="reset-password"
+          v-model="form.password"
+          :type="showPassword ? 'text' : 'password'"
+          placeholder="Enter a new password"
+          autocomplete="new-password"
+        >
+          <template #prefix>
+            <Lock :size="18" />
+          </template>
+          <template #suffix>
+            <button
+              type="button"
+              class="icon-button"
+              @click="showPassword = !showPassword"
+              :aria-pressed="showPassword"
+              :aria-label="showPassword ? 'Hide password' : 'Show password'"
+            >
+              <EyeOff v-if="showPassword" :size="18" />
+              <Eye v-else :size="18" />
+            </button>
+          </template>
+        </BaseInput>
+      </FormField>
+
+      <div class="password-checklist" aria-live="polite">
+        <div
+          v-for="(met, key) in checklist"
+          :key="key"
+          :class="['password-checklist__item', { 'is-met': met }]"
+        >
+          <span class="password-checklist__icon" aria-hidden="true">
+            {{ met ? '✓' : '○' }}
+          </span>
+          <span class="password-checklist__text">
+            {{
+              key === 'length'
+                ? 'At least 8 characters'
+                : key === 'uppercase'
+                  ? 'One uppercase letter (A-Z)'
+                  : key === 'digit'
+                    ? 'One number (0-9)'
+                    : 'One special character (!@#$%^&*)'
+            }}
+          </span>
+        </div>
+      </div>
+
+      <FormField
+        label="Confirm password"
+        :error="fieldErrors.confirmPassword"
+        required
+        for="reset-confirm"
+      >
+        <BaseInput
+          id="reset-confirm"
+          v-model="form.confirmPassword"
+          :type="showConfirmPassword ? 'text' : 'password'"
+          placeholder="Re-enter your new password"
+          autocomplete="new-password"
+        >
+          <template #prefix>
+            <Lock :size="18" />
+          </template>
+          <template #suffix>
+            <button
+              type="button"
+              class="icon-button"
+              @click="showConfirmPassword = !showConfirmPassword"
+              :aria-pressed="showConfirmPassword"
+              :aria-label="showConfirmPassword ? 'Hide password' : 'Show password'"
+            >
+              <EyeOff v-if="showConfirmPassword" :size="18" />
+              <Eye v-else :size="18" />
+            </button>
+          </template>
+        </BaseInput>
+      </FormField>
+
+      <p v-if="fieldErrors.token" class="form-error">
+        {{ fieldErrors.token }}
+      </p>
+
+      <BaseButton
+        variant="primary"
+        size="md"
+        block
+        type="submit"
+        :loading="isLoading"
+        :disabled="!!fieldErrors.token"
+      >
+        <Shield :size="18" />
+        Reset password
+      </BaseButton>
+
+      <p
+        v-if="formMessage"
+        class="form-message"
+        :class="{ 'is-success': isSuccess, 'is-error': !isSuccess }"
+      >
+        {{ formMessage }}
+      </p>
+    </form>
+
+    <div v-if="isSuccess" class="success-card">
+      <div class="success-icon" aria-hidden="true">
+        <CheckCircle :size="20" />
+      </div>
+      <div class="success-content">
+        <p>You can now <router-link to="/login" class="success-link">log in</router-link> with your new password.</p>
+      </div>
+    </div>
+  </AuthLayout>
+</template>
+
 <style scoped>
-.auth-page {
-  position:relative;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  min-height:100vh;
-  padding:24px;
-  overflow:hidden;
+.auth-form {
+  display: grid;
+  gap: var(--space-5);
 }
 
-.wave-bg {
-  position:absolute;
-  inset:-10% -10% -10% -10%;
-  z-index:-1;
-}
-
-.wave-bg::before, .wave-bg::after {
-  content:"";
-  position:absolute;
-  left:50%;
-  transform:translateX(-50%);
-  width:160vw;
-  height:160vw;
-  border-radius:45%;
-  filter:blur(40px);
-  opacity:0.45;
-  animation:wave 18s ease-in-out infinite;
-  background:radial-gradient(circle at 30% 30%, rgba(102,126,234,0.45), transparent 55%), radial-gradient(circle at 70% 40%, rgba(118,75,162,0.45), transparent 60%), radial-gradient(circle at 50% 70%, rgba(59,130,246,0.35), transparent 55%);
-}
-
-.wave-bg::after {
-  animation-duration: 26s;
-  animation-delay:-6s;
-  opacity:0.35;
-  background:radial-gradient(circle at 70% 60%, rgba(16,185,129,0.35), transparent 55%), radial-gradient(circle at 30% 40%, rgba(99,102,241,0.35), transparent 60%), radial-gradient(circle at 50% 50%, rgba(236,72,153,0.25), transparent 55%);
-}
-
-@keyframes wave {
-  0% { top: -30%; border-radius: 42% 58% 37% 63% / 42% 34% 66% 58%; }
-  25% { top: -20%; border-radius: 58% 42% 62% 38% / 37% 63% 37% 63%; }
-  50% { top: -35%; border-radius: 52% 48% 55% 45% / 52% 48% 55% 45%; }
-  75% { top: -25%; border-radius: 60% 40% 40% 60% / 45% 55% 45% 55%; }
-  100% { top: -30%; border-radius: 42% 58% 37% 63% / 42% 34% 66% 58%; }
-}
-
-.card {
-  width:100%;
-  max-width:420px;
-  background:#fff;
-  border:1px solid #e6e8ec;
-  border-radius:12px;
-  padding:24px;
-  box-shadow:0 10px 25px rgba(50,50,93,0.05);
-}
-
-/* Dark mode styles */
-body.dark .wave-bg::before, body.dark .wave-bg::after {
-  background:radial-gradient(circle at 30% 30%, rgba(102,126,234,0.25), transparent 55%), radial-gradient(circle at 70% 40%, rgba(118,75,162,0.25), transparent 60%), radial-gradient(circle at 50% 70%, rgba(59,130,246,0.15), transparent 55%);
-}
-
-body.dark .wave-bg::after {
-  background:radial-gradient(circle at 70% 60%, rgba(16,185,129,0.15), transparent 55%), radial-gradient(circle at 30% 40%, rgba(99,102,241,0.15), transparent 60%), radial-gradient(circle at 50% 50%, rgba(236,72,153,0.10), transparent 55%);
-}
-
-body.dark .card {
-  background: #0f172a;
-  border: 1px solid #1f2a44;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-}
-
-.link {
-  background:none;
-  border:none;
-  color:#5562ea;
-  cursor:pointer;
-  padding:0;
-  margin-bottom:8px;
-  text-decoration:none;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  transition: color 0.2s ease;
-}
-.link:hover { color: #4338ca; }
-
-h1 {
-  margin:6px 0 4px;
-  font-size:26px;
-  font-weight:600;
-}
-
-.subtitle {
-  color:#6b7280;
-  margin:0 0 16px;
-  line-height:1.5;
-}
-
-body.dark .link {
-  color: #a5b4fc;
-}
-
-body.dark .link:hover {
-  color: #c7d2fe;
-}
-
-body.dark h1 {
-  color: #e5e7eb;
-}
-
-body.dark .subtitle {
-  color: #9ca3af;
-}
-
-.form {
-  display:grid;
-  gap:12px;
-}
-
-label {
-  display:grid;
-  gap:6px;
-}
-
-label span {
-  font-weight:500;
-  color:#374151;
-}
-
-.input-group {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.input-icon {
-  position: absolute;
-  left: 12px;
-  color: #9ca3af;
-  z-index: 1;
-}
-
-input {
-  padding:12px 12px 12px 42px;
-  border:1px solid #d1d5db;
-  border-radius:10px;
-  font-size:14px;
-  width: 100%;
-  transition:all 0.2s ease;
-}
-
-input:focus {
-  outline:none;
-  border-color:#7b86f2;
-  box-shadow:0 0 0 3px rgba(123,134,242,0.2);
-}
-input:focus + .input-icon,
-input:focus ~ .input-icon {
-  color: #7b86f2;
-}
-
-.password-requirements {
-  margin:8px 0;
-  padding:12px;
-  background:#f8fafc;
-  border:1px solid #e2e8f0;
-  border-radius:8px;
-}
-
-body.dark label span {
-  color: #e5e7eb;
-}
-
-body.dark .input-icon {
-  color: #6b7280;
-}
-
-body.dark input {
-  background: #1f2a44;
-  border: 1px solid #334155;
-  color: #e5e7eb;
-}
-
-body.dark input:focus {
-  border-color: #7b86f2;
-  box-shadow: 0 0 0 3px rgba(123,134,242,0.2);
-}
-
-body.dark input:focus + .input-icon,
-body.dark input:focus ~ .input-icon {
-  color: #7b86f2;
-}
-
-body.dark .password-requirements {
-  background: #1f2a44;
-  border: 1px solid #334155;
-}
-
-.requirements-title {
-  font-weight:500;
-  color:#374151;
-  margin:0 0 8px;
-  font-size:14px;
-}
-
-body.dark .requirements-title {
-  color: #e5e7eb;
-}
-
-.requirements-list {
-  list-style:none;
-  padding:0;
-  margin:0;
-  display:grid;
-  gap:4px;
-}
-
-.requirement-item {
-  display:flex;
-  align-items:center;
-  gap:8px;
-  font-size:13px;
-  color:#6b7280;
-}
-
-.requirement-check {
-  color:#10b981;
-  font-weight:bold;
-}
-
-.requirement-uncheck {
-  color:#d1d5db;
-}
-
-body.dark .requirement-item {
-  color: #9ca3af;
-}
-
-body.dark .requirement-check {
-  color: #10b981;
-}
-
-body.dark .requirement-uncheck {
-  color: #6b7280;
-}
-
-.primary {
-  padding:12px;
-  border-radius:10px;
-  border:none;
-  color:#fff;
-  font-weight:600;
-  background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);
-  cursor:pointer;
-  transition:all 0.2s ease;
-  display: flex;
+.icon-button {
+  border: none;
+  background: none;
+  padding: var(--space-1);
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color var(--transition-base);
 }
 
-.primary:hover:not(:disabled) {
-  transform:translateY(-1px);
-  box-shadow:0 4px 12px rgba(102,126,234,0.4);
+.icon-button:hover {
+  color: var(--color-primary);
 }
 
-.primary:disabled {
-  opacity:0.6;
-  cursor:not-allowed;
-  transform:none;
+.password-checklist {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-subtle);
+  font-size: var(--font-size-sm);
 }
 
-.spinner {
-  width: 18px;
-  height: 18px;
-  border: 2px solid rgba(255,255,255,0.3);
-  border-top: 2px solid #fff;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
+.password-checklist__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
 }
 
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+.password-checklist__item.is-met {
+  color: var(--color-success);
+  font-weight: var(--font-weight-medium);
 }
 
-.error {
-  color:#b00020;
-  margin:6px 0 0;
-  font-size:14px;
+.password-checklist__icon {
+  font-size: 0.9rem;
+  width: 1.25rem;
 }
 
-.success-message {
-  margin-top:16px;
-  padding:12px 16px;
-  background:#f0f9ff;
-  border:1px solid #0ea5e9;
-  border-radius:8px;
-  display:flex;
-  align-items:flex-start;
-  gap:12px;
+.form-error {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-danger);
+  text-align: center;
 }
 
-body.dark .error {
-  color: #fca5a5;
+.form-message {
+  margin: 0;
+  text-align: center;
+  font-size: var(--font-size-sm);
+  color: var(--color-danger);
 }
 
-body.dark .success-message {
-  background: #0c4a6e;
-  border: 1px solid #0ea5e9;
+.form-message.is-success {
+  color: var(--color-success);
+}
+
+.success-card {
+  margin-top: var(--space-6);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(14, 165, 233, 0.3);
+  background: rgba(14, 165, 233, 0.08);
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
 }
 
 .success-icon {
-  color:#0ea5e9;
-  flex-shrink:0;
+  color: #0ea5e9;
+  flex-shrink: 0;
   display: flex;
-  align-items: center;
 }
 
 .success-content {
-  flex:1;
-}
-
-.success-text {
-  color:#0c4a6e;
-  font-size:14px;
-  margin:0 0 4px;
-  line-height:1.4;
+  color: #0c4a6e;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-base);
 }
 
 .success-link {
-  color:#0c4a6e;
-  font-size:13px;
-  margin:0;
-  line-height:1.4;
+  color: var(--color-primary);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
 }
 
-.success-link .link {
-  color:#0ea5e9;
-  text-decoration:underline;
+.success-link:hover {
+  color: var(--color-primary-dark);
 }
 
-body.dark .success-text {
-  color: #e0f2fe;
+@media (max-width: 480px) {
+  .auth-form {
+    gap: var(--space-4);
+  }
 }
 
-body.dark .success-link {
-  color: #e0f2fe;
+body.dark .password-checklist {
+  background: var(--color-surface-subtle);
+  border-color: var(--color-border);
 }
 
-body.dark .success-link .link {
-  color: #38bdf8;
+body.dark .success-card {
+  border-color: rgba(14, 165, 233, 0.45);
+  background: rgba(14, 165, 233, 0.12);
+}
+
+body.dark .success-content {
+  color: #dbeafe;
 }
 </style>

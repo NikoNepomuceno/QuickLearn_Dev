@@ -275,7 +275,7 @@ function smoothScrollTo(event, sectionId) {
               <li><span class="check">✓</span> Basic AI analysis</li>
               <li><span class="check">✓</span> Standard processing speed</li>
             </ul>
-            <button class="pricing-btn" @click="selectPlan('free')">Get Started Free</button>
+            <button class="pricing-btn" @click="$router.push('/login')">Get Started Free</button>
           </div>
 
           <!-- Pro Tier -->

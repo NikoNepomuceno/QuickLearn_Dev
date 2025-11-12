@@ -1,8 +1,8 @@
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
-import Sidebar from '@/components/Sidebar.vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import AppShell from '@/components/layout/AppShell.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
-import { useRoute, useRouter } from 'vue-router';
+import { useRouter } from 'vue-router';
 import BeatLoader from 'vue-spinner/src/BeatLoader.vue';
 import { authService } from '@/services/authService'
 
@@ -12,6 +12,42 @@ const isLoading = ref(false)
 const isUpdatingPassword = ref(false)
 const isDeletingAccount = ref(false)
 const isUpdatingNotifications = ref(false)
+const activeSection = ref('profile-section')
+const scrollContainer = ref(null)
+
+// Settings sidebar navigation
+const settingsSections = ref([
+  { 
+    id: 'profile-section', 
+    label: 'Profile',
+    icon: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z'
+  },
+  { 
+    id: 'subscription-section', 
+    label: 'Subscription',
+    icon: 'M12 15a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM8.21 13.89L7 23l5-3 5 3-1.21-9.12'
+  },
+  { 
+    id: 'preferences-section', 
+    label: 'Preferences',
+    icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z'
+  },
+  { 
+    id: 'notifications-section', 
+    label: 'Notifications',
+    icon: 'M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0'
+  },
+  { 
+    id: 'security-section', 
+    label: 'Security',
+    icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'
+  },
+  { 
+    id: 'danger-section', 
+    label: 'Danger Zone',
+    icon: 'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01'
+  }
+])
 
 // Profile-related state
 const isEditing = ref(false)
@@ -81,11 +117,110 @@ const usageLimits = ref({
   questionTypesAvailable: 2
 })
 
+function getScrollContainer() {
+  if (scrollContainer.value) return scrollContainer.value
+  const container = document.querySelector('.app-shell__main')
+  if (container instanceof HTMLElement) {
+    scrollContainer.value = container
+    return container
+  }
+  return null
+}
+
+function scrollToSection(sectionId) {
+  activeSection.value = sectionId
+  const element = document.getElementById(sectionId)
+  const container = getScrollContainer()
+  if (element && container) {
+    const offset = 100
+    const containerRect = container.getBoundingClientRect()
+    const elementRect = element.getBoundingClientRect()
+    const position = container.scrollTop + elementRect.top - containerRect.top - offset
+    container.scrollTo({
+      top: position,
+      behavior: 'smooth'
+    })
+    return
+  }
+
+  if (element) {
+    const offset = 100
+    const elementPosition = element.getBoundingClientRect().top + window.pageYOffset
+    window.scrollTo({
+      top: elementPosition - offset,
+      behavior: 'smooth'
+    })
+  }
+}
+
+// Track active section on scroll
+function handleScroll() {
+  const container = getScrollContainer()
+  const sections = settingsSections.value.map(s => s.id)
+
+  if (!container) {
+    const scrollPosition = window.scrollY + 200
+
+    for (const sectionId of sections) {
+      const element = document.getElementById(sectionId)
+      if (!element) continue
+
+      const rect = element.getBoundingClientRect()
+      const elementTop = rect.top + window.scrollY
+      const elementBottom = elementTop + rect.height
+
+      if (scrollPosition >= elementTop && scrollPosition < elementBottom) {
+        activeSection.value = sectionId
+        return
+      }
+    }
+
+    return
+  }
+
+  const scrollPosition = container.scrollTop + 150
+  const containerRect = container.getBoundingClientRect()
+
+  for (const sectionId of sections) {
+    const element = document.getElementById(sectionId)
+    if (!element) continue
+
+    const rect = element.getBoundingClientRect()
+    const elementTop = container.scrollTop + rect.top - containerRect.top
+    const elementBottom = elementTop + rect.height
+
+    if (scrollPosition >= elementTop && scrollPosition < elementBottom) {
+      activeSection.value = sectionId
+      return
+    }
+  }
+}
+
 // Initialize theme on mount
 onMounted(() => {
   initializeTheme()
   loadNotificationPreferences()
   loadUserProfile()
+
+  nextTick(() => {
+    const container = getScrollContainer()
+    if (container) {
+      container.addEventListener('scroll', handleScroll, { passive: true })
+      handleScroll()
+    } else {
+      window.addEventListener('scroll', handleScroll, { passive: true })
+      handleScroll()
+    }
+  })
+})
+
+onUnmounted(() => {
+  const container = scrollContainer.value
+  if (container) {
+    container.removeEventListener('scroll', handleScroll)
+  } else {
+    window.removeEventListener('scroll', handleScroll)
+  }
 })
 
 function loadNotificationPreferences() {
@@ -453,563 +588,586 @@ function formatTimeSpent(minutes) {
 </script>
 
 <template>
-  <div class="layout">
-    <Sidebar />
-    <div class="content">
-      <!-- Professional Header -->
-      <div class="header">
-        <div class="header-content">
-          <h1>Settings</h1>
-          <p class="subtitle">Manage your account preferences and security settings</p>
-        </div>
-      </div>
+  <AppShell
+    title="Settings"
+    subtitle="Manage your account, preferences, and security."
+    content-width="wide"
+  >
+    <div v-if="isLoading" class="loading-container">
+      <BeatLoader
+        :loading="true"
+        color="#667eea"
+        size="20px"
+      />
+    </div>
 
-      <!-- Loading State -->
-      <div v-if="isLoading" class="loading">
-        <BeatLoader
-          :loading="true"
-          text="Loading..."
-          color="#667eea"
-          size="20px"
-        />
-      </div>
+    <div v-else class="settings-wrapper">
+      <!-- Sidebar Navigation -->
+      <aside class="settings-sidebar">
+        <nav class="settings-nav">
+          <button 
+            v-for="section in settingsSections" 
+            :key="section.id"
+            class="nav-item"
+            :class="{ active: activeSection === section.id }"
+            @click="scrollToSection(section.id)"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path :d="section.icon" />
+            </svg>
+            <span>{{ section.label }}</span>
+          </button>
+        </nav>
+      </aside>
 
-      <!-- Settings Content -->
-      <div v-else class="settings-content">
-        <!-- Settings Panels -->
-        <div class="settings-panels">
-          <!-- Profile Settings -->
-          <div class="settings-panel">
-            <div class="panel-header">
+      <!-- Main Content -->
+      <main class="settings-main">
+        <!-- Profile Section -->
+        <section id="profile-section" class="settings-section">
+          <div class="section-header">
+            <div class="section-icon profile-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
+              </svg>
+            </div>
+            <div>
               <h2>Profile</h2>
-              <p>Manage your profile and view your statistics</p>
+              <p>Manage your personal information and profile picture</p>
             </div>
+          </div>
 
-            <!-- Profile Header -->
-            <div class="profile-header-inline">
-              <div class="profile-picture-section">
-                <div class="profile-picture">
-                  <img 
-                    v-if="userProfile.profilePicture" 
-                    :src="userProfile.profilePicture" 
-                    :alt="userProfile.displayName || userProfile.username"
-                    class="profile-img"
-                  />
-                  <div v-else class="profile-placeholder">
-                    {{ userProfile.displayName?.charAt(0)?.toUpperCase() || userProfile.username?.charAt(0)?.toUpperCase() || 'U' }}
-                  </div>
-                  <input 
-                    type="file" 
-                    accept="image/*" 
-                    @change="handleProfilePictureUpload"
-                    class="profile-upload-input"
-                    id="profile-upload"
-                  />
-                  <label for="profile-upload" class="profile-upload-btn">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                      <circle cx="12" cy="13" r="4"/>
-                    </svg>
-                  </label>
-                  <button 
-                    v-if="userProfile.profilePicture" 
-                    @click="deleteProfilePicture" 
-                    class="profile-delete-btn"
-                    :disabled="isSaving"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <polyline points="3,6 5,6 21,6"/>
-                      <path d="M19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"/>
-                    </svg>
-                  </button>
-                </div>
-              </div>
-              
-              <div class="profile-info">
-                <div v-if="!isEditing" class="profile-display">
-                  <h3 class="profile-name">{{ userProfile.displayName || userProfile.username }}</h3>
-                  <p class="profile-email">{{ userProfile.email }}</p>
-                  <p v-if="userProfile.bio" class="profile-bio">{{ userProfile.bio }}</p>
-                  <p v-else class="profile-bio placeholder">No bio added yet</p>
-                  <button @click="startEditing" class="edit-btn">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                    </svg>
-                    Edit Profile
-                  </button>
-                </div>
-                
-                <div v-else class="profile-edit">
-                  <div class="form-group">
-                    <label for="displayName">Display Name</label>
-                    <input 
-                      id="displayName"
-                      v-model="editForm.displayName" 
-                      type="text" 
-                      class="form-input"
-                      placeholder="Enter your display name"
+          <div class="section-content">
+            <!-- Profile Card -->
+            <div class="profile-card">
+              <div class="profile-main">
+                <div class="profile-avatar-container">
+                  <div class="profile-avatar">
+                    <img 
+                      v-if="userProfile.profilePicture" 
+                      :src="userProfile.profilePicture" 
+                      :alt="userProfile.displayName || userProfile.username"
+                      class="avatar-img"
                     />
+                    <div v-else class="avatar-placeholder">
+                      {{ userProfile.displayName?.charAt(0)?.toUpperCase() || userProfile.username?.charAt(0)?.toUpperCase() || 'U' }}
+                    </div>
                   </div>
-                  
-                  <div class="form-group">
-                    <label for="profile-email">Email</label>
+                  <div class="avatar-actions">
                     <input 
-                      id="profile-email"
-                      :value="userProfile.email" 
-                      type="email" 
-                      class="form-input"
-                      placeholder="Email (cannot be changed)"
-                      disabled
+                      type="file" 
+                      accept="image/*" 
+                      @change="handleProfilePictureUpload"
+                      class="file-input"
+                      id="avatar-upload"
                     />
-                    <small class="form-help">Email cannot be changed</small>
-                  </div>
-                  
-                  <div class="form-group">
-                    <label for="bio">Bio</label>
-                    <textarea 
-                      id="bio"
-                      v-model="editForm.bio" 
-                      class="form-textarea"
-                      placeholder="Tell us about yourself"
-                      rows="3"
-                    ></textarea>
-                  </div>
-                  
-                  <div class="form-actions">
-                    <button @click="cancelEditing" class="cancel-btn" :disabled="isSaving">
-                      Cancel
-                    </button>
-                    <button @click="saveProfile" class="save-btn" :disabled="isSaving">
-                      <BeatLoader v-if="isSaving" :loading="true" color="#fff" size="8px" />
-                      <span v-else>Save Changes</span>
+                    <label for="avatar-upload" class="avatar-upload-btn">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="17 8 12 3 7 8"/>
+                        <line x1="12" y1="3" x2="12" y2="15"/>
+                      </svg>
+                      Upload
+                    </label>
+                    <button 
+                      v-if="userProfile.profilePicture" 
+                      @click="deleteProfilePicture" 
+                      class="avatar-delete-btn"
+                      :disabled="isSaving"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                      </svg>
+                      Remove
                     </button>
                   </div>
                 </div>
+
+                <div class="profile-details">
+                  <div v-if="!isEditing" class="details-view">
+                    <h3 class="username">{{ userProfile.displayName || userProfile.username }}</h3>
+                    <p class="email">{{ userProfile.email }}</p>
+                    <p class="bio" v-if="userProfile.bio">{{ userProfile.bio }}</p>
+                    <p class="bio placeholder" v-else>No bio yet. Tell us about yourself!</p>
+                    <button @click="startEditing" class="btn-secondary">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                      </svg>
+                      Edit Profile
+                    </button>
+                  </div>
+
+                  <div v-else class="details-edit">
+                    <div class="input-group">
+                      <label for="displayName">Display Name</label>
+                      <input 
+                        id="displayName"
+                        v-model="editForm.displayName" 
+                        type="text" 
+                        class="input-field"
+                        placeholder="Your display name"
+                      />
+                    </div>
+                    
+                    <div class="input-group">
+                      <label for="bio">Bio</label>
+                      <textarea 
+                        id="bio"
+                        v-model="editForm.bio" 
+                        class="input-field textarea"
+                        placeholder="Tell us about yourself..."
+                        rows="3"
+                      ></textarea>
+                    </div>
+                    
+                    <div class="button-group">
+                      <button @click="cancelEditing" class="btn-secondary" :disabled="isSaving">
+                        Cancel
+                      </button>
+                      <button @click="saveProfile" class="btn-primary" :disabled="isSaving">
+                        <BeatLoader v-if="isSaving" :loading="true" color="#fff" size="8px" />
+                        <span v-else>Save Changes</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Account Stats -->
+              <div class="stats-container">
+                <div class="stat-item">
+                  <div class="stat-value">{{ accountStats.quizzesCreated }}</div>
+                  <div class="stat-label">Quizzes Created</div>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-item">
+                  <div class="stat-value">{{ accountStats.quizzesTaken }}</div>
+                  <div class="stat-label">Quizzes Taken</div>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-item">
+                  <div class="stat-value">{{ accountStats.averageScore }}%</div>
+                  <div class="stat-label">Avg Score</div>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-item">
+                  <div class="stat-value">{{ formatTimeSpent(accountStats.totalTimeSpent) }}</div>
+                  <div class="stat-label">Time Spent</div>
+                </div>
               </div>
             </div>
 
-            <!-- Account Statistics -->
-            <div class="setting-group" style="margin-top: 32px;">
-              <div class="setting-label">
-                <h3>Account Statistics</h3>
-                <p>Your quiz activity overview</p>
-              </div>
-              <div class="stats-grid">
-                <div class="stat-card">
-                  <div class="stat-icon">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M9 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-4"/>
-                      <path d="M9 11V9a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/>
-                      <path d="M9 7h6v4H9z"/>
-                    </svg>
-                  </div>
-                  <div class="stat-content">
-                    <div class="stat-number">{{ accountStats.quizzesCreated }}</div>
-                    <div class="stat-label">Quizzes Created</div>
-                  </div>
+            <!-- Account Info -->
+            <div class="info-cards">
+              <div class="info-card">
+                <div class="info-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                    <line x1="16" y1="2" x2="16" y2="6"/>
+                    <line x1="8" y1="2" x2="8" y2="6"/>
+                    <line x1="3" y1="10" x2="21" y2="10"/>
+                  </svg>
                 </div>
-                
-                <div class="stat-card">
-                  <div class="stat-icon">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M9 12l2 2 4-4"/>
-                      <path d="M21 12c-1 0-3-1-3-3s2-3 3-3 3 1 3 3-2 3-3 3"/>
-                      <path d="M3 12c1 0 3-1 3-3s-2-3-3-3-3 1-3 3 2 3 3 3"/>
-                      <path d="M12 3c0 1-1 3-3 3s-3-2-3-3 1-3 3-3 3 2 3 3"/>
-                      <path d="M12 21c0-1 1-3 3-3s3 2 3 3-1 3-3 3-3-2-3-3"/>
-                    </svg>
-                  </div>
-                  <div class="stat-content">
-                    <div class="stat-number">{{ accountStats.quizzesTaken }}</div>
-                    <div class="stat-label">Quizzes Taken</div>
-                  </div>
-                </div>
-                
-                <div class="stat-card">
-                  <div class="stat-icon">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-                    </svg>
-                  </div>
-                  <div class="stat-content">
-                    <div class="stat-number">{{ accountStats.averageScore }}%</div>
-                    <div class="stat-label">Average Score</div>
-                  </div>
-                </div>
-                
-                <div class="stat-card">
-                  <div class="stat-icon">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <circle cx="12" cy="12" r="10"/>
-                      <polyline points="12,6 12,12 16,14"/>
-                    </svg>
-                  </div>
-                  <div class="stat-content">
-                    <div class="stat-number">{{ formatTimeSpent(accountStats.totalTimeSpent) }}</div>
-                    <div class="stat-label">Time Spent</div>
-                  </div>
+                <div class="info-content">
+                  <div class="info-label">Member Since</div>
+                  <div class="info-value">{{ formatDate(userProfile.createdAt) }}</div>
                 </div>
               </div>
-            </div>
-
-            <!-- Account Information -->
-            <div class="setting-group">
-              <div class="setting-label">
-                <h3>Account Information</h3>
-                <p>Your account details</p>
-              </div>
-              <div class="info-grid">
-                <div class="info-item">
-                  <span class="info-label">Member Since</span>
-                  <span class="info-value">{{ formatDate(userProfile.createdAt) }}</span>
+              <div class="info-card">
+                <div class="info-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                  </svg>
                 </div>
-                <div class="info-item">
-                  <span class="info-label">Last Login</span>
-                  <span class="info-value">{{ formatDate(userProfile.lastLogin) }}</span>
-                </div>
-                <div class="info-item">
-                  <span class="info-label">User ID</span>
-                  <span class="info-value">{{ userProfile.id }}</span>
+                <div class="info-content">
+                  <div class="info-label">Last Login</div>
+                  <div class="info-value">{{ formatDate(userProfile.lastLogin) }}</div>
                 </div>
               </div>
             </div>
           </div>
+        </section>
 
-          <!-- Usage & Limits Section -->
-          <div class="settings-panel">
-            <div class="panel-header">
-              <h2>Usage & Limits</h2>
-              <p>Track your monthly usage and subscription details</p>
+        <!-- Subscription Section -->
+        <section id="subscription-section" class="settings-section">
+          <div class="section-header">
+            <div class="section-icon subscription-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="8" r="7"/>
+                <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/>
+              </svg>
             </div>
+            <div>
+              <h2>Subscription</h2>
+              <p>Manage your plan and track your usage</p>
+            </div>
+          </div>
 
-            <!-- Current Plan -->
-            <div class="setting-group">
-              <div class="setting-label">
-                <h3>Current Plan</h3>
-                <p>Your active subscription tier</p>
-              </div>
-              <div class="tier-badge-container">
-                <span class="tier-badge" :class="subscriptionTier">
-                  {{ subscriptionTier.toUpperCase() }}
-                </span>
-                <button class="upgrade-btn" @click="handleUpgrade">
+          <div class="section-content">
+            <!-- Plan Card -->
+            <div class="plan-card">
+              <div class="plan-header">
+                <div>
+                  <div class="plan-badge" :class="subscriptionTier">{{ subscriptionTier.toUpperCase() }}</div>
+                  <h3 class="plan-title">{{ subscriptionTier === 'free' ? 'Free Plan' : 'Premium Plan' }}</h3>
+                  <p class="plan-description">{{ subscriptionTier === 'free' ? 'Perfect for getting started' : 'All features unlocked' }}</p>
+                </div>
+                <button class="btn-primary btn-upgrade" @click="handleUpgrade">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M12 19V5M5 12l7-7 7 7"/>
                   </svg>
                   Upgrade Plan
                 </button>
               </div>
-            </div>
 
-            <!-- Usage Statistics -->
-            <div class="setting-group">
-              <div class="setting-label">
-                <h3>Monthly Usage</h3>
-                <p>Your resource consumption this billing cycle</p>
-              </div>
-              
-              <div class="usage-stats">
-                <!-- Quizzes Used -->
-                <div class="usage-item">
-                  <div class="usage-header">
-                    <span class="usage-label">Quizzes Generated</span>
-                    <span class="usage-count">{{ usageLimits.quizzesUsed }} / {{ usageLimits.quizzesLimit }}</span>
+              <!-- Usage Progress -->
+              <div class="usage-section">
+                <h4>Monthly Usage</h4>
+                <div class="usage-items">
+                  <div class="usage-row">
+                    <div class="usage-info">
+                      <span class="usage-name">Quizzes Generated</span>
+                      <span class="usage-numbers">{{ usageLimits.quizzesUsed }} / {{ usageLimits.quizzesLimit }}</span>
+                    </div>
+                    <div class="progress-bar">
+                      <div 
+                        class="progress-fill" 
+                        :style="{ width: getUsagePercentage(usageLimits.quizzesUsed, usageLimits.quizzesLimit) + '%' }"
+                        :class="{ warning: getUsagePercentage(usageLimits.quizzesUsed, usageLimits.quizzesLimit) > 80 }"
+                      ></div>
+                    </div>
                   </div>
-                  <div class="usage-bar">
-                    <div 
-                      class="usage-fill" 
-                      :style="{ width: getUsagePercentage(usageLimits.quizzesUsed, usageLimits.quizzesLimit) + '%' }"
-                      :class="{ warning: getUsagePercentage(usageLimits.quizzesUsed, usageLimits.quizzesLimit) > 80 }"
-                    ></div>
-                  </div>
-                </div>
 
-                <!-- Summaries Used -->
-                <div class="usage-item">
-                  <div class="usage-header">
-                    <span class="usage-label">AI Summaries</span>
-                    <span class="usage-count">{{ usageLimits.summariesUsed }} / {{ usageLimits.summariesLimit }}</span>
+                  <div class="usage-row">
+                    <div class="usage-info">
+                      <span class="usage-name">AI Summaries</span>
+                      <span class="usage-numbers">{{ usageLimits.summariesUsed }} / {{ usageLimits.summariesLimit }}</span>
+                    </div>
+                    <div class="progress-bar">
+                      <div 
+                        class="progress-fill" 
+                        :style="{ width: getUsagePercentage(usageLimits.summariesUsed, usageLimits.summariesLimit) + '%' }"
+                        :class="{ warning: getUsagePercentage(usageLimits.summariesUsed, usageLimits.summariesLimit) > 80 }"
+                      ></div>
+                    </div>
                   </div>
-                  <div class="usage-bar">
-                    <div 
-                      class="usage-fill" 
-                      :style="{ width: getUsagePercentage(usageLimits.summariesUsed, usageLimits.summariesLimit) + '%' }"
-                      :class="{ warning: getUsagePercentage(usageLimits.summariesUsed, usageLimits.summariesLimit) > 80 }"
-                    ></div>
-                  </div>
-                </div>
-
-                <!-- Question Types -->
-                <div class="usage-item">
-                  <div class="usage-header">
-                    <span class="usage-label">Question Types Available</span>
-                    <span class="usage-count">{{ usageLimits.questionTypesAvailable }}</span>
-                  </div>
-                  <p class="usage-note">Upgrade to unlock all question types including Mixed mode</p>
                 </div>
               </div>
-            </div>
 
-            <!-- Plan Features -->
-            <div class="setting-group">
-              <div class="setting-label">
-                <h3>Plan Features</h3>
-                <p>What's included in your current plan</p>
-              </div>
-              <div class="features-list-settings">
-                <div class="feature-item">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="20,6 9,17 4,12"/>
-                  </svg>
-                  <span>Up to 20 questions per quiz</span>
-                </div>
-                <div class="feature-item">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="20,6 9,17 4,12"/>
-                  </svg>
-                  <span>Up to 2 question types per quiz</span>
-                </div>
-                <div class="feature-item">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="20,6 9,17 4,12"/>
-                  </svg>
-                  <span>Basic AI analysis</span>
-                </div>
-                <div class="feature-item">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="20,6 9,17 4,12"/>
-                  </svg>
-                  <span>Standard processing speed</span>
+              <!-- Features -->
+              <div class="features-section">
+                <h4>Plan Features</h4>
+                <div class="feature-list">
+                  <div class="feature">
+                    <svg class="check-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    <span>Up to 20 questions per quiz</span>
+                  </div>
+                  <div class="feature">
+                    <svg class="check-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    <span>{{ usageLimits.questionTypesAvailable }} question types available</span>
+                  </div>
+                  <div class="feature">
+                    <svg class="check-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    <span>Basic AI analysis</span>
+                  </div>
+                  <div class="feature">
+                    <svg class="check-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    <span>Standard processing speed</span>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
+        </section>
 
-          <!-- General Settings -->
-          <div class="settings-panel">
-            <div class="panel-header">
-              <h2>General Settings</h2>
-              <p>Customize your app experience</p>
+        <!-- Preferences Section -->
+        <section id="preferences-section" class="settings-section">
+          <div class="section-header">
+            <div class="section-icon preferences-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M12 1v6m0 6v6M5.64 5.64l4.24 4.24m4.24 4.24l4.24 4.24M1 12h6m6 0h6M5.64 18.36l4.24-4.24m4.24-4.24l4.24-4.24"/>
+              </svg>
             </div>
+            <div>
+              <h2>Preferences</h2>
+              <p>Customize your experience</p>
+            </div>
+          </div>
 
+          <div class="section-content">
             <!-- Theme Settings -->
-            <div class="setting-group">
-              <div class="setting-label">
-                <h3>Theme</h3>
-                <p>Choose your preferred color scheme</p>
+            <div class="preference-card">
+              <div class="preference-header">
+                <h3>Appearance</h3>
+                <p>Choose your preferred theme</p>
               </div>
-              <div class="theme-selector">
+              <div class="theme-grid">
                 <div 
                   v-for="theme in themes" 
                   :key="theme.value"
-                  class="theme-option"
+                  class="theme-card"
                   :class="{ active: currentTheme === theme.value }"
                   @click="updateTheme(theme.value)"
                 >
-                  <div class="theme-preview">
-                    <div class="preview-light" v-if="theme.value === 'light'"></div>
-                    <div class="preview-dark" v-else-if="theme.value === 'dark'"></div>
-                    <div class="preview-system" v-else></div>
+                  <div class="theme-visual">
+                    <div class="theme-preview-light" v-if="theme.value === 'light'">
+                      <div class="preview-header"></div>
+                      <div class="preview-body">
+                        <div class="preview-item"></div>
+                        <div class="preview-item"></div>
+                      </div>
+                    </div>
+                    <div class="theme-preview-dark" v-else-if="theme.value === 'dark'">
+                      <div class="preview-header"></div>
+                      <div class="preview-body">
+                        <div class="preview-item"></div>
+                        <div class="preview-item"></div>
+                      </div>
+                    </div>
+                    <div class="theme-preview-system" v-else>
+                      <div class="half-light"></div>
+                      <div class="half-dark"></div>
+                    </div>
                   </div>
-                  <span class="theme-label">{{ theme.label }}</span>
+                  <div class="theme-name">{{ theme.label }}</div>
+                  <div v-if="currentTheme === theme.value" class="active-indicator">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
+        </section>
 
-          <!-- Notification Settings -->
-          <div class="settings-panel">
-            <div class="panel-header">
-              <h2>Notifications</h2>
-              <p>Manage your email notification preferences</p>
+        <!-- Notifications Section -->
+        <section id="notifications-section" class="settings-section">
+          <div class="section-header">
+            <div class="section-icon notifications-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+              </svg>
             </div>
+            <div>
+              <h2>Notifications</h2>
+              <p>Manage how you receive updates</p>
+            </div>
+          </div>
 
-            <div class="setting-group">
-              <div class="setting-label">
-                <h3>Email Notifications</h3>
-                <p>Receive email updates about your quizzes and account</p>
-              </div>
-              <div class="toggle-container">
-                <label class="toggle-switch">
+          <div class="section-content">
+            <div class="notification-card">
+              <div class="notification-item">
+                <div class="notification-info">
+                  <h4>Email Notifications</h4>
+                  <p>Receive email updates about your account and quizzes</p>
+                </div>
+                <label class="switch">
                   <input 
                     type="checkbox" 
                     v-model="notificationPreferences.emailNotifications"
                     @change="updateNotificationPreferences"
                   />
-                  <span class="toggle-slider"></span>
+                  <span class="slider"></span>
                 </label>
-                <span class="toggle-label">
-                  {{ notificationPreferences.emailNotifications ? 'Enabled' : 'Disabled' }}
-                </span>
               </div>
-            </div>
 
-            <div class="setting-group">
-              <div class="setting-label">
-                <h3>Quiz Reminders</h3>
-                <p>Get reminded about incomplete quizzes</p>
-              </div>
-              <div class="toggle-container">
-                <label class="toggle-switch">
+              <div class="notification-item">
+                <div class="notification-info">
+                  <h4>Quiz Reminders</h4>
+                  <p>Get notified about incomplete quizzes</p>
+                </div>
+                <label class="switch">
                   <input 
                     type="checkbox" 
                     v-model="notificationPreferences.quizReminders"
                     @change="updateNotificationPreferences"
                     :disabled="!notificationPreferences.emailNotifications"
                   />
-                  <span class="toggle-slider"></span>
+                  <span class="slider"></span>
                 </label>
-                <span class="toggle-label">
-                  {{ notificationPreferences.quizReminders ? 'Enabled' : 'Disabled' }}
-                </span>
               </div>
-            </div>
 
-            <div class="setting-group">
-              <div class="setting-label">
-                <h3>Weekly Digest</h3>
-                <p>Receive a weekly summary of your quiz activity</p>
-              </div>
-              <div class="toggle-container">
-                <label class="toggle-switch">
+              <div class="notification-item">
+                <div class="notification-info">
+                  <h4>Weekly Digest</h4>
+                  <p>Receive a weekly summary of your activity</p>
+                </div>
+                <label class="switch">
                   <input 
                     type="checkbox" 
                     v-model="notificationPreferences.weeklyDigest"
                     @change="updateNotificationPreferences"
                     :disabled="!notificationPreferences.emailNotifications"
                   />
-                  <span class="toggle-slider"></span>
+                  <span class="slider"></span>
                 </label>
-                <span class="toggle-label">
-                  {{ notificationPreferences.weeklyDigest ? 'Enabled' : 'Disabled' }}
-                </span>
               </div>
             </div>
           </div>
+        </section>
 
-          <!-- Security Settings -->
-          <div class="settings-panel">
-            <div class="panel-header">
-              <h2>Security</h2>
-              <p>Manage your account security and password</p>
+        <!-- Security Section -->
+        <section id="security-section" class="settings-section">
+          <div class="section-header">
+            <div class="section-icon security-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
             </div>
+            <div>
+              <h2>Security</h2>
+              <p>Protect your account with a strong password</p>
+            </div>
+          </div>
 
-            <div class="setting-group">
-              <div class="setting-label">
-                <h3>Change Password</h3>
-                <p>Update your account password for better security</p>
-              </div>
-              
-              <form @submit.prevent="updatePassword" class="password-form">
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="currentPassword">Current Password</label>
-                    <input
-                      id="currentPassword"
-                      v-model="passwordForm.currentPassword"
-                      type="password"
-                      placeholder="Enter your current password"
-                      required
-                    />
-                  </div>
+          <div class="section-content">
+            <div class="security-card">
+              <form @submit.prevent="updatePassword" class="password-update-form">
+                <div class="input-group">
+                  <label for="currentPassword">Current Password</label>
+                  <input
+                    id="currentPassword"
+                    v-model="passwordForm.currentPassword"
+                    type="password"
+                    class="input-field"
+                    placeholder="Enter your current password"
+                    required
+                  />
                 </div>
-                
-                <div class="form-row">
-                  <div class="form-group">
+
+                <div class="input-row">
+                  <div class="input-group">
                     <label for="newPassword">New Password</label>
                     <input
                       id="newPassword"
                       v-model="passwordForm.newPassword"
                       type="password"
-                      placeholder="Enter your new password"
+                      class="input-field"
+                      placeholder="Enter new password"
                       minlength="6"
                       required
                     />
                   </div>
-                  <div class="form-group">
-                    <label for="confirmPassword">Confirm Password</label>
+                  <div class="input-group">
+                    <label for="confirmPassword">Confirm New Password</label>
                     <input
                       id="confirmPassword"
                       v-model="passwordForm.confirmPassword"
                       type="password"
-                      placeholder="Confirm your new password"
+                      class="input-field"
+                      placeholder="Confirm new password"
                       required
                     />
                   </div>
                 </div>
-                
+
                 <button 
                   type="submit" 
-                  class="btn primary"
+                  class="btn-primary"
                   :disabled="isUpdatingPassword"
                 >
                   <BeatLoader
                     v-if="isUpdatingPassword"
                     :loading="true"
                     color="#ffffff"
-                    size="12px"
+                    size="10px"
                   />
                   <span v-else>Update Password</span>
                 </button>
               </form>
             </div>
           </div>
+        </section>
 
-          <!-- Danger Zone -->
-          <div class="settings-panel danger-zone">
-            <div class="panel-header">
-              <h2>Danger Zone</h2>
-              <p>Irreversible actions that will permanently affect your account</p>
+        <!-- Danger Zone Section -->
+        <section id="danger-section" class="settings-section danger-section">
+          <div class="section-header">
+            <div class="section-icon danger-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
             </div>
+            <div>
+              <h2>Danger Zone</h2>
+              <p>Irreversible and destructive actions</p>
+            </div>
+          </div>
 
-            <div class="setting-group">
-              <div class="danger-info">
-                <div class="danger-icon">⚠️</div>
-                <div class="danger-content">
-                  <h3>Delete Account</h3>
-                  <p>Permanently delete your account and all associated data. This action cannot be undone and will remove all your quizzes, files, and account information.</p>
+          <div class="section-content">
+            <div class="danger-card">
+              <div class="danger-warning">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/>
+                  <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                <div>
+                  <h4>Delete Account</h4>
+                  <p>Once you delete your account, there is no going back. All your quizzes, files, and data will be permanently removed.</p>
                 </div>
               </div>
               <button 
-                class="btn danger"
+                class="btn-danger"
                 @click="openDeleteModal"
                 :disabled="isDeletingAccount"
               >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                  <line x1="10" y1="11" x2="10" y2="17"/>
+                  <line x1="14" y1="11" x2="14" y2="17"/>
+                </svg>
                 Delete Account
               </button>
             </div>
           </div>
-        </div>
-      </div>
-
-      <!-- Account Deletion Confirmation Modal -->
-      <ConfirmModal
-        v-model="showDeleteModal"
-        title="Delete Account"
-        :message="`This action cannot be undone. This will permanently delete your account and remove all data from our servers.`"
-        confirm-text="Delete Account"
-        cancel-text="Cancel"
-        :confirm-disabled="deleteConfirmation !== 'DELETE'"
-        @confirm="deleteAccount"
-        @cancel="closeDeleteModal"
-      >
-        <template #customContent>
-          <div class="delete-confirmation">
-            <label for="deleteConfirmation">Type 'DELETE' to confirm:</label>
-            <input
-              id="deleteConfirmation"
-              v-model="deleteConfirmation"
-              type="text"
-              placeholder="DELETE"
-              class="delete-input"
-              @keyup.enter="deleteConfirmation === 'DELETE' && deleteAccount()"
-            />
-          </div>
-        </template>
-      </ConfirmModal>
+        </section>
+      </main>
     </div>
-  </div>
+
+    <!-- Delete Confirmation Modal -->
+    <ConfirmModal
+      v-model="showDeleteModal"
+      title="Delete Account"
+      :message="`This action cannot be undone. This will permanently delete your account and remove all data from our servers.`"
+      confirm-text="Delete Account"
+      cancel-text="Cancel"
+      :confirm-disabled="deleteConfirmation !== 'DELETE'"
+      @confirm="deleteAccount"
+      @cancel="closeDeleteModal"
+    >
+      <template #customContent>
+        <div class="delete-confirmation">
+          <label for="deleteConfirmation">Type <strong>DELETE</strong> to confirm:</label>
+          <input
+            id="deleteConfirmation"
+            v-model="deleteConfirmation"
+            type="text"
+            placeholder="DELETE"
+            class="delete-input"
+            @keyup.enter="deleteConfirmation === 'DELETE' && deleteAccount()"
+          />
+        </div>
+      </template>
+    </ConfirmModal>
+  </AppShell>
 </template>
 
 <style scoped>
@@ -1017,406 +1175,967 @@ function formatTimeSpent(minutes) {
   box-sizing: border-box;
 }
 
-.layout {
+/* Loading State */
+.loading-container {
   display: flex;
-  max-height: 100vh;
-  background: #f8fafc;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
 }
 
-.content {
-  flex: 1;
-  padding: 0;
-  overflow-y: auto;
-  background: #f8fafc;
-  scrollbar-width: none; 
-  -ms-overflow-style: none;
-  max-width: none;
-  margin-left: 40px;
+/* Main Layout */
+.settings-wrapper {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 40px;
+  min-height: calc(100vh - 200px);
 }
 
-.content::-webkit-scrollbar {
-  display: none; 
+/* Sidebar Navigation */
+.settings-sidebar {
+  position: sticky;
+  top: 100px;
+  height: fit-content;
 }
 
-.header {
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: white;
+  border-radius: 16px;
+  padding: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e5e7eb;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
   background: transparent;
-  color: #1f2937;
-  padding: 40px 32px;
-  margin-bottom: 0;
+  border: none;
+  border-radius: 10px;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+  width: 100%;
 }
 
-.header-content h1 {
-  margin: 0 0 8px;
-  font-size: 32px;
-  font-weight: 700;
-  color: #1f2937;
+.nav-item:hover {
+  background: #f8fafc;
+  color: #334155;
 }
 
-.subtitle {
-  margin: 0;
-  color: #6b7280;
-  font-size: 16px;
-  font-weight: 400;
+.nav-item.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.25);
 }
 
-/* Settings Content */
-.settings-content {
+.nav-item svg {
+  flex-shrink: 0;
+}
+
+/* Main Content Area */
+.settings-main {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+/* Section Styles */
+.settings-section {
+  background: white;
+  border-radius: 20px;
   padding: 32px;
-  margin: 0 auto;
-  box-sizing: border-box;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e5e7eb;
+  scroll-margin-top: 100px;
 }
 
-/* Settings Panels */
-.settings-panels {
+.section-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 2px solid #f1f5f9;
+}
+
+.section-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.profile-icon {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.subscription-icon {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+}
+
+.preferences-icon {
+  background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+  color: white;
+}
+
+.notifications-icon {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  color: white;
+}
+
+.security-icon {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+}
+
+.danger-icon {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+}
+
+.section-header h2 {
+  margin: 0 0 8px;
+  font-size: 28px;
+  font-weight: 700;
+  color: #1e293b;
+  letter-spacing: -0.5px;
+}
+
+.section-header p {
+  margin: 0;
+  color: #64748b;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.section-content {
   display: flex;
   flex-direction: column;
   gap: 24px;
 }
 
-.settings-panel {
-  background: white;
+/* Profile Card Styles */
+.profile-card {
+  background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
   border-radius: 16px;
-  padding: 32px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
   border: 1px solid #e5e7eb;
-  box-sizing: border-box;
 }
 
-.panel-header {
-  margin-bottom: 32px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid #e5e7eb;
+.profile-main {
+  display: flex;
+  gap: 32px;
+  padding: 32px;
+  align-items: flex-start;
 }
 
-.panel-header h2 {
-  margin: 0 0 8px;
-  font-size: 24px;
-  font-weight: 600;
-  color: #1f2937;
-}
-
-.panel-header p {
-  margin: 0;
-  color: #6b7280;
-  font-size: 16px;
-}
-
-/* Setting Groups */
-.setting-group {
-  margin-bottom: 32px;
-}
-
-.setting-group:last-child {
-  margin-bottom: 0;
-}
-
-.setting-label {
-  margin-bottom: 16px;
-}
-
-.setting-label h3 {
-  margin: 0 0 4px;
-  font-size: 18px;
-  font-weight: 600;
-  color: #1f2937;
-}
-
-.setting-label p {
-  margin: 0;
-  color: #6b7280;
-  font-size: 14px;
-}
-
-/* Theme Selector */
-.theme-selector {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 16px;
-}
-
-.theme-option {
+.profile-avatar-container {
   display: flex;
   flex-direction: column;
+  gap: 16px;
   align-items: center;
-  padding: 20px;
-  border: 2px solid #e5e7eb;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  background: #ffffff;
+}
+
+.profile-avatar {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 4px solid white;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   position: relative;
 }
 
-.theme-option:hover {
-  border-color: #667eea;
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 48px;
+  font-weight: 700;
+}
+
+.avatar-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.file-input {
+  display: none;
+}
+
+.avatar-upload-btn,
+.avatar-delete-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.avatar-upload-btn {
+  background: #667eea;
+  color: white;
+}
+
+.avatar-upload-btn:hover {
+  background: #5a67d8;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.avatar-delete-btn {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+.avatar-delete-btn:hover:not(:disabled) {
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+.avatar-delete-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.profile-details {
+  flex: 1;
+}
+
+.details-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.username {
+  font-size: 32px;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0;
+  letter-spacing: -0.5px;
+}
+
+.email {
+  font-size: 16px;
+  color: #64748b;
+  margin: 0;
+}
+
+.bio {
+  font-size: 15px;
+  color: #475569;
+  line-height: 1.7;
+  margin: 8px 0 0;
+}
+
+.bio.placeholder {
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.details-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.stats-container {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: #e5e7eb;
+  border-top: 1px solid #e5e7eb;
+}
+
+.stat-item {
+  background: white;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-divider {
+  width: 1px;
+  background: #e5e7eb;
+}
+
+/* Info Cards */
+.info-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.info-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
   background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  transition: all 0.2s ease;
+}
+
+.info-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.info-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  flex-shrink: 0;
+}
+
+.info-content {
+  flex: 1;
+}
+
+.info-label {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.info-value {
+  font-size: 16px;
+  color: #1e293b;
+  font-weight: 600;
+}
+
+/* Subscription / Plan Card */
+.plan-card {
+  background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+  border-radius: 16px;
+  padding: 32px;
+  border: 1px solid #e5e7eb;
+}
+
+.plan-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 2px solid #f1f5f9;
+}
+
+.plan-badge {
+  display: inline-block;
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 1px;
+  margin-bottom: 12px;
+}
+
+.plan-badge.free {
+  background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
+  color: white;
+}
+
+.plan-badge.pro,
+.plan-badge.premium {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+}
+
+.plan-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 8px;
+}
+
+.plan-description {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0;
+}
+
+.btn-upgrade {
+  white-space: nowrap;
+}
+
+.usage-section {
+  margin-bottom: 32px;
+}
+
+.usage-section h4 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 20px;
+}
+
+.usage-items {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.usage-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.usage-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.usage-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.usage-numbers {
+  font-size: 14px;
+  font-weight: 700;
+  color: #667eea;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  border-radius: 8px;
+  transition: width 0.3s ease;
+}
+
+.progress-fill.warning {
+  background: linear-gradient(90deg, #f59e0b 0%, #ef4444 100%);
+}
+
+.features-section h4 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 16px;
+}
+
+.feature-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 12px;
+}
+
+.feature {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: white;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  font-size: 14px;
+  color: #475569;
+}
+
+.check-icon {
+  color: #10b981;
+  flex-shrink: 0;
+}
+
+/* Preference Card (Theme Selector) */
+.preference-card {
+  background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+  border-radius: 16px;
+  padding: 28px;
+  border: 1px solid #e5e7eb;
+}
+
+.preference-header {
+  margin-bottom: 24px;
+}
+
+.preference-header h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 8px;
+}
+
+.preference-header p {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0;
+}
+
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.theme-card {
+  position: relative;
+  padding: 20px;
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.theme-card:hover {
+  border-color: #667eea;
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
 }
 
-.theme-option.active {
+.theme-card.active {
   border-color: #667eea;
-  background: #f0f4ff;
+  background: #f8fafc;
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-  transform: translateY(-2px);
 }
 
-.theme-preview {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  margin-bottom: 12px;
-  position: relative;
+.theme-visual {
+  width: 100%;
+  height: 80px;
+  border-radius: 8px;
   overflow: hidden;
-  border: 2px solid #e5e7eb;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-bottom: 12px;
+  border: 1px solid #e5e7eb;
 }
 
-.preview-light {
+.theme-preview-light,
+.theme-preview-dark {
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  display: flex;
+  flex-direction: column;
 }
 
-.preview-dark {
+.theme-preview-light .preview-header {
+  height: 20px;
+  background: #f1f5f9;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.theme-preview-light .preview-body {
+  flex: 1;
+  background: white;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.theme-preview-light .preview-item {
+  height: 12px;
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+.theme-preview-dark .preview-header {
+  height: 20px;
+  background: #1e293b;
+  border-bottom: 1px solid #334155;
+}
+
+.theme-preview-dark .preview-body {
+  flex: 1;
+  background: #0f172a;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.theme-preview-dark .preview-item {
+  height: 12px;
+  background: #1e293b;
+  border-radius: 4px;
+}
+
+.theme-preview-system {
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
 }
 
-.preview-system {
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(135deg, #ffffff 0%, #0f172a 100%);
-  position: relative;
+.half-light {
+  background: white;
 }
 
-.preview-system::after {
-  content: '⚙️';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 18px;
+.half-dark {
+  background: #0f172a;
 }
 
-.theme-label {
+.theme-name {
   font-size: 14px;
   font-weight: 600;
-  color: #374151;
+  color: #475569;
+  text-align: center;
 }
 
-.theme-option.active .theme-label {
+.theme-card.active .theme-name {
   color: #667eea;
 }
 
-/* Toggle Switch */
-.toggle-container {
+.active-indicator {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 24px;
+  height: 24px;
+  background: #667eea;
+  border-radius: 50%;
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  color: white;
 }
 
-.toggle-switch {
+/* Notification Card */
+.notification-card {
+  background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+  border-radius: 16px;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+}
+
+.notification-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px 28px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.notification-item:last-child {
+  border-bottom: none;
+}
+
+.notification-info {
+  flex: 1;
+}
+
+.notification-info h4 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 6px;
+}
+
+.notification-info p {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Toggle Switch */
+.switch {
   position: relative;
   display: inline-block;
   width: 52px;
   height: 28px;
 }
 
-.toggle-switch input {
+.switch input {
   opacity: 0;
   width: 0;
   height: 0;
 }
 
-.toggle-slider {
+.slider {
   position: absolute;
   cursor: pointer;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: #ccc;
+  background-color: #cbd5e1;
   transition: 0.3s;
   border-radius: 28px;
 }
 
-.toggle-slider:before {
+.slider:before {
   position: absolute;
   content: "";
-  height: 20px;
-  width: 20px;
-  left: 4px;
-  bottom: 4px;
+  height: 22px;
+  width: 22px;
+  left: 3px;
+  bottom: 3px;
   background-color: white;
   transition: 0.3s;
   border-radius: 50%;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-input:checked + .toggle-slider {
-  background-color: #667eea;
+input:checked + .slider {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
-input:checked + .toggle-slider:before {
+input:checked + .slider:before {
   transform: translateX(24px);
 }
 
-input:disabled + .toggle-slider {
-  opacity: 0.5;
+input:disabled + .slider {
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
-.toggle-label {
-  font-weight: 500;
-  color: #374151;
+/* Security Card & Forms */
+.security-card,
+.danger-card {
+  background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+  border-radius: 16px;
+  padding: 28px;
+  border: 1px solid #e5e7eb;
+}
+
+.password-update-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.input-group label {
   font-size: 14px;
+  font-weight: 600;
+  color: #475569;
 }
 
-/* Password Form */
-.password-form {
-  max-width: 600px;
+.input-field {
+  padding: 12px 16px;
+  border: 2px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 15px;
+  color: #1e293b;
+  background: white;
+  transition: all 0.2s ease;
 }
 
-.form-row {
+.input-field:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+}
+
+.input-field.textarea {
+  resize: vertical;
+  min-height: 80px;
+  font-family: inherit;
+  line-height: 1.6;
+}
+
+.input-field:disabled {
+  background: #f1f5f9;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.input-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
-  margin-bottom: 20px;
-}
-
-.form-row:first-child {
-  grid-template-columns: 1fr;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-}
-
-.form-group label {
-  margin-bottom: 8px;
-  font-weight: 600;
-  color: #374151;
-  font-size: 14px;
-}
-
-.form-group input {
-  padding: 12px 16px;
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
-  font-size: 14px;
-  transition: all 0.2s ease;
-  background: #ffffff;
-  color: #374151;
-  box-sizing: border-box;
-  width: 100%;
-}
-
-.form-group input:focus {
-  outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-/* Danger Zone */
-.danger-zone {
-  border-color: #fecaca;
-  background: #fef2f2;
-}
-
-.danger-zone .panel-header h2 {
-  color: #dc2626;
-}
-
-.danger-zone .panel-header p {
-  color: #991b1b;
-}
-
-.danger-info {
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  margin-bottom: 24px;
-  padding: 20px;
-  background: #ffffff;
-  border: 1px solid #fecaca;
-  border-radius: 12px;
-}
-
-.danger-icon {
-  font-size: 24px;
-  flex-shrink: 0;
-}
-
-.danger-content h3 {
-  margin: 0 0 8px;
-  font-size: 18px;
-  font-weight: 600;
-  color: #dc2626;
-}
-
-.danger-content p {
-  margin: 0;
-  color: #991b1b;
-  font-size: 14px;
-  line-height: 1.5;
 }
 
 /* Buttons */
-.btn {
+.btn-primary,
+.btn-secondary,
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   padding: 12px 24px;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
   border: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
   min-height: 44px;
-  text-decoration: none;
 }
 
-.btn:disabled {
+.btn-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.25);
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.35);
+}
+
+.btn-primary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+  transform: none;
 }
 
-.btn.primary {
-  background: #667eea;
-  color: #ffffff;
-  box-shadow: 0 2px 4px rgba(102, 126, 234, 0.2);
+.btn-secondary {
+  background: #f1f5f9;
+  color: #475569;
+  border: 2px solid #e5e7eb;
 }
 
-.btn.primary:hover:not(:disabled) {
-  background: #5a67d8;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-  transform: translateY(-1px);
+.btn-secondary:hover:not(:disabled) {
+  background: #e2e8f0;
+  border-color: #cbd5e1;
 }
 
-.btn.danger {
-  background: #dc2626;
-  color: #ffffff;
-  box-shadow: 0 2px 4px rgba(220, 38, 38, 0.2);
+.btn-danger {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);
 }
 
-.btn.danger:hover:not(:disabled) {
-  background: #b91c1c;
-  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
-  transform: translateY(-1px);
+.btn-danger:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.35);
+}
+
+.button-group {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+/* Danger Section Styles */
+.danger-section {
+  border: 2px solid #fecaca !important;
+  background: #fef2f2 !important;
+}
+
+.danger-section .section-header {
+  border-color: #fecaca;
+}
+
+.danger-section .section-header h2 {
+  color: #dc2626;
+}
+
+.danger-section .section-header p {
+  color: #b91c1c;
+}
+
+.danger-card {
+  background: white !important;
+  border: 2px solid #fecaca !important;
+}
+
+.danger-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px;
+  background: #fef2f2;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  border: 1px solid #fecaca;
+}
+
+.danger-warning svg {
+  color: #dc2626;
+  flex-shrink: 0;
+}
+
+.danger-warning h4 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #dc2626;
+  margin: 0 0 8px;
+}
+
+.danger-warning p {
+  font-size: 14px;
+  color: #991b1b;
+  margin: 0;
+  line-height: 1.6;
 }
 
 /* Delete Confirmation Modal */
 .delete-confirmation {
-  margin-top: 16px;
-  padding: 16px;
+  margin-top: 20px;
+  padding: 20px;
   background: #fef2f2;
-  border: 1px solid #fecaca;
-  border-radius: 8px;
+  border: 2px solid #fecaca;
+  border-radius: 12px;
 }
 
 .delete-confirmation label {
@@ -1427,159 +2146,365 @@ input:disabled + .toggle-slider {
   font-size: 14px;
 }
 
+.delete-confirmation label strong {
+  font-weight: 700;
+}
+
 .delete-input {
   width: 100%;
   padding: 12px 16px;
   border: 2px solid #fecaca;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 16px;
-  font-weight: 500;
-  background: #ffffff;
-  color: #374151;
+  font-weight: 600;
+  background: white;
+  color: #1e293b;
   transition: all 0.2s ease;
   box-sizing: border-box;
+  font-family: monospace;
 }
 
 .delete-input:focus {
   outline: none;
   border-color: #dc2626;
-  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.1);
 }
 
 .delete-input::placeholder {
-  color: #9ca3af;
-  font-weight: 400;
+  color: #cbd5e1;
+  font-weight: 500;
 }
 
-/* Loading State */
-.loading {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 200px;
+/* Responsive Styles */
+@media (max-width: 1200px) {
+  .settings-wrapper {
+    grid-template-columns: 240px 1fr;
+    gap: 32px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .settings-wrapper {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .settings-sidebar {
+    position: static;
+  }
+
+  .settings-nav {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 8px;
+  }
+
+  .stats-container {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .input-row {
+    grid-template-columns: 1fr;
+  }
+
+  .theme-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+}
+
+@media (max-width: 768px) {
+  .settings-section {
+    padding: 24px 20px;
+  }
+
+  .section-header {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .section-icon {
+    width: 48px;
+    height: 48px;
+  }
+
+  .section-header h2 {
+    font-size: 24px;
+  }
+
+  .profile-main {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 24px;
+  }
+
+  .stats-container {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .info-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .plan-header {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .btn-upgrade {
+    width: 100%;
+  }
+
+  .theme-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .feature-list {
+    grid-template-columns: 1fr;
+  }
+
+  .button-group {
+    flex-direction: column-reverse;
+  }
+
+  .button-group .btn-primary,
+  .button-group .btn-secondary {
+    width: 100%;
+  }
+
+  .details-view .btn-secondary {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .settings-nav {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-section {
+    padding: 20px 16px;
+    border-radius: 16px;
+  }
+
+  .section-header h2 {
+    font-size: 22px;
+  }
+
+  .username {
+    font-size: 24px;
+  }
+
+  .stats-container {
+    grid-template-columns: 1fr;
+  }
+
+  .avatar-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .avatar-upload-btn,
+  .avatar-delete-btn {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 /* Dark Mode Styles */
-body.dark {
-  background: #0f172a;
-}
-
-body.dark .content {
-  background: #0f172a;
-}
-
-/* Ensure the page wrapper matches dark background to avoid light gutters */
-body.dark .layout {
-  background: #0f172a;
-}
-
-body.dark .header-content h1 {
-  color: #e2e8f0;
-}
-
-body.dark .subtitle {
-  color: #94a3b8;
-}
-
-
-body.dark .settings-panel {
+body.dark .settings-nav {
   background: #1e293b;
   border-color: #334155;
 }
 
-body.dark .panel-header {
-  border-color: #334155;
+body.dark .nav-item {
+  color: #cbd5e1;
 }
 
-body.dark .panel-header h2 {
+body.dark .nav-item:hover {
+  background: #334155;
   color: #e2e8f0;
 }
 
-body.dark .panel-header p {
-  color: #94a3b8;
+body.dark .nav-item.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
 }
 
-body.dark .setting-label h3 {
-  color: #e2e8f0;
-}
-
-body.dark .setting-label p {
-  color: #94a3b8;
-}
-
-body.dark .theme-option {
+body.dark .settings-section {
   background: #1e293b;
   border-color: #334155;
 }
 
-body.dark .theme-option:hover {
+body.dark .section-header {
+  border-color: #334155;
+}
+
+body.dark .section-header h2 {
+  color: #e2e8f0;
+}
+
+body.dark .section-header p {
+  color: #94a3b8;
+}
+
+body.dark .profile-card,
+body.dark .plan-card,
+body.dark .preference-card,
+body.dark .notification-card,
+body.dark .security-card {
+  background: linear-gradient(135deg, #1e293b 0%, #1e293b 100%) !important;
+  border-color: #334155;
+}
+
+body.dark .username {
+  color: #e2e8f0;
+}
+
+body.dark .email {
+  color: #94a3b8;
+}
+
+body.dark .bio {
+  color: #cbd5e1;
+}
+
+body.dark .stat-item {
+  background: #1e293b;
+}
+
+body.dark .stat-value {
+  color: #e2e8f0;
+}
+
+body.dark .stat-label {
+  color: #94a3b8;
+}
+
+body.dark .info-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+body.dark .info-label {
+  color: #94a3b8;
+}
+
+body.dark .info-value {
+  color: #e2e8f0;
+}
+
+body.dark .plan-title,
+body.dark .usage-section h4,
+body.dark .features-section h4 {
+  color: #e2e8f0;
+}
+
+body.dark .plan-description,
+body.dark .usage-name {
+  color: #94a3b8;
+}
+
+body.dark .progress-bar {
   background: #334155;
 }
 
-body.dark .theme-option.active {
-  background: #1e40af;
-}
-
-body.dark .theme-label {
+body.dark .feature {
+  background: #1e293b;
+  border-color: #334155;
   color: #cbd5e1;
 }
 
-body.dark .theme-option.active .theme-label {
-  color: #a5b4fc;
+body.dark .preference-header h3,
+body.dark .notification-info h4 {
+  color: #e2e8f0;
 }
 
-body.dark .toggle-label {
+body.dark .preference-header p,
+body.dark .notification-info p {
+  color: #94a3b8;
+}
+
+body.dark .theme-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+body.dark .theme-card:hover {
+  border-color: #667eea;
+}
+
+body.dark .theme-card.active {
+  background: #334155;
+}
+
+body.dark .theme-name {
   color: #cbd5e1;
 }
 
-body.dark .form-group label {
+body.dark .theme-visual {
+  border-color: #334155;
+}
+
+body.dark .input-group label {
   color: #cbd5e1;
 }
 
-body.dark .form-group input {
+body.dark .input-field {
   background: #0f172a;
   border-color: #334155;
   color: #e2e8f0;
 }
 
-body.dark .form-group input:focus {
-  border-color: #7b86f2;
-  box-shadow: 0 0 0 3px rgba(123, 134, 242, 0.2);
+body.dark .input-field:focus {
+  border-color: #667eea;
+  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.2);
 }
 
-body.dark .danger-zone {
+body.dark .input-field:disabled {
+  background: #1e293b;
+  color: #64748b;
+}
+
+body.dark .slider {
+  background-color: #475569;
+}
+
+body.dark .danger-section {
+  background: #1f1419 !important;
+  border-color: #7f1d1d !important;
+}
+
+body.dark .danger-section .section-header h2 {
+  color: #f87171;
+}
+
+body.dark .danger-section .section-header p {
+  color: #fca5a5;
+}
+
+body.dark .danger-card {
+  background: #1e293b !important;
+  border-color: #7f1d1d !important;
+}
+
+body.dark .danger-warning {
   background: #1f1419;
   border-color: #7f1d1d;
 }
 
-body.dark .danger-zone .panel-header h2 {
+body.dark .danger-warning h4 {
   color: #f87171;
 }
 
-body.dark .danger-zone .panel-header p {
-  color: #fca5a5;
-}
-
-body.dark .danger-info {
-  background: #0f172a;
-  border-color: #7f1d1d;
-}
-
-body.dark .danger-content h3 {
-  color: #f87171;
-}
-
-body.dark .danger-content p {
+body.dark .danger-warning p {
   color: #fca5a5;
 }
 
 body.dark .delete-confirmation {
   background: #1f1419;
   border-color: #7f1d1d;
-}
-
-body.dark .delete-confirmation label {
-  color: #f87171;
 }
 
 body.dark .delete-input {
@@ -1590,635 +2515,7 @@ body.dark .delete-input {
 
 body.dark .delete-input:focus {
   border-color: #f87171;
-  box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.1);
-}
-
-body.dark .delete-input::placeholder {
-  color: #6b7280;
-}
-
-/* Profile Styles */
-.profile-header-inline {
-  display: flex;
-  gap: 32px;
-  align-items: flex-start;
-  margin-bottom: 24px;
-}
-
-.profile-picture-section {
-  flex-shrink: 0;
-}
-
-.profile-picture {
-  position: relative;
-  width: 120px;
-  height: 120px;
-  border-radius: 50%;
-  overflow: hidden;
-  border: 4px solid #e2e8f0;
-}
-
-.profile-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.profile-placeholder {
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 2rem;
-  font-weight: 600;
-}
-
-.profile-upload-input {
-  display: none;
-}
-
-.profile-upload-btn {
-  position: absolute;
-  bottom: 8px;
-  right: 8px;
-  background: #667eea;
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.profile-upload-btn:hover {
-  background: #5a67d8;
-  transform: scale(1.05);
-}
-
-.profile-delete-btn {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  background: #ef4444;
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.profile-delete-btn:hover:not(:disabled) {
-  background: #dc2626;
-  transform: scale(1.05);
-}
-
-.profile-delete-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.profile-info {
-  flex: 1;
-}
-
-.profile-display {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.profile-name {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #1e293b;
-  margin: 0;
-}
-
-.profile-email {
-  color: #64748b;
-  font-size: 1rem;
-  margin: 0;
-}
-
-.profile-bio {
-  color: #475569;
-  font-size: 1rem;
-  line-height: 1.5;
-  margin: 0;
-}
-
-.profile-bio.placeholder {
-  color: #94a3b8;
-  font-style: italic;
-}
-
-.edit-btn {
-  align-self: flex-start;
-  background: #667eea;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 12px 20px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.edit-btn:hover {
-  background: #5a67d8;
-  transform: translateY(-1px);
-}
-
-.profile-edit {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  width: 100%;
-}
-
-.form-help {
-  font-size: 0.75rem;
-  color: #6b7280;
-  margin-top: 4px;
-  display: block;
-}
-
-.form-input,
-.form-textarea {
-  padding: 12px 16px;
-  border: 2px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 1rem;
-  transition: all 0.2s ease;
-  background: white;
-  color: #1f2937;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.form-input:focus,
-.form-textarea:focus {
-  outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-.form-textarea {
-  resize: vertical;
-  min-height: 80px;
-}
-
-.form-actions {
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
-}
-
-.cancel-btn,
-.save-btn {
-  padding: 12px 24px;
-  border-radius: 8px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border: none;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.cancel-btn {
-  background: #f1f5f9;
-  color: #64748b;
-}
-
-.cancel-btn:hover {
-  background: #e2e8f0;
-}
-
-.save-btn {
-  background: #667eea;
-  color: white;
-}
-
-.save-btn:hover:not(:disabled) {
-  background: #5a67d8;
-  transform: translateY(-1px);
-}
-
-.save-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 24px;
-}
-
-.stat-card {
-  background: #f8fafc;
-  border-radius: 12px;
-  padding: 24px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  transition: all 0.2s ease;
-}
-
-.stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.stat-icon {
-  width: 48px;
-  height: 48px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  flex-shrink: 0;
-}
-
-.stat-content {
-  flex: 1;
-}
-
-.stat-number {
-  font-size: 1.875rem;
-  font-weight: 700;
-  color: #1e293b;
-  line-height: 1;
-  margin-bottom: 4px;
-}
-
-.stat-label {
-  font-size: 0.875rem;
-  color: #64748b;
-  font-weight: 500;
-}
-
-.info-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 20px;
-}
-
-.info-item {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 16px;
-  background: #f8fafc;
-  border-radius: 8px;
-}
-
-.info-label {
-  font-size: 0.875rem;
-  color: #64748b;
-  font-weight: 500;
-}
-
-.info-value {
-  font-size: 1rem;
-  color: #1e293b;
-  font-weight: 600;
-}
-
-/* Profile Dark Mode Styles */
-body.dark .profile-picture {
-  border-color: #1f2a44;
-}
-
-body.dark .profile-name {
-  color: #e5e7eb;
-}
-
-body.dark .profile-email {
-  color: #9ca3af;
-}
-
-body.dark .profile-bio {
-  color: #cbd5e1;
-}
-
-body.dark .profile-bio.placeholder {
-  color: #64748b;
-}
-
-body.dark .form-help {
-  color: #9ca3af;
-}
-
-body.dark .form-input,
-body.dark .form-textarea {
-  background: #0b1222;
-  border-color: #1f2a44;
-  color: #e5e7eb;
-}
-
-body.dark .form-input:focus,
-body.dark .form-textarea:focus {
-  border-color: #7b86f2;
-  box-shadow: 0 0 0 3px rgba(123, 134, 242, 0.2);
-}
-
-body.dark .cancel-btn {
-  background: #334155;
-  color: #cbd5e1;
-}
-
-body.dark .cancel-btn:hover {
-  background: #475569;
-}
-
-body.dark .stat-card {
-  background: #0b1222;
-  border: 1px solid #1f2a44;
-}
-
-body.dark .stat-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-}
-
-body.dark .stat-number {
-  color: #e5e7eb;
-}
-
-body.dark .stat-label {
-  color: #9ca3af;
-}
-
-body.dark .info-item {
-  background: #0b1222;
-  border: 1px solid #1f2a44;
-}
-
-body.dark .info-label {
-  color: #9ca3af;
-}
-
-body.dark .info-value {
-  color: #e5e7eb;
-}
-
-/* Usage & Limits Styles */
-.tier-badge-container {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.tier-badge {
-  display: inline-block;
-  padding: 8px 20px;
-  border-radius: 20px;
-  font-weight: 700;
-  font-size: 0.875rem;
-  letter-spacing: 0.05em;
-}
-
-.tier-badge.free {
-  background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
-  color: white;
-}
-
-.tier-badge.pro {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-}
-
-.tier-badge.premium {
-  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-  color: white;
-}
-
-.upgrade-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-weight: 600;
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.upgrade-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-}
-
-.upgrade-btn svg {
-  width: 16px;
-  height: 16px;
-}
-
-.usage-stats {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.usage-item {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.usage-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.usage-label {
-  font-weight: 600;
-  font-size: 0.9rem;
-  color: #334155;
-}
-
-body.dark .usage-label {
-  color: #e5e7eb;
-}
-
-.usage-count {
-  font-weight: 700;
-  font-size: 0.9rem;
-  color: #667eea;
-}
-
-.usage-bar {
-  width: 100%;
-  height: 8px;
-  background: #e2e8f0;
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-body.dark .usage-bar {
-  background: #1f2a44;
-}
-
-.usage-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-  border-radius: 4px;
-  transition: width 0.3s ease;
-}
-
-.usage-fill.warning {
-  background: linear-gradient(90deg, #f59e0b 0%, #ef4444 100%);
-}
-
-.usage-note {
-  font-size: 0.875rem;
-  color: #64748b;
-  margin: 0;
-}
-
-body.dark .usage-note {
-  color: #9ca3af;
-}
-
-.features-list-settings {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.feature-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  background: #f8fafc;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  color: #334155;
-}
-
-body.dark .feature-item {
-  background: #0b1222;
-  color: #e5e7eb;
-}
-
-.feature-item svg {
-  color: #28ca42;
-  flex-shrink: 0;
-}
-
-/* Responsive Design */
-@media (max-width: 1024px) {
-  .settings-content {
-    padding: 24px;
-  }
-  
-  .form-row {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 768px) {
-  .content {
-    padding: 0;
-  }
-  
-  .header {
-    padding: 24px 16px;
-  }
-  
-  .header-content h1 {
-    font-size: 28px;
-  }
-  
-  .settings-content {
-    padding: 16px;
-  }
-  
-  
-  .settings-panel {
-    padding: 24px;
-  }
-  
-  .theme-selector {
-    grid-template-columns: 1fr;
-  }
-  
-  .danger-info {
-    flex-direction: column;
-    text-align: center;
-  }
-  
-  .profile-header-inline {
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    gap: 24px;
-  }
-  
-  .profile-info {
-    width: 100%;
-  }
-  
-  .stats-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .info-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .form-actions {
-    flex-direction: column;
-  }
-  
-  .cancel-btn,
-  .save-btn {
-    width: 100%;
-    justify-content: center;
-  }
-}
-
-@media (max-width: 480px) {
-  .header-content h1 {
-    font-size: 24px;
-  }
-  
-  .settings-panel {
-    padding: 20px;
-  }
-  
-  .panel-header h2 {
-    font-size: 20px;
-  }
+  box-shadow: 0 0 0 4px rgba(248, 113, 113, 0.1);
 }
 
 </style>

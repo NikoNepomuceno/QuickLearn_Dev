@@ -1,69 +1,89 @@
 <template>
-	<div>
-		<!-- Search and Add Friends -->
-		<div class="search-container">
-			<div class="flex gap-2 mb-4">
-				<input 
-					v-model="query" 
-					@input="onSearch" 
-					@focus="showDropdown = true"
-					@blur="handleBlur"
-					type="text" 
-					placeholder="Search username to add friends..." 
-					style="flex:1;padding:10px;border:1px solid #e5e7eb;border-radius:10px;" 
-				/>
-			</div>
-			
-			<!-- Dropdown Results -->
-			<div v-if="showDropdown && query" class="search-dropdown">
-				<div v-if="loading" class="text-sm" style="color:#6b7280;padding:12px;">Searching…</div>
-				<div v-else-if="results.length === 0" class="text-sm" style="color:#6b7280;padding:12px;">No users found</div>
-				<div v-else>
-					<div 
-						v-for="u in results" 
-						:key="u.userId" 
-						class="dropdown-item"
-						@mousedown.prevent="sendRequest(u.userId)"
-					>
-						<div class="flex items-center gap-4">
-							<div class="avatar small">
-								<img v-if="u.profilePicture" :src="u.profilePicture" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />
-							</div>
-							<div>
-								<div class="font-semibold">{{ u.displayName }}</div>
-								<div class="text-sm" style="color:#6b7280">@{{ u.username }}</div>
-							</div>
-						</div>
-						<button class="btn">Add friend</button>
-					</div>
-				</div>
-			</div>
-		</div>
-		
-		<!-- Friends List -->
-		<div class="panel" style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin-bottom:12px;">
-			<h2 class="text-lg font-semibold" style="margin-bottom:8px;">My Friends</h2>
-			<div v-if="friendsLoading" class="text-sm" style="color:#6b7280">Loading…</div>
-			<div v-else-if="friends.length === 0" class="text-sm" style="color:#6b7280">You haven't added any friends yet.</div>
-			<div v-else>
-				<div v-for="f in friends" :key="f.userId" class="flex items-center justify-between" style="padding:10px 0;border-top:1px solid #f3f4f6;">
-					<div class="flex items-center gap-4">
-						<div class="avatar small">
-							<img v-if="f.profilePicture" :src="f.profilePicture" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />
-						</div>
-						<div>
-							<div class="font-semibold">{{ f.displayName }}</div>
-							<div class="text-sm" style="color:#6b7280">@{{ f.username }}</div>
-						</div>
-					</div>
-				</div>
-			</div>
-		</div>
-	</div>
+  <section class="friends-panel">
+    <div class="friends-panel__search">
+      <BaseInput
+        v-model="query"
+        placeholder="Search username to add friends..."
+        @focus="handleFocus"
+        @blur="handleBlur"
+        class="friends-panel__search-input"
+      >
+        <template #prefix>
+          <Search :size="16" aria-hidden="true" />
+        </template>
+      </BaseInput>
+
+      <div v-if="showDropdown && query" class="friends-panel__dropdown">
+        <div v-if="loading" class="friends-panel__empty">Searching…</div>
+        <div v-else-if="results.length === 0" class="friends-panel__empty">No users found</div>
+        <ul v-else class="friends-panel__results" role="listbox">
+          <li
+            v-for="u in results"
+            :key="u.userId"
+            class="friends-panel__result"
+          >
+            <div class="friends-panel__result-info">
+              <span class="avatar avatar--sm">
+                <template v-if="u.profilePicture">
+                  <img :src="u.profilePicture" alt="" />
+                </template>
+                <template v-else>
+                  {{ u.displayName.charAt(0).toUpperCase() }}
+                </template>
+              </span>
+              <div>
+                <div class="friends-panel__name">{{ u.displayName }}</div>
+                <div class="text-sm text-muted">@{{ u.username }}</div>
+              </div>
+            </div>
+            <BaseButton
+              variant="outline"
+              size="sm"
+              @mousedown.prevent="sendRequest(u.userId)"
+            >
+              <UserPlus :size="16" aria-hidden="true" />
+              <span>Add friend</span>
+            </BaseButton>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <BaseCard padding="md" class="friends-panel__card">
+      <template #title>My Friends</template>
+
+      <div v-if="friendsLoading" class="friends-panel__empty">Loading…</div>
+      <div v-else-if="friends.length === 0" class="friends-panel__empty">
+        You haven't added any friends yet.
+      </div>
+      <ul v-else class="friends-panel__list">
+        <li v-for="f in friends" :key="f.userId" class="friends-panel__item">
+          <div class="friends-panel__profile">
+            <span class="avatar avatar--sm">
+              <template v-if="f.profilePicture">
+                <img :src="f.profilePicture" alt="" />
+              </template>
+              <template v-else>
+                {{ f.displayName.charAt(0).toUpperCase() }}
+              </template>
+            </span>
+            <div>
+              <div class="friends-panel__name">{{ f.displayName }}</div>
+              <div class="text-sm text-muted">@{{ f.username }}</div>
+            </div>
+          </div>
+        </li>
+      </ul>
+    </BaseCard>
+  </section>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
+import BaseCard from '@/components/ui/BaseCard.vue'
+import BaseButton from '@/components/ui/BaseButton.vue'
+import BaseInput from '@/components/ui/BaseInput.vue'
+import { Search, UserPlus } from 'lucide-vue-next'
 import { searchUsers, sendFriendRequest, getFriends } from '../services/leaderboard.api'
 
 const query = ref('')
@@ -74,8 +94,24 @@ const showDropdown = ref(false)
 const friends = ref([])
 const friendsLoading = ref(false)
 
+let debounceTimer
+
 onMounted(async () => {
 	await loadFriends()
+})
+
+watch(query, () => {
+	clearTimeout(debounceTimer)
+	if (!query.value) {
+		results.value = []
+		loading.value = false
+		return
+	}
+	loading.value = true
+	debounceTimer = setTimeout(async () => {
+		results.value = await searchUsers(query.value)
+		loading.value = false
+	}, 300)
 })
 
 async function loadFriends() {
@@ -87,141 +123,158 @@ async function loadFriends() {
 	}
 }
 
-let t
-function onSearch() {
-	clearTimeout(t)
-	loading.value = true
-	t = setTimeout(async () => {
-		results.value = query.value ? await searchUsers(query.value) : []
-		loading.value = false
-	}, 300)
-}
-
 async function sendRequest(userId) {
 	await sendFriendRequest(userId)
-	// Close dropdown and clear search after sending request
 	showDropdown.value = false
 	query.value = ''
 	results.value = []
-	// Reload friends list
 	await loadFriends()
 }
 
 function handleBlur() {
-	// Delay to allow click event to fire first
 	setTimeout(() => {
 		showDropdown.value = false
-	}, 200)
+	}, 180)
+}
+
+function handleFocus() {
+	showDropdown.value = true
 }
 </script>
 
 <style scoped>
-.search-container {
-	position: relative;
+.friends-panel {
+  display: grid;
+  gap: var(--space-6);
 }
 
-.search-dropdown {
-	position: absolute;
-	top: 100%;
-	left: 0;
-	right: 0;
-	background: #fff;
-	border: 1px solid #e5e7eb;
-	border-radius: 12px;
-	box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-	max-height: 400px;
-	overflow-y: auto;
-	z-index: 50;
-	margin-top: 4px;
+.friends-panel__search {
+  position: relative;
+  display: grid;
+  gap: var(--space-2);
 }
 
-.dropdown-item {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	padding: 12px 16px;
-	border-bottom: 1px solid #f3f4f6;
-	cursor: pointer;
-	transition: background-color 0.15s;
+.friends-panel__search-input :deep(.base-input__control) {
+  padding-left: var(--space-2);
 }
 
-.dropdown-item:last-child {
-	border-bottom: none;
+.friends-panel__dropdown {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  left: 0;
+  right: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  max-height: 22rem;
+  overflow-y: auto;
+  z-index: 10;
 }
 
-.dropdown-item:hover {
-	background-color: #f9fafb;
+.friends-panel__results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-.btn {
-	padding: 8px 12px;
-	border: 1px solid #e5e7eb;
-	border-radius: 10px;
-	background: #ffffff;
-	cursor: pointer;
-	transition: all 0.2s;
-	color: #1f2937;
+.friends-panel__result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+  transition: background-color var(--transition-base);
 }
 
-.btn:hover {
-	background: linear-gradient(135deg, var(--primary-light), var(--primary-main));
-	color: #fff;
-	border-color: transparent;
+.friends-panel__result:last-child {
+  border-bottom: none;
 }
 
-.avatar.small {
-	width: 36px;
-	height: 36px;
-	border-radius: 50%;
-	border: 1px solid #e5e7eb;
+.friends-panel__result:hover {
+  background: rgba(148, 163, 184, 0.08);
 }
 
-/* Dark Mode */
-body.dark .panel {
-	background: #0f172a !important;
-	border-color: #1f2a44 !important;
+.friends-panel__result-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
 }
 
-body.dark h2 {
-	color: #e5e7eb;
+.friends-panel__name {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
 }
 
-body.dark .search-dropdown {
-	background: #0f172a;
-	border-color: #1f2a44;
-	box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5), 0 6px 12px rgba(0, 0, 0, 0.4);
+.friends-panel__empty {
+  padding: var(--space-4) var(--space-5);
+  text-align: center;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
 }
 
-body.dark .dropdown-item {
-	border-bottom-color: #1f2a44;
+.friends-panel__card :deep(h2) {
+  margin: 0;
+  font-size: var(--font-size-lg);
 }
 
-body.dark .dropdown-item:hover {
-	background-color: #1f2a44;
+.friends-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
-body.dark .btn {
-	background: #0b1222;
-	border-color: #1f2a44;
-	color: #e5e7eb;
+.friends-panel__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
 }
 
-body.dark .btn:hover {
-	background: linear-gradient(135deg, var(--primary-light), var(--primary-main));
-	color: #fff;
-	border-color: transparent;
+.friends-panel__item + .friends-panel__item {
+  padding-top: var(--space-3);
+  border-top: 1px solid rgba(226, 232, 240, 0.6);
 }
 
-body.dark .avatar.small {
-	border-color: #1f2a44;
+.friends-panel__profile {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
 }
 
-body.dark .text-sm {
-	color: #9ca3af !important;
+@media (max-width: 768px) {
+  .friends-panel__result {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .friends-panel__result > .base-button {
+    width: 100%;
+  }
 }
 
-body.dark .font-semibold {
-	color: #e5e7eb;
+body.dark .friends-panel__dropdown {
+  background: #0f172a;
+  border-color: #1f2a44;
+  box-shadow: var(--shadow-md);
+}
+
+body.dark .friends-panel__result {
+  border-bottom-color: #1f2a44;
+}
+
+body.dark .friends-panel__result:hover {
+  background: rgba(31, 41, 55, 0.75);
+}
+
+body.dark .friends-panel__empty {
+  color: var(--color-text-muted);
 }
 </style>
 

@@ -7,7 +7,9 @@ import PageSelectionModal from '../components/PageSelectionModal.vue'
 import GenerationTypeModal from '../components/GenerationTypeModal.vue'
 import QuizModeModal from '../components/QuizModeModal.vue'
 import SummarySuccessModal from '../components/SummarySuccessModal.vue'
-import Sidebar from '../components/Sidebar.vue'
+import AppShell from '@/components/layout/AppShell.vue'
+import BaseButton from '@/components/ui/BaseButton.vue'
+import BaseCard from '@/components/ui/BaseCard.vue'
 import { downloadQuizAsPDF } from '../services/quizService'
 import cloudQuizService from '../services/cloudQuizService'
 import { Upload, FileText, X, Lightbulb, Target, Copy } from 'lucide-vue-next'
@@ -38,6 +40,16 @@ const selectedGenerationType = ref('')
 const selectedQuizMode = ref('')
 const customInstructions = ref('')
 const generatedSummary = ref(null)
+const latestSummary = ref(null)
+const latestArtifact = computed(() => {
+  if (quiz.value) {
+    return { type: 'quiz', data: quiz.value }
+  }
+  if (latestSummary.value) {
+    return { type: 'summary', data: latestSummary.value }
+  }
+  return null
+})
 let progressTimer = null
 onMounted(() => {
   try {
@@ -126,6 +138,11 @@ function removeFile() {
   errorMessage.value = ''
   filePages.value = []
   filePageCount.value = 0
+  quiz.value = null
+  latestSummary.value = null
+  generatedSummary.value = null
+  shareLink.value = ''
+  showShareSuccess.value = false
 }
 
 async function handleFileUpload() {
@@ -147,7 +164,7 @@ async function handleFileUpload() {
     const parseResult = await cloudQuizService.parseFile(selectedFile.value)
     filePages.value = parseResult.pages || []
     filePageCount.value = parseResult.pageCount || 1
-    
+
     // Show generation type selection modal
     showGenerationTypeModal.value = true
   } catch (err) {
@@ -354,7 +371,7 @@ function handleQuizModeCancel() {
 function handleQuizModeConfirm(payload) {
   showQuizModeModal.value = false
   selectedQuizMode.value = payload.mode
-  
+
   // Show page selection modal after mode selection
   showPageSelectionModal.value = true
 }
@@ -363,7 +380,7 @@ function handleGenerationTypeConfirm(payload) {
   showGenerationTypeModal.value = false
   selectedGenerationType.value = payload.type
   customInstructions.value = payload.customInstructions
-  
+
   if (payload.type === 'quiz') {
     // Show quiz mode selection modal first
     showQuizModeModal.value = true
@@ -380,7 +397,7 @@ function handlePageSelectionCancel() {
 
 function handlePageSelectionConfirm(payload) {
   showPageSelectionModal.value = false
-  
+
   // Store the page selection data for later use
   window.pageSelectionData = {
     selectedPages: payload.selectedPages,
@@ -388,7 +405,7 @@ function handlePageSelectionConfirm(payload) {
     generationType: selectedGenerationType.value,
     quizMode: selectedQuizMode.value
   }
-  
+
   if (selectedGenerationType.value === 'quiz') {
     // Check if adaptive mode is selected
     if (selectedQuizMode.value === 'adaptive') {
@@ -433,10 +450,10 @@ async function startAdaptiveSession() {
     }
 
     const result = await adaptiveApi.createSession(selectedFile.value, options)
-    
+
     // Clear the stored page selection data
     delete window.pageSelectionData
-    
+
     // Navigate to adaptive quiz session
     router.push(`/adaptive/${result.sessionId}`)
     window.$toast?.success('Adaptive session started!')
@@ -473,7 +490,7 @@ async function generateSummary() {
   loadingMessage.value = 'Generating your summary…'
   isLoading.value = true
   startProgress()
-  
+
   try {
     const pageSelectionData = window.pageSelectionData || {}
     const summaryOptions = {
@@ -482,13 +499,14 @@ async function generateSummary() {
     }
 
     const result = await cloudQuizService.createSummaryFromFile(selectedFile.value, summaryOptions)
-    
+
     // Store the generated summary
     generatedSummary.value = result.summary
-    
+    latestSummary.value = result.summary
+
     // Clear the stored page selection data
     delete window.pageSelectionData
-    
+
     // Show success modal
     showSummarySuccessModal.value = true
   } catch (err) {
@@ -505,1154 +523,772 @@ function handleSummarySuccessClose() {
   showSummarySuccessModal.value = false
   generatedSummary.value = null
 }
+
+function reopenSummaryModal() {
+  if (!latestSummary.value) return
+  generatedSummary.value = latestSummary.value
+  showSummarySuccessModal.value = true
+}
+
+function buildSummaryContent(summary) {
+  if (!summary) return ''
+  let content = ''
+  if (summary.title) {
+    content += `# ${summary.title}\n\n`
+  }
+  if (summary.description) {
+    content += `${summary.description}\n\n`
+  }
+  if (Array.isArray(summary.keyPoints) && summary.keyPoints.length) {
+    content += '## Key Points\n\n'
+    summary.keyPoints.forEach((point, index) => {
+      content += `${index + 1}. ${point}\n`
+    })
+    content += '\n'
+  }
+  if (Array.isArray(summary.sections) && summary.sections.length) {
+    summary.sections.forEach((section) => {
+      if (section.title) {
+        content += `## ${section.title}\n\n`
+      }
+      if (section.content) {
+        content += `${section.content}\n\n`
+      }
+      if (Array.isArray(section.subpoints) && section.subpoints.length) {
+        section.subpoints.forEach((subpoint) => {
+          content += `• ${subpoint}\n`
+        })
+        content += '\n'
+      }
+    })
+  }
+  if (Array.isArray(summary.conclusions) && summary.conclusions.length) {
+    content += '## Key Takeaways\n\n'
+    summary.conclusions.forEach((conclusion, index) => {
+      content += `${index + 1}. ${conclusion}\n`
+    })
+  }
+  return content.trim()
+}
+
+async function copyLatestSummary() {
+  if (!latestSummary.value) return
+  try {
+    const content = buildSummaryContent(latestSummary.value)
+    await cloudQuizService.copyToClipboard(content)
+    window.$toast?.success('Summary copied to clipboard')
+  } catch (error) {
+    console.error('Failed to copy summary text', error)
+    window.$toast?.error('Unable to copy summary')
+  }
+}
 </script>
 
 <template>
-  <div class="layout">
-    <Sidebar />
-    <div class="upload-page">
-      <div class="header">
-        <div class="eyebrow">
-          <Target :size="16" />
-          Smart Upload
-        </div>
-        <h1>Generate a Quiz from Your File</h1>
-        <p class="subtitle">
-          Upload a PDF, DOCX, PPTX, or TXT and let QuickLearn create high-quality questions.
-        </p>
-      </div>
-      <div class="content-layout">
-        <!-- Left Column -->
-        <div class="left-column">
-          <div class="panel upload-panel">
-            <div class="progress" v-show="isLoading || progressPercent > 0">
-              <div class="bar" :style="{ width: progressPercent + '%' }"></div>
+  <AppShell
+    title="Generate a quiz from your file"
+    subtitle="Upload a PDF, DOCX, PPTX, or TXT and let QuickLearn craft tailored practice materials."
+    content-width="wide"
+  >
+    <div class="upload-toolbar">
+      <BaseButton variant="secondary" size="sm" @click="router.push('/my-quizzes')">
+        View my quizzes
+      </BaseButton>
+    </div>
+
+    <div class="upload-grid">
+      <div class="upload-grid__main">
+        <BaseCard padding="lg" elevated class="dropzone-card">
+          <div class="dropzone-card__header">
+            <div class="dropzone-badge">
+              <Target :size="16" />
+              Smart upload
+            </div>
+            <p class="dropzone-card__subtitle">
+              QuickLearn parses your document, lets you pick pages, then generates quizzes or summaries in one flow.
+            </p>
+          </div>
+
+          <div class="dropzone-progress" v-show="isLoading || progressPercent > 0">
+            <div class="dropzone-progress__bar" :style="{ width: `${progressPercent}%` }"></div>
+          </div>
+
+          <div
+            class="dropzone"
+            :class="{
+              'dropzone--dragging': isDragOver,
+              'dropzone--ready': selectedFile
+            }"
+            @drop.prevent="onDrop"
+            @dragover.prevent="onDragOver"
+            @dragleave.prevent="onDragLeave"
+            @click="triggerFileInput"
+          >
+            <div v-if="!selectedFile" class="dropzone__content">
+              <Upload :size="56" class="dropzone__icon" />
+              <p class="dropzone__title">Drag & drop your file here</p>
+              <p class="dropzone__subtitle">
+                or
+                <button type="button" class="dropzone__browse" @click.stop="triggerFileInput">
+                  browse to upload
+                </button>
+              </p>
+              <input
+                id="file-input"
+                type="file"
+                hidden
+                accept=".txt,.pdf,.docx,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain"
+                @change="onFileChange"
+              />
+              <div class="chip-list">
+                <span class="chip">PDF</span>
+                <span class="chip">DOCX</span>
+                <span class="chip">PPTX</span>
+                <span class="chip">TXT</span>
+              </div>
+              <p class="dropzone__hint">Maximum file size: 10MB</p>
             </div>
 
-            <div
-              class="dropzone"
-              :class="{ over: isDragOver, ready: selectedFile }"
-              @drop="onDrop"
-              @dragover="onDragOver"
-              @dragleave="onDragLeave"
-              @click="triggerFileInput"
-            >
-              <div class="dropzone-inner">
-                <div class="upload-icon">
-                  <Upload :size="48" />
-                </div>
-                <div class="dz-text" v-if="!selectedFile">
-                  <div class="headline">Drop your files here</div>
-                  <div class="subline">
-                    or <label for="file-input" class="browse">browse to upload</label>
-                  </div>
-                  <input
-                    id="file-input"
-                    type="file"
-                    accept=".txt,.pdf,.docx,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain"
-                    @change="onFileChange"
-                    hidden
-                  />
-                  <div class="chips">
-                    <span class="chip">PDF</span>
-                    <span class="chip">DOCX</span>
-                    <span class="chip">PPTX</span>
-                    <span class="chip">TXT</span>
-                  </div>
-                  <div class="hint">Maximum file size: 10MB</div>
-                </div>
-                <div class="dz-selected" v-else>
-                  <div class="selected-top">
-                    <FileText class="file-icon" :size="20" />
-                    <div class="selected-name">{{ fileName }}</div>
-                    <button class="remove" @click="removeFile" aria-label="Remove file">
-                      <X :size="16" />
-                    </button>
-                  </div>
-                  <div class="selected-meta">{{ fileSize }}</div>
+            <div v-else class="dropzone__selected">
+              <div class="dropzone__file">
+                <FileText :size="18" />
+                <div>
+                  <p class="dropzone__file-name">{{ fileName }}</p>
+                  <p class="dropzone__file-meta">{{ fileSize }}</p>
                 </div>
               </div>
+              <BaseButton
+                variant="outline"
+                size="sm"
+                class="dropzone__remove"
+                type="button"
+                @click.stop="removeFile"
+              >
+                <X :size="16" />
+                Remove file
+              </BaseButton>
             </div>
           </div>
 
-          <!-- Tips for Better Results Section (moved to left column) -->
-          <div class="panel tips-panel">
-            <h3>
-              <Lightbulb :size="20" />
-              Tips for Better Results
+          <p v-if="errorMessage" class="form-error">{{ errorMessage }}</p>
+        </BaseCard>
+
+        <BaseCard padding="lg">
+          <div class="section-header">
+            <Lightbulb :size="20" />
+            <h2 class="section-header__title">Tips for better results</h2>
+          </div>
+          <ul class="tip-list">
+            <li>Use clear, well-structured documents with headings and consistent formatting.</li>
+            <li>Prefer editable text instead of scanned images whenever possible.</li>
+            <li>Keep files under 10MB to speed up processing and improve page previews.</li>
+            <li>Select only the pages you need to generate focused quizzes or summaries.</li>
+          </ul>
+        </BaseCard>
+      </div>
+
+      <div class="upload-grid__side">
+        <BaseCard v-if="latestArtifact" padding="lg" class="outcome-card">
+          <div class="outcome-card__header">
+            <span class="outcome-badge" :class="`outcome-badge--${latestArtifact.type}`">
+              {{ latestArtifact.type === 'quiz' ? 'Quiz ready' : 'Summary ready' }}
+            </span>
+          </div>
+
+          <div v-if="latestArtifact.type === 'quiz'" class="outcome-card__body">
+            <h3 class="outcome-card__title">
+              {{ latestArtifact.data?.title || 'Generated quiz' }}
             </h3>
-            <div class="tips-grid">
-              <div class="tip">
-                <span class="tip-check">✓</span>
-                <span>Use clear, well-structured documents</span>
-              </div>
-              <div class="tip">
-                <span class="tip-check">✓</span>
-                <span>Include headings and subheadings</span>
-              </div>
-              <div class="tip">
-                <span class="tip-check">✓</span>
-                <span>Ensure text is readable and not scanned images</span>
-              </div>
-              <div class="tip">
-                <span class="tip-check">✓</span>
-                <span>Keep files under 10MB for faster processing</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Right Column -->
-        <div class="right-column">
-          <!-- Supported Formats Section -->
-          <div class="panel formats-panel">
-            <h3>Supported Formats</h3>
-            <div class="formats-grid">
-              <div class="format-card">
-                <div class="format-icon">
-                  <img src="/img/file.png" alt="PDF" />
-                </div>
-                <div class="format-info">
-                  <div class="format-tag">PDF</div>
-                  <div class="format-name">Portable Document Format</div>
-                  <div class="format-examples">Textbooks, research papers, lecture slides</div>
-                </div>
-              </div>
-              <div class="format-card">
-                <div class="format-icon">
-                  <img src="/img/docx.png" alt="DOCX" />
-                </div>
-                <div class="format-info">
-                  <div class="format-tag">DOCX</div>
-                  <div class="format-name">Microsoft Word Document</div>
-                  <div class="format-examples">Notes, essays, study guides</div>
-                </div>
-              </div>
-              <div class="format-card">
-                <div class="format-icon">
-                  <img src="/img/txt-file.png" alt="TXT" />
-                </div>
-                <div class="format-info">
-                  <div class="format-tag">TXT</div>
-                  <div class="format-name">Plain Text File</div>
-                  <div class="format-examples">Simple notes, code snippets, lists</div>
-                </div>
-              </div>
-              <div class="format-card">
-                <div class="format-icon">
-                  <img src="/img/pptx.png" alt="PPTX" />
-                </div>
-                <div class="format-info">
-                  <div class="format-tag">PPTX</div>
-                  <div class="format-name">PowerPoint</div>
-                  <div class="format-examples">Presentations, slides, visual content</div>
-                </div>
-              </div>
+            <p class="outcome-card__meta">
+              {{ latestArtifact.data?.questions?.length || 0 }} questions
+              <span
+                v-if="latestArtifact.data?.questionTypes?.length"
+              >
+                • {{ latestArtifact.data.questionTypes.length }} question types
+              </span>
+            </p>
+            <div class="outcome-card__actions">
+              <BaseButton size="sm" variant="primary" @click="handleTakeQuiz">
+                Take quiz
+              </BaseButton>
+              <BaseButton size="sm" variant="secondary" @click="handleDownloadQuiz">
+                Download PDF
+              </BaseButton>
+              <BaseButton size="sm" variant="outline" @click="handleShareQuiz">
+                Share link
+              </BaseButton>
             </div>
           </div>
 
-          <!-- How It Works Section -->
-          <div class="panel process-panel">
-            <h3>How It Works</h3>
-            <div class="process-steps">
-              <div class="process-step">
-                <div class="step-number">1</div>
-                <div class="step-content">
-                  <div class="step-title">Upload Your Files</div>
-                  <div class="step-description">Drag and drop or browse to select your study materials</div>
-                </div>
+          <div v-else class="outcome-card__body">
+            <h3 class="outcome-card__title">
+              {{ latestArtifact.data?.title || 'Summary ready' }}
+            </h3>
+            <p class="outcome-card__meta">
+              {{ latestArtifact.data?.keyPoints?.length || 0 }} key points •
+              {{ latestArtifact.data?.sections?.length || 0 }} sections
+            </p>
+            <div class="outcome-card__actions">
+              <BaseButton size="sm" variant="primary" @click="reopenSummaryModal">
+                View summary
+              </BaseButton>
+              <BaseButton size="sm" variant="outline" @click="copyLatestSummary">
+                Copy text
+              </BaseButton>
+            </div>
+          </div>
+        </BaseCard>
+
+        <BaseCard padding="lg">
+          <h2 class="section-header__title">Supported formats</h2>
+          <div class="format-list">
+            <div class="format-item">
+              <img src="/img/file.png" alt="PDF" />
+              <div>
+                <p class="format-item__name">PDF</p>
+                <p class="format-item__meta">Textbooks, research papers, handouts</p>
               </div>
-              <div class="process-step">
-                <div class="step-number">2</div>
-                <div class="step-content">
-                  <div class="step-title">Processing</div>
-                  <div class="step-description">Our AI analyzes your content and extracts key information</div>
-                </div>
+            </div>
+            <div class="format-item">
+              <img src="/img/docx.png" alt="DOCX" />
+              <div>
+                <p class="format-item__name">DOCX</p>
+                <p class="format-item__meta">Notes, study guides, assignments</p>
               </div>
-              <div class="process-step">
-                <div class="step-number">3</div>
-                <div class="step-content">
-                  <div class="step-title">Generate Quizzes</div>
-                  <div class="step-description">Create custom quizzes in multiple formats from your content</div>
-                </div>
+            </div>
+            <div class="format-item">
+              <img src="/img/pptx.png" alt="PPTX" />
+              <div>
+                <p class="format-item__name">PPTX</p>
+                <p class="format-item__meta">Lecture slides, presentations</p>
+              </div>
+            </div>
+            <div class="format-item">
+              <img src="/img/txt-file.png" alt="TXT" />
+              <div>
+                <p class="format-item__name">TXT</p>
+                <p class="format-item__meta">Plain notes, outlines, transcripts</p>
               </div>
             </div>
           </div>
-        </div>
-      </div>
+        </BaseCard>
 
-      <!-- Generation Type Modal -->
-      <GenerationTypeModal
-        :visible="showGenerationTypeModal"
-        :file-name="fileName"
-        @close="handleGenerationTypeCancel"
-        @confirm="handleGenerationTypeConfirm"
-      />
-
-      <!-- Quiz Mode Modal -->
-      <QuizModeModal
-        :visible="showQuizModeModal"
-        :file-name="fileName"
-        @close="handleQuizModeCancel"
-        @confirm="handleQuizModeConfirm"
-      />
-
-      <!-- Page Selection Modal -->
-      <PageSelectionModal
-        :visible="showPageSelectionModal"
-        :file-name="fileName"
-        :pages="filePages"
-        @close="handlePageSelectionCancel"
-        @confirm="handlePageSelectionConfirm"
-      />
-
-      <!-- Configuration Modal -->
-      <QuizConfigModal
-        :visible="showConfigModal"
-        :file-name="fileName"
-        :default-count="count"
-        @close="handleConfigCancel"
-        @confirm="handleConfigConfirm"
-      />
-
-      <!-- Confirmation Modal -->
-      <QuizConfirmationModal
-        :quiz="quiz"
-        :is-visible="showConfirmationModal"
-        @close="handleCloseModal"
-        @take-quiz="handleTakeQuiz"
-        @download-quiz="handleDownloadQuiz"
-        @share-quiz="handleShareQuiz"
-      />
-
-      <!-- Summary Success Modal -->
-      <SummarySuccessModal
-        :visible="showSummarySuccessModal"
-        :summary="generatedSummary"
-        @close="handleSummarySuccessClose"
-      />
-
-      <!-- Share Success Message -->
-      <div v-if="showShareSuccess" class="share-success">
-        <div class="share-success-content">
-          <h3>🔗 Shareable Link Generated!</h3>
-          <p>Your quiz has been saved and can be shared with this link:</p>
-          <div class="share-link-container">
-            <input type="text" :value="shareLink" readonly class="share-link-input" />
-            <button class="copy-btn" @click="copyShareLink">
-              <Copy :size="16" />
-              Copy
-            </button>
-          </div>
-          <button class="close-success" @click="showShareSuccess = false">✕</button>
-        </div>
+        <BaseCard padding="lg">
+          <h2 class="section-header__title">How it works</h2>
+          <ol class="step-list">
+            <li>
+              <span class="step__number">1</span>
+              <div>
+                <p class="step__title">Upload your content</p>
+                <p class="step__description">Drag a file or browse from your device to get started.</p>
+              </div>
+            </li>
+            <li>
+              <span class="step__number">2</span>
+              <div>
+                <p class="step__title">Choose a generation mode</p>
+                <p class="step__description">Select quizzes, summaries, or adaptive practice tailored to your needs.</p>
+              </div>
+            </li>
+            <li>
+              <span class="step__number">3</span>
+              <div>
+                <p class="step__title">Review and share</p>
+                <p class="step__description">Download, share, or launch quizzes instantly with one click.</p>
+              </div>
+            </li>
+          </ol>
+        </BaseCard>
       </div>
     </div>
 
-    <!-- Full-page loading overlay -->
-    <BeatLoader 
+    <div v-if="showShareSuccess" class="share-banner">
+      <div class="share-banner__content">
+        <h3>Shareable link generated</h3>
+        <p>Your quiz has been saved. Copy the link to share it instantly.</p>
+        <div class="share-banner__actions">
+          <input type="text" :value="shareLink" readonly class="share-banner__input" />
+          <BaseButton variant="secondary" size="sm" @click="copyShareLink">
+            <Copy :size="16" />
+            Copy link
+          </BaseButton>
+        </div>
+      </div>
+      <button type="button" class="share-banner__close" @click="showShareSuccess = false">
+        <X :size="16" />
+      </button>
+    </div>
+
+    <GenerationTypeModal
+      :visible="showGenerationTypeModal"
+      :file-name="fileName"
+      @close="handleGenerationTypeCancel"
+      @confirm="handleGenerationTypeConfirm"
+    />
+
+    <QuizModeModal
+      :visible="showQuizModeModal"
+      :file-name="fileName"
+      @close="handleQuizModeCancel"
+      @confirm="handleQuizModeConfirm"
+    />
+
+    <PageSelectionModal
+      :visible="showPageSelectionModal"
+      :file-name="fileName"
+      :pages="filePages"
+      @close="handlePageSelectionCancel"
+      @confirm="handlePageSelectionConfirm"
+    />
+
+    <QuizConfigModal
+      :visible="showConfigModal"
+      :file-name="fileName"
+      :default-count="count"
+      @close="handleConfigCancel"
+      @confirm="handleConfigConfirm"
+    />
+
+    <QuizConfirmationModal
+      :quiz="quiz"
+      :is-visible="showConfirmationModal"
+      @close="handleCloseModal"
+      @take-quiz="handleTakeQuiz"
+      @download-quiz="handleDownloadQuiz"
+      @share-quiz="handleShareQuiz"
+    />
+
+    <SummarySuccessModal
+      :visible="showSummarySuccessModal"
+      :summary="generatedSummary"
+      @close="handleSummarySuccessClose"
+    />
+
+    <BeatLoader
       v-if="isLoading"
-      :loading="isLoading" 
-      :text="loadingMessage || 'Analyzing your file and generating questions…'" 
+      :loading="isLoading"
+      :text="loadingMessage || 'Analyzing your file and generating questions…'"
       color="#667eea"
       size="20px"
       :overlay="true"
     />
-  </div>
+  </AppShell>
 </template>
 
 <style scoped>
-.layout {
-  display: flex;
-  min-height: 100vh;
-}
-
-.upload-page {
-  flex: 1;
-  margin: 0;
-  padding: 24px;
-  background:
-    radial-gradient(1000px 600px at 20% -10%, rgba(102, 126, 234, 0.12), transparent 60%),
-    radial-gradient(900px 500px at 120% 10%, rgba(118, 75, 162, 0.1), transparent 60%);
-}
-
-@media (max-width: 1024px) {
-  .upload-page {
-    padding-bottom: 120px;
-  }
-}
-
-@media (max-width: 768px) {
-  .upload-page {
-    padding: 16px;
-    padding-bottom: 100px;
-  }
-
-  .header h1 {
-    font-size: 24px;
-  }
-
-  .subtitle {
-    font-size: 14px;
-  }
-
-  .dropzone {
-    min-height: 300px;
-  }
-
-  .panel {
-    padding: 16px;
-  }
-
-  .tips-grid {
-    gap: 8px;
-  }
-
-  .tip {
-    padding: 10px;
-    font-size: 14px;
-  }
-
-  .format-card {
-    padding: 10px;
-  }
-
-  .process-step {
-    padding: 12px;
-    gap: 12px;
-  }
-
-  .step-number {
-    width: 28px;
-    height: 28px;
-    font-size: 12px;
-  }
-}
-
-@media (max-width: 480px) {
-  .upload-page {
-    padding: 12px;
-    padding-bottom: 80px;
-  }
-
-  .header h1 {
-    font-size: 20px;
-  }
-
-  .dropzone {
-    min-height: 250px;
-  }
-
-  .headline {
-    font-size: 16px;
-  }
-
-  .subline {
-    font-size: 14px;
-  }
-}
-
-.content-layout {
+.upload-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
-  align-items: start;
+  gap: var(--space-6);
 }
 
-.left-column {
+.upload-toolbar {
   display: flex;
-  flex-direction: column;
-  gap: 20px;
+  justify-content: flex-end;
+  margin: 0 0 var(--space-6);
 }
 
-.right-column {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-@media (max-width: 1024px) {
-  .content-layout {
-    grid-template-columns: 1fr;
-    gap: 20px;
+@media (min-width: 1100px) {
+  .upload-grid {
+    grid-template-columns: 2fr 1fr;
+    align-items: start;
   }
 }
 
-.header {
-  margin-bottom: 16px;
+.upload-grid__main {
+  display: grid;
+  gap: var(--space-5);
 }
-.eyebrow {
+
+.upload-grid__side {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.outcome-card {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.outcome-card__header {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.outcome-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
-  color: #4b53c5;
-  background: linear-gradient(135deg, #eef0ff, #f6f0ff);
-  border: 1px solid #e5e7ff;
-  padding: 6px 12px;
-  border-radius: 999px;
-}
-.header h1 {
-  margin: 8px 0 6px;
-  font-size: 28px;
-}
-.subtitle {
-  color: #5b6472;
+  letter-spacing: 0.08em;
+  color: #fff;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
 }
 
-.tips-panel {
-  margin-top: 16px;
+.outcome-badge--summary {
+  background: linear-gradient(135deg, var(--color-success), #34d399);
 }
 
-.panel {
-  background: #fff;
-  border: 1px solid #e6e8ec;
-  border-radius: 12px;
-  padding: 16px;
-  box-shadow:
-    0 10px 25px rgba(50, 50, 93, 0.05),
-    0 6px 12px rgba(0, 0, 0, 0.04);
+.outcome-card__body {
+  display: grid;
+  gap: var(--space-3);
 }
 
-.upload-panel {
-  position: relative;
+.outcome-card__title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
 }
 
-.progress {
-  position: absolute;
-  left: 16px;
-  right: 16px;
-  top: 16px;
+.outcome-card__meta {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.outcome-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.dropzone-card__header {
+  display: grid;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.dropzone-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 1px solid rgba(102, 126, 234, 0.25);
+  background: var(--color-surface-emphasis);
+  color: var(--color-primary);
+}
+
+.dropzone-card__subtitle {
+  margin: 0;
+  font-size: var(--font-size-base);
+  color: var(--color-text-muted);
+}
+
+.dropzone-progress {
   height: 6px;
-  background: #eef0ff;
-  border-radius: 999px;
+  background: rgba(102, 126, 234, 0.12);
+  border-radius: var(--radius-pill);
   overflow: hidden;
+  margin-bottom: var(--space-4);
 }
 
-.progress .bar {
+.dropzone-progress__bar {
   height: 100%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  width: 0%;
-  transition: width 0.2s ease;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+  transition: width var(--transition-base);
 }
 
 .dropzone {
-  border: 2px dashed #c8cdd6;
-  border-radius: 12px;
-  min-height: clamp(480px, 20vh, 900px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #fafbff;
-  transition: all 0.25s ease;
-  position: relative;
-  width: 100%;
-  cursor: pointer;
-}
-
-.dropzone.over {
-  border-color: #667eea;
-  background: #f0f3ff;
-  box-shadow:
-    0 0 0 6px rgba(102, 126, 234, 0.08),
-    0 8px 24px rgba(102, 126, 234, 0.18);
-}
-
-.dropzone.ready {
-  background: #f8faff;
-}
-
-.dropzone-inner {
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: clamp(2.5rem, 4vw, 3rem);
+  background: var(--color-surface-subtle);
   text-align: center;
-  padding: 16px;
-}
-
-.upload-icon {
-  color: #667eea;
-  margin-bottom: 16px;
-  display: flex;
-  justify-content: center;
-}
-
-.browse {
-  color: #5562ea;
-  text-decoration: underline;
+  display: grid;
+  gap: var(--space-4);
+  justify-items: center;
+  width: min(100%, 540px);
+  margin-inline: auto;
   cursor: pointer;
-}
-
-.headline {
-  font-weight: 700;
-  font-size: 18px;
-}
-.subline {
-  color: #5b6472;
-  margin-top: 2px;
-}
-.chips {
-  margin-top: 10px;
-  display: flex;
-  gap: 6px;
-  justify-content: center;
-}
-.chip {
-  font-size: 11px;
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: #eef0ff;
-  color: #4b53c5;
-  border: 1px solid #e6e8ec;
-}
-.hint {
-  color: #7a8494;
-  margin-top: 6px;
-  font-size: 13px;
-}
-
-.dz-selected .selected-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-}
-
-.file-icon {
-  color: #667eea;
-  flex-shrink: 0;
-}
-
-.selected-name {
-  font-weight: 600;
-  flex: 1;
-}
-
-.selected-meta {
-  color: #7a8494;
-  margin-top: 6px;
-  font-size: 13px;
-}
-
-.remove {
-  border: none;
-  background: #fee2e2;
-  color: #dc2626;
-  border-radius: 6px;
-  padding: 6px 8px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  transition: all 0.2s ease;
-}
-
-.remove:hover {
-  background: #fecaca;
-  transform: scale(1.05);
-}
-
-/* controls removed in new layout */
-
-.primary {
-  padding: 10px 16px;
-  border-radius: 10px;
-  border: none;
-  color: #fff;
-  font-weight: 600;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  cursor: pointer;
-  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.25);
   transition:
-    transform 0.15s ease,
-    box-shadow 0.2s ease,
-    filter 0.2s ease;
+    border-color var(--transition-base),
+    box-shadow var(--transition-base),
+    background var(--transition-base);
 }
 
-.primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 26px rgba(102, 126, 234, 0.35);
+.dropzone--dragging {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 6px rgba(102, 126, 234, 0.12);
+  background: rgba(102, 126, 234, 0.08);
 }
 
-.primary:active {
-  transform: translateY(0);
-  filter: brightness(0.98);
+.dropzone--ready {
+  background: var(--color-surface);
+  border-style: solid;
 }
 
-.link {
-  background: none;
+.dropzone__icon {
+  color: var(--color-primary);
+}
+
+.dropzone__title {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.dropzone__subtitle {
+  margin: 0;
+  font-size: var(--font-size-base);
+  color: var(--color-text-muted);
+}
+
+.dropzone__browse {
   border: none;
-  color: #5562ea;
-  padding: 0;
+  background: none;
+  color: var(--color-primary);
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
 }
 
-.error {
-  color: #b00020;
-  margin-top: 10px;
+.dropzone__browse:hover {
+  color: var(--color-primary-dark);
 }
 
-/* Loading styles removed - now using full-page overlay */
+.chip-list {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  justify-content: center;
+}
 
-/* BeatLoader handles its own styling */
+.chip {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  background: var(--color-surface-emphasis);
+  border: 1px solid rgba(102, 126, 234, 0.25);
+  color: var(--color-primary);
+}
 
-/* results/sidebar sections removed */
+.dropzone__hint {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-soft);
+}
 
-.tips-panel h3 {
+.dropzone__selected {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 0 0 16px;
-  color: #1f2937;
+  justify-content: space-between;
+  gap: var(--space-4);
+  width: 100%;
 }
 
-/* Formats Panel Styles */
-.formats-panel h3 {
-  margin: 0 0 20px;
-  color: #1f2937;
-  font-size: 18px;
-  font-weight: 700;
-}
-
-.formats-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.format-card {
+.dropzone__file {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px;
-  background: #f8faff;
-  border: 1px solid #e6e8ec;
-  border-radius: 8px;
-  transition: all 0.2s ease;
+  gap: var(--space-3);
+  color: var(--color-text);
 }
 
-.format-card:hover {
-  background: #f0f3ff;
-  border-color: #c8cdd6;
-  transform: translateY(-1px);
+.dropzone__file-name {
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
 }
 
-.format-icon {
-  font-size: 20px;
-  flex-shrink: 0;
+.dropzone__file-meta {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
 }
 
-.format-icon img {
-  width: 24px;
-  height: 24px;
-  object-fit: contain;
+.dropzone__remove {
+  margin-left: auto;
 }
 
-.format-info {
-  flex: 1;
-}
-
-.format-tag {
-  display: inline-block;
-  background: #667eea;
-  color: white;
-  font-weight: 700;
-  font-size: 11px;
-  padding: 3px 6px;
-  border-radius: 4px;
-  margin-bottom: 3px;
-}
-
-.format-name {
-  font-weight: 600;
-  color: #1f2937;
-  margin-bottom: 1px;
-  font-size: 14px;
-}
-
-.format-examples {
-  font-size: 12px;
-  color: #6b7280;
-}
-
-/* Process Panel Styles */
-.process-panel h3 {
-  margin: 0 0 20px;
-  color: #1f2937;
-  font-size: 18px;
-  font-weight: 700;
-}
-
-.process-steps {
+.section-header {
   display: flex;
-  flex-direction: column;
-  gap: 16px;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
 }
 
-.process-step {
+.section-header__title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.tip-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-base);
+}
+
+.format-list {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.format-item {
   display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  padding: 16px;
-  background: #f8faff;
-  border: 1px solid #e6e8ec;
-  border-radius: 10px;
-  transition: all 0.2s ease;
+  align-items: center;
+  gap: var(--space-3);
 }
 
-.process-step:hover {
-  background: #f0f3ff;
-  border-color: #c8cdd6;
-  transform: translateY(-1px);
-}
-
-.step-number {
+.format-item img {
   width: 32px;
   height: 32px;
-  background: #667eea;
-  color: white;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 14px;
-  flex-shrink: 0;
 }
 
-.step-content {
-  flex: 1;
-}
-
-.step-title {
-  font-weight: 600;
-  color: #1f2937;
-  margin-bottom: 4px;
-}
-
-.step-description {
-  font-size: 14px;
-  color: #6b7280;
-}
-
-.tips-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.tip {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: #f8faff;
-  border: 1px dashed #c8cdd6;
-  border-radius: 8px;
-  padding: 12px;
-  color: #4b5563;
-  transition: all 0.2s ease;
-}
-
-.tip:hover {
-  background: #f0f3ff;
-  border-color: #c8cdd6;
-}
-
-.tip-check {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  background: #10b981;
-  color: white;
-  border-radius: 50%;
-  font-size: 12px;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
-.quiz-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 12px;
-}
-
-.quiz-header h2 {
+.format-item__name {
   margin: 0;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
 }
 
-.description {
-  color: #5b6472;
+.format-item__meta {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
 }
 
-.badge {
-  padding: 6px 10px;
-  background: #eef0ff;
-  color: #4b53c5;
-  border-radius: 999px;
-  font-weight: 600;
-  font-size: 12px;
+.step-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-4);
 }
 
-.question-list {
-  margin-top: 14px;
+.step-list li {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
+  align-items: flex-start;
+  gap: var(--space-3);
 }
 
-.question-card {
-  background: #fff;
-  border: 1px solid #e6e8ec;
-  border-radius: 10px;
-  padding: 14px;
-}
-
-.q-head {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.q-index {
-  min-width: 36px;
-  height: 36px;
-  background: #eef0ff;
-  color: #4b53c5;
-  border-radius: 8px;
-  display: flex;
+.step__number {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-pill);
+  background: rgba(102, 126, 234, 0.12);
+  color: var(--color-primary);
+  font-weight: var(--font-weight-semibold);
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
 }
 
-.q-text {
-  font-weight: 600;
+.step__title {
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
 }
 
-.choices {
-  list-style: none;
-  padding: 0;
-  margin: 8px 0 0;
+.step__description {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.share-banner {
+  position: fixed;
+  bottom: var(--space-6);
+  right: var(--space-6);
+  z-index: 40;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-md);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  align-items: flex-start;
+  gap: var(--space-4);
+  width: min(420px, 90vw);
 }
 
-.choice label {
+.share-banner__content {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.share-banner__actions {
   display: flex;
+  gap: var(--space-3);
   align-items: center;
-  gap: 8px;
-  padding: 10px;
-  border: 1px solid #e6e8ec;
-  border-radius: 8px;
 }
 
-.answer {
-  margin-top: 10px;
+.share-banner__input {
+  flex: 1;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-sm);
+  background: var(--color-surface-subtle);
+  color: var(--color-text);
 }
 
-.answer-reveal {
-  margin-top: 8px;
-  background: #f6f7ff;
-  border: 1px solid #e6e8ec;
-  border-radius: 8px;
-  padding: 10px;
+.share-banner__close {
+  border: none;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: var(--space-1);
 }
 
-.quiz-preview {
+.form-error {
+  margin: var(--space-4) 0 0;
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
   text-align: center;
 }
 
-.preview-actions {
-  margin-top: 20px;
+@media (max-width: 768px) {
+  .share-banner {
+    right: var(--space-4);
+    left: var(--space-4);
+    bottom: var(--space-4);
+    width: auto;
+  }
+
+  .share-banner__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .share-banner__input {
+    width: 100%;
+  }
 }
 
-.share-success {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1001;
-  padding: 20px;
+body.dark .outcome-card__title {
+  color: var(--color-text);
 }
 
-.share-success-content {
-  background: white;
-  border-radius: 16px;
-  padding: 32px;
-  max-width: 500px;
-  width: 100%;
-  position: relative;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-}
-
-.share-success-content h3 {
-  margin: 0 0 16px;
-  color: #1f2937;
-}
-
-.share-success-content p {
-  color: #6b7280;
-  margin: 0 0 20px;
-}
-
-.share-link-container {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 20px;
-}
-
-.share-link-input {
-  flex: 1;
-  padding: 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  font-size: 14px;
-  background: #f9fafb;
-}
-
-.copy-btn {
-  padding: 12px 16px;
-  background: #667eea;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 600;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.copy-btn:hover {
-  background: #5a67d8;
-  transform: translateY(-1px);
-}
-
-.close-success {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  background: none;
-  border: none;
-  font-size: 20px;
-  color: #6b7280;
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 8px;
-  transition: all 0.2s ease;
-}
-
-.close-success:hover {
-  background: #f3f4f6;
-  color: #374151;
-}
-
-/* Dark mode styles */
-body.dark .header h1 {
-  color: #e5e7eb;
-}
-
-body.dark .subtitle {
-  color: #9ca3af;
-}
-
-body.dark .eyebrow {
-  color: #a5b4fc;
-  background: linear-gradient(135deg, #0b1222, #111a33);
-  border-color: #1f2a44;
-}
-
-body.dark .panel {
-  background: #0f172a;
-  border-color: #1f2a44;
-  box-shadow:
-    0 10px 25px rgba(0, 0, 0, 0.35),
-    0 6px 12px rgba(0, 0, 0, 0.3);
-}
-
-body.dark .progress {
-  background: #1f2a44;
+body.dark .outcome-card__meta {
+  color: var(--color-text-muted);
 }
 
 body.dark .dropzone {
-  border-color: #334155;
-  background: #0b1222;
+  border-color: var(--color-border);
+  background: var(--color-surface-subtle);
 }
 
-body.dark .dropzone.over {
-  border-color: #667eea;
-  background: #131c35;
-  box-shadow:
-    0 0 0 6px rgba(102, 126, 234, 0.12),
-    0 8px 24px rgba(102, 126, 234, 0.28);
+body.dark .share-banner {
+  background: var(--color-surface);
+  border-color: var(--color-border);
 }
 
-body.dark .dropzone.ready {
-  background: #0f172a;
-}
-
-body.dark .headline {
-  color: #e5e7eb;
-}
-
-body.dark .subline {
-  color: #9ca3af;
-}
-
-body.dark .chip {
-  background: #1f2a44;
-  color: #a5b4fc;
-  border-color: #334155;
-}
-
-body.dark .hint {
-  color: #6b7280;
-}
-
-body.dark .browse {
-  color: #a5b4fc;
-}
-
-body.dark .selected-meta {
-  color: #9ca3af;
-}
-
-body.dark .selected-name {
-  color: #e5e7eb;
-}
-
-body.dark .selected-size {
-  color: #6b7280;
-}
-
-body.dark .remove-file {
-  background: #1f2a44;
-  border-color: #334155;
-  color: #e5e7eb;
-}
-
-body.dark .remove-file:hover {
-  background: #334155;
-  color: #fca5a5;
-}
-
-body.dark .primary {
-  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.35);
-}
-
-body.dark .secondary {
-  background: #1f2a44;
-  border-color: #334155;
-  color: #e5e7eb;
-}
-
-body.dark .secondary:hover {
-  background: #334155;
-  border-color: #667eea;
-}
-
-body.dark .error {
-  color: #fca5a5;
-}
-
-body.dark .share-success {
-  background: rgba(0, 0, 0, 0.8);
-}
-
-body.dark .share-success-content {
-  background: #0f172a;
-  border: 1px solid #1f2a44;
-}
-
-body.dark .share-success-content h3 {
-  color: #e5e7eb;
-}
-
-body.dark .share-success-content p {
-  color: #9ca3af;
-}
-
-body.dark .share-link-input {
-  background: #1f2a44;
-  border-color: #334155;
-  color: #e5e7eb;
-}
-
-body.dark .close-success {
-  color: #9ca3af;
-}
-
-body.dark .close-success:hover {
-  background: #1f2a44;
-  color: #e5e7eb;
-}
-
-/* Dark mode styles for new sections */
-body.dark .formats-panel h3 {
-  color: #e5e7eb;
-}
-
-body.dark .format-card {
-  background: #1f2a44;
-  border-color: #334155;
-}
-
-body.dark .format-card:hover {
-  background: #334155;
-  border-color: #4b5563;
-}
-
-body.dark .format-name {
-  color: #e5e7eb;
-}
-
-body.dark .format-examples {
-  color: #9ca3af;
-}
-
-body.dark .process-panel h3 {
-  color: #e5e7eb;
-}
-
-body.dark .tips-panel h3 {
-  color: #e5e7eb;
-}
-
-body.dark .process-step {
-  background: #1f2a44;
-  border-color: #334155;
-}
-
-body.dark .process-step:hover {
-  background: #334155;
-  border-color: #4b5563;
-}
-
-body.dark .step-title {
-  color: #e5e7eb;
-}
-
-body.dark .step-description {
-  color: #9ca3af;
-}
-
-body.dark .tip {
-  background: #1f2a44;
-  border-color: #334155;
-  color: #e5e7eb;
-}
-
-body.dark .tip:hover {
-  background: #334155;
-  border-color: #4b5563;
+body.dark .share-banner__input {
+  background: var(--color-surface-subtle);
+  border-color: var(--color-border);
+  color: var(--color-text);
 }
 </style>

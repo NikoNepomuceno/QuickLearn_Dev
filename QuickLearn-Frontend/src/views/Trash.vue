@@ -1,29 +1,133 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import Sidebar from '../components/Sidebar.vue'
-import ConfirmModal from '../components/ConfirmModal.vue'
-import cloudQuizService from '../services/cloudQuizService'
-import { Trash2, RotateCcw, XCircle } from 'lucide-vue-next'
+import AppShell from '@/components/layout/AppShell.vue'
+import BaseButton from '@/components/ui/BaseButton.vue'
+import BaseCard from '@/components/ui/BaseCard.vue'
+import ConfirmModal from '@/components/ConfirmModal.vue'
+import cloudQuizService from '@/services/cloudQuizService'
+import { Trash2, RotateCcw, XCircle, FolderOpen } from 'lucide-vue-next'
+import { useRouter } from 'vue-router'
+import BeatLoader from 'vue-spinner/src/BeatLoader.vue'
 
 const items = ref([])
 const isLoading = ref(false)
 const error = ref('')
+const activeFilter = ref('all')
+const filterKeys = ['all', 'quizzes', 'summaries']
 
 // Modal state
 const showRestoreModal = ref(false)
 const itemToRestore = ref(null)
 const showDeleteModal = ref(false)
 const itemToDelete = ref(null)
+const router = useRouter()
+
+function resolveItemType(item) {
+  if (!item) return 'quiz'
+  const metadata = item.metadata || {}
+
+  const candidates = [
+    item.type,
+    item.kind,
+    item.category,
+    metadata.itemType,
+    metadata.type,
+    metadata.contentType,
+    metadata.kind,
+    metadata.category
+  ]
+    .filter(Boolean)
+    .map((value) => `${value}`.toLowerCase())
+
+  const declaredType = candidates.find((value) =>
+    value.includes('summary') || value.includes('note') || value.includes('quiz')
+  )
+
+  if (declaredType) {
+    if (declaredType.includes('summary') || declaredType.includes('note')) return 'summary'
+    return 'quiz'
+  }
+
+  if (typeof metadata.questionCount === 'number') return 'quiz'
+
+  if (
+    Array.isArray(metadata.keyPoints) ||
+    Array.isArray(metadata.sections) ||
+    Array.isArray(metadata.takeaways) ||
+    typeof metadata.sectionCount === 'number' ||
+    typeof metadata.keyPointCount === 'number'
+  ) {
+    return 'summary'
+  }
+
+  return 'quiz'
+}
+
+function getItemTypeLabel(item) {
+  return resolveItemType(item) === 'summary' ? 'Summary' : 'Quiz'
+}
+
+function getCollectionLabel(type) {
+  return type === 'summary' ? 'summaries' : 'quizzes'
+}
 
 const restoreMessage = computed(() => {
-  if (!itemToRestore.value) return 'Restore this quiz?'
-  return `Restore "${itemToRestore.value.title || 'Untitled Quiz'}" to your quizzes?`
+  if (!itemToRestore.value) return 'Restore this item?'
+  const type = resolveItemType(itemToRestore.value)
+  const typeLabel = getItemTypeLabel(itemToRestore.value)
+  const title = itemToRestore.value.title || `Untitled ${typeLabel}`
+  return `Restore "${title}" to your ${getCollectionLabel(type)}?`
 })
 
 const deleteMessage = computed(() => {
-  if (!itemToDelete.value) return 'Permanently delete this quiz? This cannot be undone.'
-  return `Permanently delete "${itemToDelete.value.title || 'Untitled Quiz'}"? This cannot be undone.`
+  if (!itemToDelete.value) return 'Permanently delete this item? This cannot be undone.'
+  const type = resolveItemType(itemToDelete.value)
+  const typeLabel = getItemTypeLabel(itemToDelete.value)
+  const title = itemToDelete.value.title || `Untitled ${typeLabel}`
+  return `Permanently delete "${title}"? This cannot be undone.`
 })
+
+const restoreModalTitle = computed(() => {
+  if (!itemToRestore.value) return 'Restore Item'
+  return `Restore ${getItemTypeLabel(itemToRestore.value)}`
+})
+
+const deleteModalTitle = computed(() => {
+  if (!itemToDelete.value) return 'Delete Item'
+  return `Delete ${getItemTypeLabel(itemToDelete.value)}`
+})
+
+const filteredItems = computed(() => {
+  if (activeFilter.value === 'all') return items.value
+  if (activeFilter.value === 'quizzes') {
+    return items.value.filter(item => resolveItemType(item) === 'quiz')
+  }
+  if (activeFilter.value === 'summaries') {
+    return items.value.filter(item => resolveItemType(item) === 'summary')
+  }
+  return items.value
+})
+
+function focusFilterTab(tab) {
+  const el = document.getElementById(`trash-filter-tab-${tab}`)
+  el?.focus()
+}
+
+function handleFilterKeydown(event, tab) {
+  const index = filterKeys.indexOf(tab)
+  if (index === -1) return
+  if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+    const nextTab = filterKeys[(index + 1) % filterKeys.length]
+    activeFilter.value = nextTab
+    focusFilterTab(nextTab)
+    event.preventDefault()
+  } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+    const prevTab = filterKeys[(index - 1 + filterKeys.length) % filterKeys.length]
+    activeFilter.value = prevTab
+    focusFilterTab(prevTab)
+    event.preventDefault()
+  }
+}
 
 async function loadTrash() {
   try {
@@ -46,10 +150,10 @@ function requestRestore(item) {
 async function restore(item) {
   try {
     await cloudQuizService.restoreQuiz(item.id)
-    window.$toast?.success('Quiz restored')
+    window.$toast?.success(`${getItemTypeLabel(item)} restored`)
     await loadTrash()
   } catch (e) {
-    window.$toast?.error('Failed to restore quiz')
+    window.$toast?.error(`Failed to restore ${getItemTypeLabel(item).toLowerCase()}`)
   }
 }
 
@@ -61,10 +165,10 @@ function requestDelete(item) {
 async function permanentlyDelete(item) {
   try {
     await cloudQuizService.permanentlyDeleteQuiz(item.id)
-    window.$toast?.success('Quiz permanently deleted')
+    window.$toast?.success(`${getItemTypeLabel(item)} permanently deleted`)
     await loadTrash()
   } catch (e) {
-    window.$toast?.error('Failed to permanently delete quiz')
+    window.$toast?.error(`Failed to permanently delete ${getItemTypeLabel(item).toLowerCase()}`)
   }
 }
 
@@ -102,280 +206,342 @@ onMounted(loadTrash)
 </script>
 
 <template>
-  <div class="layout">
-    <Sidebar />
-    <div class="content">
-      <div class="header">
-        <h1><Trash2 :size="22" /> Trash</h1>
-        <p class="subtitle">Deleted quizzes are kept for 30 days before auto-removal.</p>
+  <AppShell
+    title="Trash"
+    subtitle="Restore deleted quizzes or summaries within 30 days. Items here are permanently removed afterwards."
+    content-width="wide"
+  >
+    <div class="page-toolbar">
+      <div class="tab-group" role="tablist" aria-label="Trash filters">
+        <button
+          id="trash-filter-tab-all"
+          class="tab"
+          :class="{ 'tab--active': activeFilter === 'all' }"
+          type="button"
+          role="tab"
+          :aria-selected="activeFilter === 'all'"
+          :tabindex="activeFilter === 'all' ? 0 : -1"
+          aria-controls="trash-items-panel"
+          @click="activeFilter = 'all'"
+          @keydown="handleFilterKeydown($event, 'all')"
+        >
+          All
+        </button>
+        <button
+          id="trash-filter-tab-quizzes"
+          class="tab"
+          :class="{ 'tab--active': activeFilter === 'quizzes' }"
+          type="button"
+          role="tab"
+          :aria-selected="activeFilter === 'quizzes'"
+          :tabindex="activeFilter === 'quizzes' ? 0 : -1"
+          aria-controls="trash-items-panel"
+          @click="activeFilter = 'quizzes'"
+          @keydown="handleFilterKeydown($event, 'quizzes')"
+        >
+          Quizzes
+        </button>
+        <button
+          id="trash-filter-tab-summaries"
+          class="tab"
+          :class="{ 'tab--active': activeFilter === 'summaries' }"
+          type="button"
+          role="tab"
+          :aria-selected="activeFilter === 'summaries'"
+          :tabindex="activeFilter === 'summaries' ? 0 : -1"
+          aria-controls="trash-items-panel"
+          @click="activeFilter = 'summaries'"
+          @keydown="handleFilterKeydown($event, 'summaries')"
+        >
+          Summaries
+        </button>
       </div>
-
-      <div v-if="isLoading" class="loading">Loading…</div>
-      <div v-else-if="error" class="error">{{ error }}</div>
-
-      <div v-else-if="items.length === 0" class="empty">
-        <div class="empty-card">
-          <div class="icon">🗑️</div>
-          <div class="title">Trash is empty</div>
-          <div class="hint">Deleted quizzes will show up here for 30 days.</div>
-        </div>
+      <div class="page-toolbar__actions">
+        <BaseButton variant="outline" size="sm" :disabled="isLoading" @click="loadTrash">
+          Refresh
+        </BaseButton>
       </div>
-
-      <div v-else class="grid">
-        <div v-for="item in items" :key="item.id" class="card">
-          <div class="card-header">
-            <div class="card-icon">🗑️</div>
-            <div class="card-title-group">
-              <div class="card-title">{{ item.title || 'Untitled Quiz' }}</div>
-              <div class="card-subtitle">Deleted {{ new Date(item.metadata?.deletedAt).toLocaleString() }}</div>
-            </div>
-            <div class="badge">Trashed</div>
-          </div>
-
-          <div class="card-body">
-            <div class="meta-pills">
-              <span class="pill">Quiz</span>
-              <span v-if="item.metadata?.questionCount" class="pill">{{ item.metadata.questionCount }} questions</span>
-            </div>
-          </div>
-
-          <div class="card-footer">
-            <button class="btn btn-primary" @click="() => requestRestore(item)"><RotateCcw :size="16" /> Restore</button>
-            <button class="btn btn-danger" @click="() => requestDelete(item)"><XCircle :size="16" /> Delete</button>
-          </div>
-        </div>
-      </div>
-      
-      <ConfirmModal
-        v-model="showRestoreModal"
-        title="Restore Quiz"
-        :message="restoreMessage"
-        confirm-text="Restore"
-        variant="primary"
-        cancel-text="Cancel"
-        @confirm="confirmRestore"
-        @cancel="cancelRestore"
-      />
-
-      <ConfirmModal
-        v-model="showDeleteModal"
-        title="Delete Quiz"
-        :message="deleteMessage"
-        confirm-text="Delete"
-        variant="danger"
-        cancel-text="Cancel"
-        @confirm="confirmDelete"
-        @cancel="cancelDelete"
-      />
     </div>
-  </div>
+
+    <div v-if="isLoading" class="loading-state">
+      <BeatLoader :loading="true" text="Loading trash..." color="#667eea" size="20px" />
+    </div>
+
+    <div v-else-if="error" class="error-state">
+      <BaseCard padding="lg">
+        <div class="empty-card">
+          <FolderOpen :size="40" />
+          <h3>Unable to load trash</h3>
+          <p>{{ error }}</p>
+          <BaseButton variant="primary" size="sm" @click="loadTrash">
+            Try again
+          </BaseButton>
+        </div>
+      </BaseCard>
+    </div>
+
+    <div v-else-if="items.length === 0" class="empty-state">
+      <BaseCard padding="lg">
+        <div class="empty-card">
+          <Trash2 :size="48" />
+          <h3>Trash is empty</h3>
+          <p>Deleted items will show up here and be removed automatically after 30 days.</p>
+          <BaseButton variant="primary" @click="router.push('/my-quizzes')">
+            Back to library
+          </BaseButton>
+        </div>
+      </BaseCard>
+    </div>
+
+    <div v-else-if="filteredItems.length === 0" class="empty-state">
+      <BaseCard padding="lg">
+        <div class="empty-card">
+          <FolderOpen :size="48" />
+          <h3>No {{ activeFilter === 'quizzes' ? 'quizzes' : 'summaries' }} in trash</h3>
+          <p>Try selecting a different filter to view other items.</p>
+        </div>
+      </BaseCard>
+    </div>
+
+    <div v-else id="trash-items-panel" class="library-grid" role="tabpanel" tabindex="0">
+      <BaseCard
+        v-for="item in filteredItems"
+        :key="item.id"
+        padding="lg"
+      >
+        <div class="trash-card">
+          <div class="trash-card__header">
+            <div class="trash-card__meta">
+              <h3>{{ item.title || 'Untitled item' }}</h3>
+              <p class="trash-card__subtitle">
+                Deleted {{ new Date(item.metadata?.deletedAt).toLocaleString() }}
+              </p>
+            </div>
+            <span class="trash-card__badge">Trashed</span>
+          </div>
+
+          <div class="trash-card__stats">
+            <span class="stat-chip">{{ getItemTypeLabel(item) }}</span>
+            <template v-if="resolveItemType(item) === 'quiz'">
+              <span v-if="item.metadata?.questionCount" class="stat-chip">
+                {{ item.metadata.questionCount }} questions
+              </span>
+              <span v-if="item.metadata?.attemptsCount" class="stat-chip">
+                {{ item.metadata.attemptsCount }} attempts
+              </span>
+            </template>
+            <template v-else>
+              <span v-if="item.metadata?.keyPointCount" class="stat-chip">
+                {{ item.metadata.keyPointCount }} key points
+              </span>
+              <span v-if="item.metadata?.sectionCount" class="stat-chip">
+                {{ item.metadata.sectionCount }} sections
+              </span>
+            </template>
+          </div>
+
+          <div class="trash-card__actions">
+            <BaseButton variant="secondary" size="sm" @click="() => requestRestore(item)">
+              <RotateCcw :size="16" />
+              Restore
+            </BaseButton>
+            <BaseButton variant="danger" size="sm" @click="() => requestDelete(item)">
+              <XCircle :size="16" />
+              Delete
+            </BaseButton>
+          </div>
+        </div>
+      </BaseCard>
+    </div>
+
+    <ConfirmModal
+      v-model="showRestoreModal"
+      :title="restoreModalTitle"
+      :message="restoreMessage"
+      confirm-text="Restore"
+      cancel-text="Cancel"
+      @confirm="confirmRestore"
+      @cancel="cancelRestore"
+    />
+
+    <ConfirmModal
+      v-model="showDeleteModal"
+      :title="deleteModalTitle"
+      :message="deleteMessage"
+      confirm-text="Delete"
+      cancel-text="Cancel"
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
+    />
+  </AppShell>
 </template>
 
 <style scoped>
-
-.layout {
+.page-toolbar {
   display: flex;
-  min-height: 100vh;
-}
-
-.content {
-  flex: 1;
-  padding: 24px;
-  max-width: none;
-  margin-left: 40px;
-}
-
-.header h1{
-  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  margin: 0 0 6px;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
 }
 
-.subtitle {
-  color: #6b7280;
-  margin: 0 0 16px;
+.page-toolbar__actions {
+  display: flex;
+  gap: var(--space-2);
 }
 
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
-}
-
-.card {
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 14px;
-  padding: 16px;
-  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04),
-    0 6px 12px rgba(0, 0, 0, 0.06),
-    0 18px 36px rgba(0, 0, 0, 0.06);
-  display: flex;
-  flex-direction: column;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
-  position: relative;
-}
-.card:hover {}
-.card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  border-radius: inherit;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.6);
-}
-
-.card-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.card-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #eef2ff;
-  color: #4338ca;
-  flex-shrink: 0;
-}
-.card-title-group { flex: 1; min-width: 0; }
-.card-title {
-  font-weight: 700;
-  color: #111827;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.card-subtitle {
-  color: #6b7280;
-  font-size: 12px;
-  margin-top: 2px;
-}
-.badge {
-  background: #f1f5f9;
-  color: #475569;
-  border: 1px solid #e2e8f0;
-  border-radius: 999px;
-  padding: 4px 10px;
-  font-size: 12px;
-  font-weight: 600;
-  box-shadow: 0 1px 1px rgba(0,0,0,0.04), 0 3px 6px rgba(0,0,0,0.06);
-}
-.card-body { margin: 12px 0 6px; }
-.meta-pills { display: flex; gap: 8px; flex-wrap: wrap; }
-.pill {
-  background: #f8fafc;
-  color: #475569;
-  border: 1px solid #e2e8f0;
-  border-radius: 999px;
-  padding: 4px 10px;
-  font-size: 12px;
-  font-weight: 600;
-  box-shadow: 0 1px 1px rgba(0,0,0,0.04), 0 3px 6px rgba(0,0,0,0.06);
-}
-.card-header {
-  background: linear-gradient(180deg, rgba(255,255,255,0.6), rgba(255,255,255,0));
-  padding: 8px;
-  margin: -8px -8px 8px;
-  border-radius: 10px;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
-}
-.card-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 8px;
-}
-.card-icon {
-  box-shadow: 0 1px 1px rgba(0,0,0,0.04), 0 4px 10px rgba(0,0,0,0.06);
-  position: relative;
-}
-.card-icon::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.7);
-  pointer-events: none;
-}
-.btn {
+.tab-group {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-weight: 600;
-  padding: 10px 14px;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border: 1px solid transparent;
-  box-shadow: 0 1px 1px rgba(0,0,0,0.04), 0 4px 10px rgba(0,0,0,0.06);
+  gap: var(--space-2);
+  padding: var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-subtle);
+  border: 1px solid var(--color-border);
 }
-.btn-primary {
-  background: #4338ca;
-  color: #fff;
-}
-.btn-primary:hover {}
-.btn-danger {
-  background: #fee2e2;
-  color: #b91c1c;
-  border-color: #fecaca;
-}
-.btn-danger:hover {}
 
-.empty {
+.tab {
+  border: none;
+  background: none;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background var(--transition-base), color var(--transition-base);
+}
+
+.tab:focus-visible {
+  outline: 2px solid rgba(102, 126, 234, 0.45);
+  outline-offset: 2px;
+}
+
+.tab--active {
+  background: var(--color-surface);
+  color: var(--color-primary);
+  box-shadow: var(--shadow-xs);
+}
+
+.loading-state,
+.error-state,
+.empty-state {
   display: flex;
   justify-content: center;
-  padding: 60px 0;
+  align-items: center;
+  min-height: 400px;
+  padding: var(--space-6);
 }
 
 .empty-card {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: center;
   text-align: center;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 32px;
-  width: 520px;
+  color: var(--color-text-muted);
 }
 
-.empty-card .icon {
-  font-size: 32px;
-  margin-bottom: 12px;
+.empty-card h3 {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  color: var(--color-text);
 }
 
-.empty-card .title {
-  font-weight: 700;
-  margin-bottom: 6px;
+.library-grid {
+  display: grid;
+  gap: var(--space-4);
 }
 
-.empty-card .hint {
-  color: #6b7280;
+@media (min-width: 900px) {
+  .library-grid {
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  }
 }
 
-/* Dark mode variants */
-body.dark .content { color: #e5e7eb; }
-body.dark .subtitle { color: #9ca3af; }
-body.dark .empty-card { background: #0f172a; border-color: #1f2a44; }
-body.dark .empty-card .title { color: #e5e7eb; }
-body.dark .empty-card .hint { color: #9ca3af; }
-body.dark .card { background: #1e293b; border-color: #334155; box-shadow: 0 1px 1px rgba(0,0,0,0.3), 0 8px 16px rgba(0,0,0,0.38), 0 22px 44px rgba(0,0,0,0.5); }
-body.dark .card::before { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08), inset 0 1px 0 rgba(255,255,255,0.06); }
-body.dark .card-header { background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0)); box-shadow: inset 0 1px 0 rgba(255,255,255,0.08); }
-body.dark .card-title { color: #e5e7eb; }
-body.dark .card-subtitle { color: #94a3b8; }
-body.dark .card-icon { background: #334155; color: #e0e7ff; box-shadow: 0 1px 1px rgba(0,0,0,0.3), 0 4px 10px rgba(0,0,0,0.4); }
-body.dark .card-icon::after { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1); }
-body.dark .badge { background: #0f172a; color: #cbd5e1; border-color: #334155; box-shadow: 0 1px 1px rgba(0,0,0,0.3), 0 3px 6px rgba(0,0,0,0.35); }
-body.dark .pill { background: #0f172a; color: #cbd5e1; border-color: #334155; box-shadow: 0 1px 1px rgba(0,0,0,0.3), 0 3px 6px rgba(0,0,0,0.35); }
-body.dark .btn-primary { background: #6366f1; box-shadow: 0 1px 1px rgba(0,0,0,0.3), 0 4px 10px rgba(0,0,0,0.4); }
-body.dark .btn-primary:hover {}
-body.dark .btn-danger { background: #7f1d1d; color: #fecaca; border-color: #991b1b; box-shadow: 0 1px 1px rgba(0,0,0,0.3), 0 4px 10px rgba(0,0,0,0.4); }
-body.dark .btn-danger:hover {}
+.trash-card {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.trash-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.trash-card__meta h3 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.trash-card__subtitle {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.trash-card__badge {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.trash-card__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.stat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-subtle);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.trash-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+body.dark .trash-card__badge {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+}
+
+body.dark .stat-chip {
+  background: var(--color-surface-subtle);
+  color: var(--color-text-muted);
+}
+
+body.dark .tab-group {
+  background: var(--color-surface-subtle);
+  border-color: var(--color-border);
+}
+
+body.dark .tab {
+  color: var(--color-text-muted);
+}
+
+body.dark .tab--active {
+  background: var(--color-surface);
+  color: var(--color-primary);
+}
 </style>
 
- 
+
 
 

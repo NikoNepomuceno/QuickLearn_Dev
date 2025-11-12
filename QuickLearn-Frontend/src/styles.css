@@ -1,27 +1,148 @@
-/* Global base styles: font family and smoothing */
+/* ==========================================================================
+   Design Tokens & Global Styles
+   ========================================================================== */
 :root {
-  --font-sans:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell,
-    'Helvetica Neue', Arial, sans-serif;
-  --primary-main: #667eea; /* blue-500 */
-  --primary-dark: #4959c8; /* darker blue */
-  --primary-light: #a5b4fc; /* lighter blue */
-  --accent-purple: #764ba2;
-  --primary-glow: 0 8px 40px 0 rgba(102, 126, 234, 0.14), 0 2px 8px 0 rgba(118, 75, 162, 0.08);
-  --card-shadow: 0 2px 12px 0 rgba(102, 126, 234, 0.09), 0 6px 30px 0 rgba(118, 75, 162, 0.05), 0 1.5px 6px 0 rgba(50, 50, 93, 0.08);
-  --card-shadow-hover: 0 10px 32px rgba(102, 126, 234, 0.18), 0 2px 8px 0 rgba(118, 75, 162, 0.11);
+  /* Typography */
+  --font-family-sans:
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    Oxygen,
+    Ubuntu,
+    Cantarell,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
+  --font-family-heading: 'Inter', var(--font-family-sans);
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --letter-spacing-tight: -0.01em;
+  --letter-spacing-wide: 0.08em;
+
+  --font-size-xs: clamp(0.75rem, 0.72rem + 0.15vw, 0.8rem);
+  --font-size-sm: clamp(0.875rem, 0.82rem + 0.2vw, 0.95rem);
+  --font-size-base: clamp(1rem, 0.94rem + 0.25vw, 1.05rem);
+  --font-size-lg: clamp(1.125rem, 1.05rem + 0.3vw, 1.25rem);
+  --font-size-xl: clamp(1.375rem, 1.2rem + 0.6vw, 1.75rem);
+  --font-size-2xl: clamp(1.75rem, 1.4rem + 1vw, 2.25rem);
+  --font-size-3xl: clamp(2.25rem, 1.9rem + 1.5vw, 3rem);
+
+  --line-height-tight: 1.2;
+  --line-height-base: 1.6;
+  --line-height-loose: 1.9;
+
+  /* Spacing scale */
+  --space-0: 0;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-7: 1.75rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-14: 3.5rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+
+  /* Radii */
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --radius-pill: 999px;
+
+  /* Shadows */
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.08);
+  --shadow-sm: 0 4px 12px rgba(15, 23, 42, 0.08);
+  --shadow-md: 0 10px 24px rgba(15, 23, 42, 0.12);
+  --shadow-lg: 0 20px 45px rgba(15, 23, 42, 0.18);
+
+  /* Colors */
+  --color-background: #f7f8fc;
+  --color-background-muted: #eef1fb;
+  --color-surface: #ffffff;
+  --color-surface-subtle: #f3f4f8;
+  --color-surface-emphasis: #eef0ff;
+  --color-text: #1f2937;
+  --color-text-muted: #64748b;
+  --color-text-soft: #94a3b8;
+  --color-border: #e2e8f0;
+  --color-border-strong: #cbd5f5;
+  --color-primary: #667eea;
+  --color-primary-dark: #4959c8;
+  --color-primary-soft: #a5b4fc;
+  --color-accent: #764ba2;
+  --color-success: #10b981;
+  --color-warning: #fbbf24;
+  --color-danger: #f87171;
+  --color-info: #38bdf8;
+
+  --gradient-background:
+    radial-gradient(1200px 700px at 10% -10%, rgba(102, 126, 234, 0.1), transparent 60%),
+    radial-gradient(1000px 600px at 110% 0%, rgba(118, 75, 162, 0.1), transparent 60%),
+    linear-gradient(180deg, #f7f8fc 0%, #ffffff 40%, #f4f6fb 100%);
+
+  --gradient-background-dark:
+    radial-gradient(1200px 700px at 10% -10%, rgba(102, 126, 234, 0.06), transparent 60%),
+    radial-gradient(1000px 600px at 110% 0%, rgba(118, 75, 162, 0.08), transparent 60%),
+    linear-gradient(180deg, #0b1020 0%, #0f1428 40%, #0b1222 100%);
+
+  --surface-shadow: 0 2px 12px rgba(102, 126, 234, 0.09), 0 6px 30px rgba(118, 75, 162, 0.05),
+    0 1.5px 6px rgba(50, 50, 93, 0.08);
+  --surface-shadow-hover: 0 10px 32px rgba(102, 126, 234, 0.18),
+    0 2px 8px rgba(118, 75, 162, 0.11);
+  --focus-ring-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+
+  /* Legacy aliases (to be migrated) */
+  --primary-main: var(--color-primary);
+  --primary-light: var(--color-primary-soft);
+  --primary-dark: var(--color-primary-dark);
+  --accent-purple: var(--color-accent);
+  --primary-glow: 0 8px 40px rgba(102, 126, 234, 0.14),
+    0 2px 8px rgba(118, 75, 162, 0.08);
+
+  /* Layout */
+  --layout-max-width: 1200px;
+  --layout-wide-width: 1400px;
+  --layout-gutter: clamp(1.25rem, 3vw, 2.5rem);
+  --sidebar-width: 256px;
+  --header-height: 72px;
+
+  --transition-base: 150ms ease;
+  --transition-slow: 250ms ease;
+}
+
+@media (max-width: 768px) {
+  :root {
+    --layout-gutter: clamp(1rem, 4vw, 1.5rem);
+  }
+}
+
+body.dark {
+  --color-background: #0f1428;
+  --color-background-muted: #111a33;
+  --color-surface: #0f172a;
+  --color-surface-subtle: #111c32;
+  --color-surface-emphasis: #1f2a44;
+  --color-text: #e5e7eb;
+  --color-text-muted: #9ca3af;
+  --color-text-soft: #6b7280;
+  --color-border: #1f2a44;
+  --color-border-strong: #334155;
 }
 
 html,
 body,
 #app {
-  height: 100%;
-}
-
-/* Constrain and center primary content areas on large screens */
-.content {
-  max-width: 1400px;
-  margin: 0 auto;
+  min-height: 100%;
 }
 
 html {
@@ -31,26 +152,15 @@ html {
 
 body {
   margin: 0;
-  font-family: var(--font-sans);
-  line-height: 1.6;
-  color: #1f2937;
-  /* Subtle layered background */
-  background:
-    radial-gradient(1200px 700px at 10% -10%, rgba(102, 126, 234, 0.1), transparent 60%),
-    radial-gradient(1000px 600px at 110% 0%, rgba(118, 75, 162, 0.1), transparent 60%),
-    linear-gradient(180deg, #f7f8fc 0%, #ffffff 40%, #f4f6fb 100%);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
+  color: var(--color-text);
+  background: var(--gradient-background);
   background-attachment: fixed, fixed, fixed;
+  /* allow child components to rely on CSS variables */
 }
 
-/* Ensure all elements inherit the global font */
-*,
-*::before,
-*::after {
-  font-family: inherit;
-  box-sizing: border-box;
-}
-
-/* Soft color blobs behind content */
 body::before {
   content: '';
   position: fixed;
@@ -65,13 +175,9 @@ body::before {
   filter: blur(60px);
 }
 
-/* Dark mode */
 body.dark {
-  color: #e5e7eb;
-  background:
-    radial-gradient(1200px 700px at 10% -10%, rgba(102, 126, 234, 0.06), transparent 60%),
-    radial-gradient(1000px 600px at 110% 0%, rgba(118, 75, 162, 0.08), transparent 60%),
-    linear-gradient(180deg, #0b1020 0%, #0f1428 40%, #0b1222 100%);
+  background: var(--gradient-background-dark);
+  color: var(--color-text);
 }
 
 body.dark::before {
@@ -82,36 +188,103 @@ body.dark::before {
   filter: blur(80px);
 }
 
-/* Common containers overrides for dark */
-body.dark .page {
-  background:
-    radial-gradient(1000px 600px at 20% -10%, rgba(102, 126, 234, 0.1), transparent 60%),
-    radial-gradient(900px 500px at 120% 10%, rgba(118, 75, 162, 0.08), transparent 60%);
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  font-family: inherit;
 }
 
-body.dark .panel {
-  background: #0f172a;
-  border-color: #1f2a44;
-  box-shadow:
-    0 10px 25px rgba(0, 0, 0, 0.35),
-    0 6px 12px rgba(0, 0, 0, 0.3);
+html,
+body {
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100vw;
 }
 
-/* Typography and headers */
-body.dark h1,
-body.dark h2,
-body.dark h3,
-body.dark h4,
-body.dark h5,
-body.dark h6 {
-  color: #e5e7eb;
+.app-surface {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
 }
 
-body.dark .subtitle,
-body.dark .description,
-body.dark .hint,
-body.dark .selected-meta {
-  color: #9ca3af;
+.app-surface[data-elevated='true'] {
+  box-shadow: var(--shadow-md);
+}
+
+.app-container {
+  width: min(var(--layout-max-width), 100%);
+  margin: 0 auto;
+  padding-inline: var(--layout-gutter);
+}
+
+.stack-sm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.stack-md {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.stack-lg {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.text-muted {
+  color: var(--color-text-muted);
+}
+
+.text-soft {
+  color: var(--color-text-soft);
+}
+
+.surface {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+}
+
+.surface[data-raised='true'] {
+  box-shadow: var(--shadow-sm);
+}
+
+.responsive-grid {
+  display: grid;
+  gap: var(--space-5);
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.responsive-grid--wide {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  background: var(--color-surface-emphasis);
+  color: var(--color-primary);
+  border: 1px solid rgba(102, 126, 234, 0.3);
 }
 
 /* Eyebrow label and badges */
@@ -281,7 +454,7 @@ body.dark .error {
 }
 
 /* Sidebar responsive behavior */
-@media (max-width: 1024px) {
+@media (max-width: 640px) {
   .sidebar {
     position: fixed;
     top: 0;
@@ -475,6 +648,52 @@ body.dark .error {
 }
 .text-2xl {
   font-size: 1.5rem;
+}
+
+.text-muted {
+  color: var(--color-text-muted);
+}
+
+.text-subtle {
+  color: var(--color-text-soft);
+}
+
+/* Avatar utility */
+.avatar {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-surface-subtle);
+  color: var(--color-text);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+}
+
+.avatar--sm {
+  width: 2.25rem;
+  height: 2.25rem;
+}
+
+.avatar--lg {
+  width: 4rem;
+  height: 4rem;
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+body.dark .avatar {
+  border-color: #1f2a44;
+  background: #1f2a44;
+  color: var(--color-text);
 }
 
 .text-center {
@@ -882,4 +1101,14 @@ body.dark .modal-overlay {
   background: rgba(0, 0, 0, 0.6) !important;
   backdrop-filter: blur(10px) saturate(150%) !important;
   -webkit-backdrop-filter: blur(10px) saturate(150%) !important;
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -1,65 +1,55 @@
 <template>
-	<div>
-		<div class="panel" style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px;">
-			<h2 class="text-lg font-semibold mb-4">Friend Requests</h2>
-			
-			<div v-if="loading" class="text-sm" style="color:#6b7280;text-align:center;padding:20px;">
-				Loading...
-			</div>
-			
-			<div v-else-if="requests.length === 0" class="text-sm" style="color:#6b7280;text-align:center;padding:20px;">
-				No pending friend requests
-			</div>
-			
-			<div v-else>
-				<div 
-					v-for="request in requests" 
-					:key="request.requestId" 
-					class="request-item"
-				>
-					<div class="flex items-center gap-4">
-						<div class="avatar">
-							<img 
-								v-if="request.fromUser.profilePicture" 
-								:src="request.fromUser.profilePicture" 
-								alt="" 
-								style="width:100%;height:100%;object-fit:cover;border-radius:50%;" 
-							/>
-							<div v-else class="avatar-placeholder">
-								{{ request.fromUser.displayName.charAt(0).toUpperCase() }}
-							</div>
-						</div>
-						<div class="flex-1">
-							<div class="font-semibold">{{ request.fromUser.displayName }}</div>
-							<div class="text-sm" style="color:#6b7280">@{{ request.fromUser.username }}</div>
-							<div class="text-xs" style="color:#9ca3af;margin-top:4px;">{{ formatTime(request.createdAt) }}</div>
-						</div>
-					</div>
-					
-					<div class="flex gap-2">
-						<button 
-							class="btn btn-accept" 
-							@click="handleAccept(request.requestId)"
-							:disabled="request.processing"
-						>
-							Accept
-						</button>
-						<button 
-							class="btn btn-decline" 
-							@click="handleDecline(request.requestId)"
-							:disabled="request.processing"
-						>
-							Decline
-						</button>
-					</div>
-				</div>
-			</div>
-		</div>
-	</div>
+  <BaseCard padding="md" class="inbox-panel">
+    <template #title>Friend Requests</template>
+
+    <div v-if="loading" class="inbox-panel__empty">Loading…</div>
+    <div v-else-if="requests.length === 0" class="inbox-panel__empty">
+      No pending friend requests
+    </div>
+    <ul v-else class="inbox-panel__list">
+      <li v-for="request in requests" :key="request.requestId" class="inbox-panel__item">
+        <div class="inbox-panel__profile">
+          <span class="avatar">
+            <template v-if="request.fromUser.profilePicture">
+              <img :src="request.fromUser.profilePicture" alt="" />
+            </template>
+            <template v-else>
+              {{ request.fromUser.displayName.charAt(0).toUpperCase() }}
+            </template>
+          </span>
+          <div class="inbox-panel__details">
+            <div class="inbox-panel__name">{{ request.fromUser.displayName }}</div>
+            <div class="text-sm text-muted">@{{ request.fromUser.username }}</div>
+            <div class="inbox-panel__timestamp">{{ formatTime(request.createdAt) }}</div>
+          </div>
+        </div>
+        <div class="inbox-panel__actions">
+          <BaseButton
+            size="sm"
+            variant="primary"
+            :loading="request.processing"
+            @click="handleAccept(request.requestId)"
+          >
+            Accept
+          </BaseButton>
+          <BaseButton
+            size="sm"
+            variant="ghost"
+            :loading="request.processing"
+            @click="handleDecline(request.requestId)"
+          >
+            Decline
+          </BaseButton>
+        </div>
+      </li>
+    </ul>
+  </BaseCard>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import BaseCard from '@/components/ui/BaseCard.vue'
+import BaseButton from '@/components/ui/BaseButton.vue'
 import { getFriendRequests, acceptFriendRequest, declineFriendRequest } from '../services/leaderboard.api'
 
 const requests = ref([])
@@ -69,7 +59,6 @@ const emit = defineEmits(['requestsViewed', 'requestUpdated'])
 
 onMounted(async () => {
 	await loadRequests()
-	// Emit event to clear badge when inbox is viewed
 	emit('requestsViewed')
 })
 
@@ -87,10 +76,9 @@ async function loadRequests() {
 async function handleAccept(requestId) {
 	const request = requests.value.find(r => r.requestId === requestId)
 	if (request) request.processing = true
-	
+
 	try {
 		await acceptFriendRequest(requestId)
-		// Remove from list
 		requests.value = requests.value.filter(r => r.requestId !== requestId)
 		emit('requestUpdated')
 	} catch (error) {
@@ -102,10 +90,9 @@ async function handleAccept(requestId) {
 async function handleDecline(requestId) {
 	const request = requests.value.find(r => r.requestId === requestId)
 	if (request) request.processing = true
-	
+
 	try {
 		await declineFriendRequest(requestId)
-		// Remove from list
 		requests.value = requests.value.filter(r => r.requestId !== requestId)
 		emit('requestUpdated')
 	} catch (error) {
@@ -122,7 +109,7 @@ function formatTime(timestamp) {
 	const minutes = Math.floor(seconds / 60)
 	const hours = Math.floor(minutes / 60)
 	const days = Math.floor(hours / 24)
-	
+
 	if (days > 0) return `${days}d ago`
 	if (hours > 0) return `${hours}h ago`
 	if (minutes > 0) return `${minutes}m ago`
@@ -131,143 +118,84 @@ function formatTime(timestamp) {
 </script>
 
 <style scoped>
-.request-item {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	padding: 16px;
-	border-top: 1px solid #f3f4f6;
-	gap: 16px;
+.inbox-panel__empty {
+  padding: var(--space-5);
+  text-align: center;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
 }
 
-.request-item:first-child {
-	border-top: none;
+.inbox-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-.avatar {
-	width: 48px;
-	height: 48px;
-	border-radius: 50%;
-	border: 1px solid #e5e7eb;
-	overflow: hidden;
-	flex-shrink: 0;
+.inbox-panel__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-4) 0;
+  border-top: 1px solid rgba(226, 232, 240, 0.6);
 }
 
-.avatar-placeholder {
-	width: 100%;
-	height: 100%;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	background: linear-gradient(135deg, var(--primary-light), var(--primary-main));
-	color: white;
-	font-weight: 600;
-	font-size: 20px;
+.inbox-panel__item:first-child {
+  border-top: none;
+  padding-top: 0;
 }
 
-.btn {
-	padding: 8px 16px;
-	border: 1px solid #e5e7eb;
-	border-radius: 8px;
-	background: #ffffff;
-	cursor: pointer;
-	font-size: 14px;
-	font-weight: 500;
-	transition: all 0.2s;
-	color: #1f2937;
+.inbox-panel__profile {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
 }
 
-.btn:disabled {
-	opacity: 0.5;
-	cursor: not-allowed;
+.inbox-panel__details {
+  display: grid;
+  gap: 2px;
 }
 
-.btn-accept {
-	background: linear-gradient(135deg, var(--primary-light), var(--primary-main));
-	color: white;
-	border: none;
+.inbox-panel__name {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
 }
 
-.btn-accept:hover:not(:disabled) {
-	opacity: 0.9;
-	transform: translateY(-1px);
+.inbox-panel__timestamp {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-soft);
+  margin-top: 2px;
 }
 
-.btn-decline {
-	color: #6b7280;
+.inbox-panel__actions {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
 }
 
-.btn-decline:hover:not(:disabled) {
-	background: #f3f4f6;
-	border-color: #d1d5db;
+@media (max-width: 768px) {
+  .inbox-panel__item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .inbox-panel__actions {
+    width: 100%;
+  }
+
+  .inbox-panel__actions > .base-button {
+    flex: 1;
+  }
 }
 
-.flex {
-	display: flex;
+body.dark .inbox-panel__item {
+  border-top-color: #1f2a44;
 }
 
-.flex-1 {
-	flex: 1;
-}
-
-.items-center {
-	align-items: center;
-}
-
-.gap-2 {
-	gap: 8px;
-}
-
-.gap-4 {
-	gap: 16px;
-}
-
-/* Dark Mode */
-body.dark .panel {
-	background: #0f172a !important;
-	border-color: #1f2a44 !important;
-}
-
-body.dark h2 {
-	color: #e5e7eb;
-}
-
-body.dark .request-item {
-	border-top-color: #1f2a44;
-}
-
-body.dark .avatar {
-	border-color: #1f2a44;
-}
-
-body.dark .btn {
-	background: #0b1222;
-	border-color: #1f2a44;
-	color: #e5e7eb;
-}
-
-body.dark .btn-accept {
-	background: linear-gradient(135deg, var(--primary-light), var(--primary-main));
-	color: white;
-	border: none;
-}
-
-body.dark .btn-decline {
-	color: #9ca3af;
-}
-
-body.dark .btn-decline:hover:not(:disabled) {
-	background: #1f2a44;
-	border-color: #334466;
-}
-
-body.dark .text-sm,
-body.dark .text-xs {
-	color: #9ca3af !important;
-}
-
-body.dark .font-semibold {
-	color: #e5e7eb;
+body.dark .inbox-panel__timestamp {
+  color: #9ca3af;
 }
 </style>
 

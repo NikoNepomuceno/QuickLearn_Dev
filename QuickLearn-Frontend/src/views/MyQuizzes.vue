@@ -1,31 +1,37 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import Sidebar from '../components/Sidebar.vue'
-import ConfirmModal from '../components/ConfirmModal.vue'
-import { downloadQuizAsPDF } from '../services/quizService'
-import cloudQuizService from '../services/cloudQuizService'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import AppShell from '@/components/layout/AppShell.vue'
+import BaseButton from '@/components/ui/BaseButton.vue'
+import BaseCard from '@/components/ui/BaseCard.vue'
+import ConfirmModal from '@/components/ConfirmModal.vue'
+import BeatLoader from '@/components/BeatLoader.vue'
+import { downloadQuizAsPDF } from '@/services/quizService'
+import cloudQuizService from '@/services/cloudQuizService'
 import { useRouter } from 'vue-router'
+import { formatUpdatedAt } from '@/utils/format'
 import {
   FolderOpen,
   Plus,
-  MoreVertical,
   Share2,
   Download,
   Play,
   BarChart3,
   FileText,
   Trash2,
+  Target,
+  MoreVertical,
 } from 'lucide-vue-next'
 
 const router = useRouter()
 const quizzes = ref([])
 const adaptiveSessions = ref([])
-const openMenuId = ref(null)
 const isLoading = ref(false)
 const error = ref(null)
 const showDeleteModal = ref(false)
 const quizToDelete = ref(null)
-const activeTab = ref('all') // 'all', 'quicklearn', 'adaptive'
+const activeTab = ref('all')
+const tabKeys = ['all', 'quicklearn', 'adaptive']
+const openDropdownId = ref(null)
 
 const deleteMessage = computed(() => {
   if (!quizToDelete.value) {
@@ -36,12 +42,19 @@ const deleteMessage = computed(() => {
 
 onMounted(async () => {
   await loadQuizzes()
-  document.addEventListener('click', onOutsideClick)
+  document.addEventListener('click', handleClickOutside)
 })
 
-onBeforeUnmount(() => {
-  document.removeEventListener('click', onOutsideClick)
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
 })
+
+function handleClickOutside(event) {
+  const dropdown = event.target.closest('.dropdown-wrapper')
+  if (!dropdown) {
+    closeDropdown()
+  }
+}
 
 const filteredQuizzes = computed(() => {
   if (activeTab.value === 'adaptive') return []
@@ -58,6 +71,27 @@ const filteredAdaptiveSessions = computed(() => {
 const hasAnyContent = computed(() => {
   return quizzes.value.length > 0 || adaptiveSessions.value.length > 0
 })
+
+function focusTab(tab) {
+  const el = document.getElementById(`my-quizzes-tab-${tab}`)
+  el?.focus()
+}
+
+function handleTabKeydown(event, tab) {
+  const index = tabKeys.indexOf(tab)
+  if (index === -1) return
+  if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+    const nextTab = tabKeys[(index + 1) % tabKeys.length]
+    activeTab.value = nextTab
+    focusTab(nextTab)
+    event.preventDefault()
+  } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+    const prevTab = tabKeys[(index - 1 + tabKeys.length) % tabKeys.length]
+    activeTab.value = prevTab
+    focusTab(prevTab)
+    event.preventDefault()
+  }
+}
 
 async function loadQuizzes() {
   try {
@@ -87,7 +121,7 @@ async function loadQuizzes() {
       cloudQuizService.getUserQuizzes().catch(() => []),
       cloudQuizService.getUserAdaptiveSessions().catch(() => [])
     ])
-    
+
     quizzes.value = regularQuizzes
     adaptiveSessions.value = sessions
   } catch (err) {
@@ -97,10 +131,6 @@ async function loadQuizzes() {
   } finally {
     isLoading.value = false
   }
-}
-
-function onOutsideClick() {
-  openMenuId.value = null
 }
 
 function getBarColor(score) {
@@ -167,11 +197,6 @@ function cancelDelete() {
   quizToDelete.value = null
 }
 
-function toggleMenu(quiz, event) {
-  event?.stopPropagation?.()
-  openMenuId.value = openMenuId.value === quiz.id ? null : quiz.id
-}
-
 function formatFileSize(bytes) {
   return cloudQuizService.formatFileSize(bytes)
 }
@@ -190,816 +215,518 @@ function getFileIcon(fileType) {
       return '📄'
   }
 }
+
+function toggleDropdown(quizId) {
+  openDropdownId.value = openDropdownId.value === quizId ? null : quizId
+}
+
+function closeDropdown() {
+  openDropdownId.value = null
+}
+
+function isDropdownOpen(quizId) {
+  return openDropdownId.value === quizId
+}
 </script>
 
 <template>
-  <div class="layout">
-    <Sidebar />
-    <div class="content">
-      <div class="header">
-        <h1>My Quizzes</h1>
-        <p class="subtitle">Review your generated quizzes and track progress.</p>
+  <AppShell
+    title="My quizzes"
+    subtitle="Review your generated quizzes, track attempts, and share them with learners."
+    content-width="wide"
+  >
+    <div class="page-toolbar">
+      <div class="page-toolbar__actions">
+        <BaseButton variant="primary" size="sm" @click="router.push('/upload')">
+          <Plus :size="16" />
+          New quiz
+        </BaseButton>
       </div>
-
-      <!-- Loading State -->
-      <div v-if="isLoading" class="loading">
-        <BeatLoader 
-          :loading="true" 
-          text="Loading your quizzes..." 
-          color="#667eea"
-          size="20px"
-        />
+      <div class="tab-group" role="tablist" aria-label="Quiz filters">
+        <button
+          id="my-quizzes-tab-all"
+          class="tab"
+          :class="{ 'tab--active': activeTab === 'all' }"
+          type="button"
+          role="tab"
+          :aria-selected="activeTab === 'all'"
+          :tabindex="activeTab === 'all' ? 0 : -1"
+          aria-controls="my-quizzes-panel-quicklearn my-quizzes-panel-adaptive"
+          @click="activeTab = 'all'"
+          @keydown="handleTabKeydown($event, 'all')"
+        >
+          All
+        </button>
+        <button
+          id="my-quizzes-tab-quicklearn"
+          class="tab"
+          :class="{ 'tab--active': activeTab === 'quicklearn' }"
+          type="button"
+          role="tab"
+          :aria-selected="activeTab === 'quicklearn'"
+          :tabindex="activeTab === 'quicklearn' ? 0 : -1"
+          aria-controls="my-quizzes-panel-quicklearn"
+          @click="activeTab = 'quicklearn'"
+          @keydown="handleTabKeydown($event, 'quicklearn')"
+        >
+          QuickLearn
+        </button>
+        <button
+          id="my-quizzes-tab-adaptive"
+          class="tab"
+          :class="{ 'tab--active': activeTab === 'adaptive' }"
+          type="button"
+          role="tab"
+          :aria-selected="activeTab === 'adaptive'"
+          :tabindex="activeTab === 'adaptive' ? 0 : -1"
+          aria-controls="my-quizzes-panel-adaptive"
+          @click="activeTab = 'adaptive'"
+          @keydown="handleTabKeydown($event, 'adaptive')"
+        >
+          Adaptive
+        </button>
       </div>
+    </div>
 
-      <!-- Error State -->
-      <div v-else-if="error" class="error">
-        <div class="error-card">
-          <div class="icon">
-            <FolderOpen :size="48" />
-          </div>
-          <div class="title">Failed to load quizzes</div>
-          <div class="hint">{{ error }}</div>
-          <button class="primary" @click="loadQuizzes">Try Again</button>
-        </div>
-      </div>
+    <div v-if="isLoading" class="loading-state">
+      <BeatLoader :loading="true" text="Loading your quizzes..." color="#667eea" size="20px" />
+    </div>
 
-      <!-- Empty State -->
-      <div v-else-if="!hasAnyContent" class="empty">
+    <div v-else-if="error" class="error-state">
+      <BaseCard padding="lg">
         <div class="empty-card">
-          <div class="icon">
+          <FolderOpen :size="40" />
+          <h3>Failed to load quizzes</h3>
+          <p>{{ error }}</p>
+          <BaseButton variant="primary" size="sm" @click="loadQuizzes">
+            Try again
+          </BaseButton>
+        </div>
+      </BaseCard>
+    </div>
+
+    <div v-else>
+      <div v-if="!hasAnyContent" class="empty-state">
+        <BaseCard padding="lg">
+          <div class="empty-card">
             <FolderOpen :size="48" />
+            <h3>No quizzes yet</h3>
+            <p>Create your first quiz by uploading a document.</p>
+            <BaseButton variant="primary" @click="router.push('/upload')">
+              <Plus :size="16" />
+              Create a quiz
+            </BaseButton>
           </div>
-          <div class="title">No quizzes yet</div>
-          <div class="hint">Upload a file to generate your first quiz.</div>
-          <button class="primary" @click="() => router.push('/upload')">
-            <Plus :size="18" />
-            Create a Quiz
-          </button>
-        </div>
+        </BaseCard>
       </div>
 
-      <!-- Tabs -->
-      <div v-else class="tabs-container">
-        <div class="tabs">
-          <button 
-            class="tab" 
-            :class="{ active: activeTab === 'all' }"
-            @click="activeTab = 'all'"
-          >
-            All ({{ quizzes.length + adaptiveSessions.length }})
-          </button>
-          <button 
-            class="tab" 
-            :class="{ active: activeTab === 'quicklearn' }"
-            @click="activeTab = 'quicklearn'"
-          >
-            QuickLearn ({{ quizzes.length }})
-          </button>
-          <button 
-            class="tab" 
-            :class="{ active: activeTab === 'adaptive' }"
-            @click="activeTab = 'adaptive'"
-          >
-            Adaptive ({{ adaptiveSessions.length }})
-          </button>
-        </div>
-      </div>
-
-      <!-- Content -->
-      <div v-if="hasAnyContent">
-        <!-- Adaptive Sessions -->
-        <div v-if="filteredAdaptiveSessions.length > 0" class="category-section">
-          <h2 v-if="activeTab === 'all'" class="category-title">🧠 Adaptive Sessions</h2>
-          <div class="grid">
-            <div v-for="session in filteredAdaptiveSessions" :key="session.id" class="card adaptive-card">
-              <div class="row">
-                <div class="meta">
-                  <div class="name">{{ session.title }}</div>
-                  <div class="desc">{{ session.description }}</div>
-                </div>
-                <div class="adaptive-badge">Adaptive</div>
-              </div>
-
-              <!-- Adaptive Stats -->
-              <div class="adaptive-stats">
-                <div class="stat-item">
-                  <span class="stat-label">Accuracy</span>
-                  <span class="stat-value">{{ session.stats.accuracy }}%</span>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-label">Questions</span>
-                  <span class="stat-value">{{ session.stats.asked }}/{{ session.maxQuestions || 20 }}</span>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-label">Difficulty</span>
-                  <span class="stat-value difficulty" :class="session.stats.currentDifficulty">
-                    {{ session.stats.currentDifficulty }}
-                  </span>
-                </div>
-              </div>
-
-              <div class="progress">
-                <div class="bar-bg"></div>
-                <div
-                  class="bar-fill"
-                  :style="{
-                    width: session.stats.accuracy + '%',
-                    background: getBarColor(session.stats.accuracy),
-                  }"
-                ></div>
-              </div>
-
-              <div class="actions">
-                <button class="primary" @click="() => openAdaptiveSession(session)">
-                  <Play :size="16" />
-                  {{ session.status === 'completed' ? 'View Results' : 'Continue Session' }}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Regular Quizzes -->
-        <div v-if="filteredQuizzes.length > 0" class="category-section">
-          <h2 v-if="activeTab === 'all'" class="category-title">⚡ QuickLearn Quizzes</h2>
-          <div class="grid">
-            <div v-for="quiz in filteredQuizzes" :key="quiz.id" class="card">
-              <div class="row">
-                <div class="meta">
-                  <div class="name">{{ quiz.title || 'Untitled Quiz' }}</div>
-                  <div class="desc">{{ quiz.description }}</div>
-                </div>
-                <div class="menu">
-                  <button class="icon-btn" title="More" @click="(e) => toggleMenu(quiz, e)">
-                    <MoreVertical :size="16" />
-                  </button>
-                  <div class="dropdown" v-if="openMenuId === quiz.id">
-                    <button class="dropdown-item" @click="() => shareQuiz(quiz)">
-                      <Share2 :size="16" />
-                      Share
+      <template v-else>
+        <section
+          v-if="filteredQuizzes.length"
+          id="my-quizzes-panel-quicklearn"
+          class="library-section"
+          role="tabpanel"
+          :hidden="activeTab === 'adaptive'"
+          aria-labelledby="my-quizzes-tab-quicklearn my-quizzes-tab-all"
+          tabindex="0"
+        >
+          <header class="library-section__header">
+            <h2>QuickLearn quizzes</h2>
+            <span class="library-section__count">{{ filteredQuizzes.length }} total</span>
+          </header>
+          <div class="library-grid">
+            <BaseCard
+              v-for="quiz in filteredQuizzes"
+              :key="quiz.id"
+              padding="lg"
+            >
+              <div class="quiz-card">
+                <div class="quiz-card__header">
+                  <div class="quiz-card__meta">
+                    <FileText :size="20" />
+                    <div>
+                      <h3>{{ quiz.title || 'Untitled quiz' }}</h3>
+                      <p class="quiz-card__subtitle">
+                        {{ formatUpdatedAt(quiz.updatedAt || quiz.createdAt) }}
+                      </p>
+                    </div>
+                  </div>
+                  <div class="dropdown-wrapper">
+                    <button 
+                      class="dropdown-trigger"
+                      :aria-label="'More actions for ' + (quiz.title || 'Untitled quiz')"
+                      @click="toggleDropdown(quiz.id)"
+                    >
+                      <MoreVertical :size="20" />
                     </button>
-                    <button class="dropdown-item" @click="() => downloadQuiz(quiz)">
-                      <Download :size="16" />
-                      Download
-                    </button>
-                    <button class="dropdown-item danger" @click="() => showDeleteConfirmation(quiz)">
-                      <Trash2 :size="16" />
-                      Delete
-                    </button>
+                    <div 
+                      v-if="isDropdownOpen(quiz.id)" 
+                      class="dropdown-menu"
+                      @click.stop
+                    >
+                      <button class="dropdown-item" @click="shareQuiz(quiz); closeDropdown()">
+                        <Share2 :size="16" />
+                        Share
+                      </button>
+                      <button class="dropdown-item" @click="downloadQuiz(quiz); closeDropdown()">
+                        <Download :size="16" />
+                        Download PDF
+                      </button>
+                      <button class="dropdown-item dropdown-item--danger" @click="showDeleteConfirmation(quiz); closeDropdown()">
+                        <Trash2 :size="16" />
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <!-- File Information -->
-              <div v-if="quiz.sourceFile && quiz.sourceFile.name" class="file-info">
-                <div class="file-icon">{{ getFileIcon(quiz.sourceFile.type) }}</div>
-                <div class="file-details">
-                  <div class="file-name">{{ quiz.sourceFile.name }}</div>
-                  <div class="file-meta">
-                    {{ quiz.sourceFile.type?.toUpperCase() || 'FILE' }} •
-                    {{ formatFileSize(quiz.sourceFile.size) }}
+                <div class="quiz-card__stats">
+                  <div class="stat-chip">
+                    <BarChart3 :size="16" />
+                    {{ cloudQuizService.getQuizSummary(quiz).attemptsCount }} attempts
+                  </div>
+                  <div
+                    v-if="cloudQuizService.getQuizSummary(quiz).averageScore !== null"
+                    class="stat-chip"
+                  >
+                    <Share2 :size="16" />
+                    Avg. score {{ cloudQuizService.getQuizSummary(quiz).averageScore }}%
+                  </div>
+                  <div class="stat-chip">
+                    <Download :size="16" />
+                    {{ quiz.questionCount || quiz.questions?.length || 0 }} questions
                   </div>
                 </div>
-              </div>
-              <div v-else class="file-info placeholder" aria-hidden="true"></div>
 
-              <div class="progress">
-                <div class="bar-bg"></div>
-                <div
-                  class="bar-fill"
-                  :style="{
-                    width: (cloudQuizService.getQuizSummary(quiz).lastScore ?? 0) + '%',
-                    background: getBarColor(cloudQuizService.getQuizSummary(quiz).lastScore),
-                  }"
-                ></div>
+                <div class="quiz-card__actions">
+                  <BaseButton variant="primary" size="sm" @click="openQuiz(quiz)">
+                    <Play :size="16" />
+                    Take quiz
+                  </BaseButton>
+                </div>
               </div>
-              <div class="progress-meta">
-                <span v-if="cloudQuizService.getQuizSummary(quiz).lastScore != null" class="score">
-                  Last score: {{ cloudQuizService.getQuizSummary(quiz).lastScore }}%
-                </span>
-                <span v-else class="score none">Not taken yet</span>
-                <span class="attempts"
-                  >Attempts: {{ cloudQuizService.getQuizSummary(quiz).attemptsCount }}</span
-                >
-              </div>
-
-              <div class="actions">
-                <button class="primary" @click="() => openQuiz(quiz)">
-                  <Play :size="16" />
-                  {{ getPrimaryCtaText(quiz) }}
-                </button>
-                <button
-                  v-if="cloudQuizService.getQuizSummary(quiz).attemptsCount > 0"
-                  class="secondary"
-                  @click="() => router.push({ name: 'quiz-results', params: { quizId: quiz.id } })"
-                >
-                  <BarChart3 :size="16" />
-                  View Results
-                </button>
-              </div>
-            </div>
+            </BaseCard>
           </div>
-        </div>
-      </div>
+        </section>
+
+        <section
+          v-if="filteredAdaptiveSessions.length"
+          id="my-quizzes-panel-adaptive"
+          class="library-section"
+          role="tabpanel"
+          :hidden="activeTab === 'quicklearn'"
+          aria-labelledby="my-quizzes-tab-adaptive my-quizzes-tab-all"
+          tabindex="0"
+        >
+          <header class="library-section__header">
+            <h2>Adaptive sessions</h2>
+            <span class="library-section__count">{{ filteredAdaptiveSessions.length }} active</span>
+          </header>
+          <div class="library-grid">
+            <BaseCard
+              v-for="session in filteredAdaptiveSessions"
+              :key="session.id"
+              padding="lg"
+            >
+              <div class="quiz-card">
+                <div class="quiz-card__header">
+                  <div class="quiz-card__meta">
+                    <Target :size="20" />
+                    <div>
+                      <h3>{{ session.title || 'Adaptive session' }}</h3>
+                      <p class="quiz-card__subtitle">
+                        {{ formatUpdatedAt(session.updatedAt || session.createdAt) }}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="quiz-card__stats">
+                  <div class="stat-chip">
+                    <BarChart3 :size="16" />
+                    {{ session.questionsAnswered || 0 }} answered
+                  </div>
+                  <div class="stat-chip">
+                    <Share2 :size="16" />
+                    Difficulty {{ session.currentDifficulty || 'N/A' }}
+                  </div>
+                </div>
+
+                <div class="quiz-card__actions">
+                  <BaseButton variant="primary" size="sm" @click="openAdaptiveSession(session)">
+                    <Play :size="16" />
+                    Resume
+                  </BaseButton>
+                </div>
+              </div>
+            </BaseCard>
+          </div>
+        </section>
+      </template>
     </div>
 
     <ConfirmModal
       v-model="showDeleteModal"
-      title="Delete Quiz"
+      title="Delete quiz"
       :message="deleteMessage"
       confirm-text="Delete"
       cancel-text="Cancel"
       @confirm="confirmDelete"
       @cancel="cancelDelete"
     />
-  </div>
+  </AppShell>
 </template>
 
 <style scoped>
-.layout {
+.page-toolbar {
   display: flex;
-  max-height: 100vh;
-}
-
-.content {
-  flex: 1;
-  padding: 24px;
-  max-width: none;
-  margin-left: 40px;
-}
-
-@media (max-width: 1024px) {
-  .content {
-    padding-bottom: 120px;
-  }
-}
-
-.header h1 {
-  margin: 0 0 6px;
-}
-.subtitle {
-  color: #6b7280;
-  margin: 0 0 20px;
-}
-
-.loading {
-  display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
-  padding: 60px 0;
-  color: #6b7280;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
 }
 
-.empty,
-.error {
-  display: flex;
-  justify-content: center;
-  padding: 60px 0;
-}
-.empty-card,
-.error-card {
-  text-align: center;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 32px;
-  width: 520px;
-}
-.empty-card .icon,
-.error-card .icon {
-  color: #9ca3af;
-  margin-bottom: 16px;
-  display: flex;
-  justify-content: center;
-}
-.empty-card .title,
-.error-card .title {
-  font-weight: 700;
-  color: #1f2937;
-  margin-bottom: 6px;
-}
-.empty-card .hint,
-.error-card .hint {
-  color: #6b7280;
-  margin-bottom: 16px;
-}
-
-.tabs-container {
-  margin-bottom: 24px;
-}
-
-.tabs {
-  display: flex;
-  gap: 8px;
-  border-bottom: 2px solid #e5e7eb;
-  padding-bottom: 0;
+.tab-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-subtle);
+  border: 1px solid var(--color-border);
 }
 
 .tab {
-  padding: 12px 20px;
-  background: transparent;
   border: none;
-  border-bottom: 3px solid transparent;
-  color: #6b7280;
-  font-weight: 600;
+  background: none;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
   cursor: pointer;
-  transition: all 0.2s ease;
-  position: relative;
-  bottom: -2px;
+  transition: background var(--transition-base), color var(--transition-base);
 }
 
-.tab:hover {
-  color: #667eea;
+.tab:focus-visible {
+  outline: 2px solid rgba(102, 126, 234, 0.45);
+  outline-offset: 2px;
 }
 
-.tab.active {
-  color: #667eea;
-  border-bottom-color: #667eea;
+.tab--active {
+  background: var(--color-surface);
+  color: var(--color-primary);
+  box-shadow: var(--shadow-xs);
 }
 
-.category-section {
-  margin-bottom: 32px;
+.loading-state,
+.error-state,
+.empty-state {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+  padding: var(--space-6);
 }
 
-.category-title {
-  font-size: 20px;
-  font-weight: 700;
-  color: #1f2937;
-  margin: 0 0 16px;
-  padding-bottom: 8px;
-  border-bottom: 2px solid #e5e7eb;
+.empty-card {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: center;
+  text-align: center;
+  color: var(--color-text-muted);
 }
 
-.grid {
+.empty-card h3 {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  color: var(--color-text);
+}
+
+.library-section {
+  display: grid;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.library-section__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.library-section__header h2 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.library-section__count {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-soft);
+}
+
+.library-grid {
+  display: grid;
+  gap: var(--space-4);
+}
+
+@media (min-width: 900px) {
+  .library-grid {
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  }
+}
+
+.quiz-card {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.quiz-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.quiz-card__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-text);
+}
+
+.quiz-card__meta h3 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.quiz-card__subtitle {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.quiz-card__stats {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
-}
-.card {
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 16px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.03);
-  display: flex;
-  flex-direction: column;
-  flex: 0 0 320px;
-  min-width: 320px;
+  gap: var(--space-2);
 }
 
-.card.adaptive-card {
-  border-left: 4px solid #667eea;
-}
-
-.adaptive-badge {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 4px 10px;
-  border-radius: 999px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.adaptive-stats {
-  display: flex;
-  gap: 12px;
-  margin: 12px 0;
-  padding: 12px;
-  background: #f8faff;
-  border: 1px solid #e6e8ec;
-  border-radius: 8px;
-}
-
-.stat-item {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.stat-label {
-  font-size: 11px;
-  color: #6b7280;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 600;
-}
-
-.stat-value {
-  font-size: 16px;
-  font-weight: 700;
-  color: #1f2937;
-}
-
-.stat-value.difficulty {
-  text-transform: capitalize;
-}
-
-.stat-value.difficulty.easy {
-  color: #10b981;
-}
-
-.stat-value.difficulty.medium {
-  color: #f59e0b;
-}
-
-.stat-value.difficulty.hard {
-  color: #ef4444;
-}
-
-.row {
-  display: flex;
-  align-items: start;
-  justify-content: space-between;
-  gap: 12px;
-}
-.row {
-  min-height: 68px;
-}
-.meta .name {
-  font-weight: 700;
-  color: #111827;
-}
-.meta .desc {
-  color: #6b7280;
-  font-size: 13px;
-  margin-top: 4px;
-}
-.meta .desc {
-  display: -webkit-box;
-  line-clamp: 2;
-  -webkit-line-clamp: 2; 
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.menu {
-  position: relative;
-}
-.icon-btn {
-  background: #f3f4f6;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 6px 8px;
-  cursor: pointer;
-  display: flex;
+.stat-chip {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-}
-.icon-btn:hover {
-  background: #e5e7eb;
-  transform: scale(1.05);
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-subtle);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
 }
 
-.dropdown {
-  position: absolute;
-  right: 0;
-  margin-top: 8px;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+.quiz-card__actions {
   display: flex;
-  flex-direction: column;
-  min-width: 140px;
-  z-index: 10;
-}
-.dropdown-item {
-  background: transparent;
-  border: none;
-  text-align: left;
-  padding: 10px 12px;
-  cursor: pointer;
-  font-weight: 500;
-  color: #374151;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  transition: all 0.2s ease;
-}
-.dropdown-item:hover {
-  background: #f8faff;
-  color: #4338ca;
-}
-.dropdown-item.danger {
-  color: #dc2626;
-}
-.dropdown-item.danger:hover {
-  background: #fef2f2;
-  color: #dc2626;
+  flex-wrap: wrap;
+  gap: var(--space-3);
 }
 
-/* File Information */
-.file-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  margin: 12px 0;
-}
-.file-info {
-  min-height: 56px; /* reserve space so progress bars align */
-}
-.file-info.placeholder {
-  visibility: hidden; /* keep spacing without visual element when no file is present */
+.form-error {
+  margin: var(--space-4) 0 0;
+  text-align: center;
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
 }
 
-.file-icon {
-  font-size: 20px;
-  flex-shrink: 0;
-}
-
-.file-details {
-  flex: 1;
-  min-width: 0;
-}
-
-.file-name {
-  font-weight: 500;
-  color: #1f2937;
-  font-size: 13px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.file-meta {
-  color: #6b7280;
-  font-size: 11px;
-  margin-top: 2px;
-}
-
-.progress {
-  position: relative;
-  height: 10px;
-  border-radius: 6px;
-  margin: 14px 0 6px;
-}
-.bar-bg {
-  position: absolute;
-  inset: 0;
-  background: #e5e7eb;
-  border-radius: 6px;
-}
-.bar-fill {
-  position: absolute;
-  inset: 0;
-  width: 0;
-  border-radius: 6px;
-  transition: width 0.3s ease;
-}
-
-.progress-meta {
-  display: flex;
-  justify-content: space-between;
-  color: #6b7280;
-  font-size: 12px;
-  margin-bottom: 8px;
-}
-.score.none {
-  font-style: italic;
-}
-
-.actions {
-  display: flex;
-  gap: 8px;
-  margin-top: auto;
-}
-.primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #fff;
-  border: none;
-  border-radius: 10px;
-  padding: 10px 14px;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  transition: all 0.2s ease;
-}
-.primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-}
-
-.secondary {
-  background: #f3f4f6;
-  color: #374151;
-  border: 1px solid #d1d5db;
-  border-radius: 10px;
-  padding: 10px 14px;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  transition: all 0.2s ease;
-}
-.secondary:hover {
-  background: #e5e7eb;
-  transform: translateY(-1px);
-}
-
-@media (max-width: 1024px) {
-  .content {
-    padding-bottom: 120px; /* Add space for floating sidebar */
-  }
-}
-
-@media (max-width: 768px) {
-  .content {
-    padding: 16px;
-    padding-bottom: 100px;
-  }
-
-  .header h1 {
-    font-size: 24px;
-  }
-
-  .subtitle {
-    font-size: 14px;
-  }
-
-  .grid {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-
-  .card {
-    flex: 1 1 100%;
-    min-width: auto;
-    padding: 16px;
-  }
-
-  .actions {
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .primary,
-  .secondary {
-    width: 100%;
-    justify-content: center;
-  }
-}
-
-@media (max-width: 480px) {
-  .content {
-    padding: 12px;
-    padding-bottom: 80px;
-  }
-
-  .header h1 {
-    font-size: 20px;
-  }
-
-  .card {
-    padding: 12px;
-  }
-
-  .file-info {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-  }
-
-  .file-details {
-    width: 100%;
-  }
-
-  .dropdown {
-    right: -10px;
-    min-width: 120px;
-  }
-}
-
-/* Dark mode styles */
-body.dark .header h1 {
-  color: #e5e7eb;
-}
-
-body.dark .subtitle {
-  color: #9ca3af;
-}
-
-body.dark .tabs {
-  border-bottom-color: #1f2a44;
+body.dark .tab-group {
+  background: var(--color-surface-subtle);
+  border-color: var(--color-border);
 }
 
 body.dark .tab {
-  color: #9ca3af;
+  color: var(--color-text-muted);
 }
 
-body.dark .tab:hover {
-  color: #a5b4fc;
+body.dark .tab--active {
+  background: var(--color-surface);
+  color: var(--color-primary);
 }
 
-body.dark .tab.active {
-  color: #a5b4fc;
-  border-bottom-color: #667eea;
+.dropdown-wrapper {
+  position: relative;
 }
 
-body.dark .category-title {
-  color: #e5e7eb;
-  border-bottom-color: #1f2a44;
+.dropdown-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: none;
+  color: var(--color-text-muted);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--transition-base), color var(--transition-base);
 }
 
-body.dark .adaptive-stats {
-  background: #1f2a44;
-  border-color: #334155;
+.dropdown-trigger:hover {
+  background: var(--color-surface-subtle);
+  color: var(--color-text);
 }
 
-body.dark .stat-label {
-  color: #9ca3af;
+.dropdown-trigger:focus-visible {
+  outline: 2px solid rgba(102, 126, 234, 0.45);
+  outline-offset: 2px;
 }
 
-body.dark .stat-value {
-  color: #e5e7eb;
+.dropdown-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + var(--space-2));
+  min-width: 180px;
+  padding: var(--space-2);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
 }
 
-body.dark .empty-card {
-  background: #0f172a;
-  border-color: #1f2a44;
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3);
+  border: none;
+  background: none;
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  text-align: left;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--transition-base);
 }
 
-body.dark .empty-card .icon {
-  color: #6b7280;
+.dropdown-item:hover {
+  background: var(--color-surface-subtle);
 }
 
-body.dark .empty-card .title {
-  color: #e5e7eb;
+.dropdown-item:focus-visible {
+  outline: 2px solid rgba(102, 126, 234, 0.45);
+  outline-offset: -2px;
 }
 
-body.dark .empty-card .hint {
-  color: #9ca3af;
+.dropdown-item--danger {
+  color: var(--color-danger);
 }
 
-body.dark .card {
-  background: #0f172a;
-  border-color: #1f2a44;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
-}
-
-body.dark .meta .name {
-  color: #e5e7eb;
-}
-
-body.dark .meta .desc {
-  color: #9ca3af;
-}
-
-body.dark .icon-btn {
-  background: #1f2a44;
-  border-color: #334155;
-  color: #e5e7eb;
-}
-
-body.dark .icon-btn:hover {
-  background: #334155;
-}
-
-body.dark .dropdown {
-  background: #0f172a;
-  border-color: #1f2a44;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
-}
-
-body.dark .dropdown-item {
-  color: #e5e7eb;
-}
-
-body.dark .dropdown-item:hover {
-  background: #1f2a44;
-  color: #a5b4fc;
-}
-
-body.dark .bar-bg {
-  background: #1f2a44;
-}
-
-body.dark .progress-meta {
-  color: #9ca3af;
-}
-
-body.dark .secondary {
-  background: #1f2a44;
-  border-color: #334155;
-  color: #e5e7eb;
-}
-
-body.dark .secondary:hover {
-  background: #334155;
-}
-
-body.dark .primary {
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+.dropdown-item--danger:hover {
+  background: rgba(239, 68, 68, 0.1);
 }
 </style>

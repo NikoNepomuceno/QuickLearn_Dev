@@ -1,11 +1,13 @@
 <script setup>
-import { ref, onMounted, watch, computed } from 'vue'
+import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAdaptiveSessionStore } from '../store/adaptiveSession.store'
 import ProgressHeader from '../components/ProgressHeader.vue'
 import AdaptiveQuestionCard from '../components/AdaptiveQuestionCard.vue'
 import ReviewSuggestionModal from '../components/ReviewSuggestionModal.vue'
-import Sidebar from '../../../components/Sidebar.vue'
+import AppShell from '@/components/layout/AppShell.vue'
+import BaseButton from '@/components/ui/BaseButton.vue'
+import BeatLoader from 'vue-spinner/src/BeatLoader.vue'
 import { Pause, Flag } from 'lucide-vue-next'
 import Swal from 'sweetalert2'
 import 'sweetalert2/dist/sweetalert2.min.css'
@@ -21,7 +23,7 @@ const isSubmitting = computed(() => store.isLoading)
 
 onMounted(async () => {
   const sessionId = route.params.sessionId
-  
+
   if (!sessionId) {
     window.$toast?.error('No session ID provided')
     router.push('/upload')
@@ -31,7 +33,7 @@ onMounted(async () => {
   // Try to resume the session
   try {
     await store.resumeSession(sessionId)
-    
+
     // If no pending question, try to load next
     if (!store.currentQuestion) {
       await store.loadNext()
@@ -52,8 +54,15 @@ watch(() => store.canShowReviewSuggestion, (canShow) => {
 })
 
 // Show SweetAlert2 feedback popup for 3 seconds
+let isActive = true
+onUnmounted(() => {
+  isActive = false
+  try { Swal.close() } catch {}
+})
+
 watch(() => store.showFeedback, async (show) => {
   if (!show) return
+  if (!isActive) return
   const isCorrect = !!store.feedbackData?.correct
   const title = isCorrect ? 'Correct!' : 'Incorrect'
   const icon = isCorrect ? 'success' : 'error'
@@ -82,6 +91,7 @@ watch(() => store.showFeedback, async (show) => {
         }
       }
     })
+    if (!isActive) return
   } finally {
     store.dismissFeedback()
   }
@@ -99,10 +109,10 @@ watch(() => store.isCompleted, (completed) => {
 
 async function handleSubmitAnswer(answer) {
   if (!store.currentQuestion) return
-  
+
   try {
     await store.submitAnswer(store.currentQuestion.id, answer)
-    
+
     // If no next question returned, load it
     if (!store.currentQuestion && !store.isCompleted) {
       setTimeout(async () => {
@@ -156,358 +166,191 @@ function handleCloseReviewModal() {
 </script>
 
 <template>
-  <div class="layout">
-    <Sidebar />
-    <div class="adaptive-quiz-page">
-      <div class="page-header">
-        <h1>Adaptive Quiz</h1>
-        <div class="header-actions">
-          <button class="action-btn pause-btn" @click="handlePause">
-            <Pause :size="18" />
-            Pause
-          </button>
-          <button class="action-btn finish-btn" @click="handleFinish">
-            <Flag :size="18" />
-            Finish
-          </button>
-        </div>
+  <AppShell
+    title="Adaptive quiz"
+    subtitle="Answer questions tailored to your performance and keep building momentum."
+    content-width="narrow"
+  >
+    <template #header-actions>
+      <div class="page-toolbar">
+        <BaseButton variant="ghost" size="sm" @click="handlePause">
+          <Pause :size="16" />
+          Pause
+        </BaseButton>
+        <BaseButton variant="primary" size="sm" @click="handleFinish">
+          <Flag :size="16" />
+          Finish
+        </BaseButton>
       </div>
+    </template>
 
-      <div class="quiz-container">
-        <ProgressHeader
-          :asked="store.stats.asked"
-          :correct="store.stats.correct"
-          :max-questions="store.maxQuestions"
-          :current-difficulty="store.stats.currentDifficulty"
-          :wrong-streak="store.stats.wrongStreak"
-        />
-
-        <div v-if="store.currentQuestion" class="question-container">
-          <AdaptiveQuestionCard
-            :question="store.currentQuestion"
-            :disabled="isSubmitting"
-            @submit="handleSubmitAnswer"
-          />
-        </div>
-
-        <div v-else-if="store.isLoading" class="loading-state">
-          <div class="spinner"></div>
-          <p>Loading next question...</p>
-        </div>
-
-        <div v-else-if="store.isCompleted" class="completion-state">
-          <div class="completion-icon">🎉</div>
-          <h2>Quiz Complete!</h2>
-          <p>Redirecting to summary...</p>
-        </div>
-
-        <div v-else-if="store.error" class="error-state">
-          <div class="error-icon">⚠️</div>
-          <h2>Something went wrong</h2>
-          <p>{{ store.error }}</p>
-          <button class="retry-btn" @click="store.loadNext()">
-            Retry
-          </button>
-        </div>
-
-        <!-- Topics Panel (shown when user clicks "See Topics") -->
-        <div v-if="showTopicsPanel" class="topics-panel">
-          <h3>Topics to Review</h3>
-          <ul v-if="store.reviewSuggestion?.suggestions?.topics">
-            <li v-for="(topic, idx) in store.reviewSuggestion.suggestions.topics" :key="idx">
-              {{ topic }}
-            </li>
-          </ul>
-          <p v-else>Keep practicing! You're doing great.</p>
-          <button class="close-topics-btn" @click="showTopicsPanel = false">
-            Close
-          </button>
-        </div>
-      </div>
-
-      
-
-      <!-- Review Suggestion Modal -->
-      <ReviewSuggestionModal
-        :visible="showReviewModal"
-        :suggestion="store.reviewSuggestion"
-        @close="handleCloseReviewModal"
-        @lower-cap="handleLowerCap"
-        @see-topics="handleSeeTopics"
-        @continue="handleContinue"
+    <div class="quiz-container">
+      <ProgressHeader
+        :asked="store.stats.asked"
+        :correct="store.stats.correct"
+        :max-questions="store.maxQuestions"
+        :current-difficulty="store.stats.currentDifficulty"
+        :wrong-streak="store.stats.wrongStreak"
       />
+
+      <div v-if="store.currentQuestion" class="question-container">
+        <AdaptiveQuestionCard
+          :question="store.currentQuestion"
+          :disabled="isSubmitting"
+          @submit="handleSubmitAnswer"
+        />
+      </div>
+
+      <div v-else-if="store.isLoading" class="loading-state">
+        <BeatLoader :loading="true" text="Loading next question..." color="#667eea" size="18px" />
+      </div>
+
+      <div v-else-if="store.isCompleted" class="completion-state">
+        <div class="completion-icon" aria-hidden="true">🎉</div>
+        <h2>Quiz complete!</h2>
+        <p>Redirecting to summary…</p>
+      </div>
+
+      <div v-else-if="store.error" class="error-state">
+        <div class="error-icon" aria-hidden="true">⚠️</div>
+        <h2>Something went wrong</h2>
+        <p>{{ store.error }}</p>
+        <BaseButton variant="primary" size="sm" @click="store.loadNext()">
+          Retry
+        </BaseButton>
+      </div>
+
+      <section v-if="showTopicsPanel" class="topics-panel" aria-live="polite">
+        <h3>Topics to review</h3>
+        <ul v-if="store.reviewSuggestion?.suggestions?.topics?.length">
+          <li v-for="(topic, idx) in store.reviewSuggestion.suggestions.topics" :key="idx">
+            {{ topic }}
+          </li>
+        </ul>
+        <p v-else>Keep practicing! You're doing great.</p>
+        <BaseButton variant="ghost" size="sm" @click="showTopicsPanel = false">
+          Close
+        </BaseButton>
+      </section>
     </div>
-  </div>
+
+    <ReviewSuggestionModal
+      :visible="showReviewModal"
+      :suggestion="store.reviewSuggestion"
+      @close="handleCloseReviewModal"
+      @lower-cap="handleLowerCap"
+      @see-topics="handleSeeTopics"
+      @continue="handleContinue"
+    />
+  </AppShell>
 </template>
 
 <style scoped>
-.layout {
+.page-toolbar {
   display: flex;
-  min-height: 100vh;
-}
-
-.adaptive-quiz-page {
-  flex: 1;
-  padding: 24px;
-  background:
-    radial-gradient(1000px 600px at 20% -10%, rgba(102, 126, 234, 0.12), transparent 60%),
-    radial-gradient(900px 500px at 120% 10%, rgba(118, 75, 162, 0.1), transparent 60%);
-}
-
-.page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 24px;
-}
-
-.page-header h1 {
-  font-size: 28px;
-  font-weight: 700;
-  color: #1f2937;
-  margin: 0;
-}
-
-.header-actions {
-  display: flex;
-  gap: 12px;
-}
-
-.action-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  border-radius: 10px;
-  border: none;
-  font-weight: 600;
-  font-size: 14px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.pause-btn {
-  background: #f3f4f6;
-  color: #374151;
-  border: 1px solid #d1d5db;
-}
-
-.pause-btn:hover {
-  background: #e5e7eb;
-}
-
-.finish-btn {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  box-shadow: 0 4px 14px rgba(102, 126, 234, 0.4);
-}
-
-.finish-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+  justify-content: flex-end;
+  gap: var(--space-3);
 }
 
 .quiz-container {
-  max-width: 800px;
-  margin: 0 auto;
+  display: grid;
+  gap: var(--space-5);
 }
 
 .question-container {
-  margin-bottom: 24px;
+  display: grid;
+  gap: var(--space-4);
 }
 
 .loading-state,
 .completion-state,
 .error-state {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: center;
+  padding: var(--space-8);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
   text-align: center;
-  padding: 60px 20px;
-  background: white;
-  border: 1px solid #e6e8ec;
-  border-radius: 16px;
-}
-
-.spinner {
-  width: 48px;
-  height: 48px;
-  border: 4px solid #e6e8ec;
-  border-top-color: #667eea;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 20px;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 .loading-state p,
 .completion-state p,
 .error-state p {
-  color: #6b7280;
-  font-size: 16px;
+  color: var(--color-text-muted);
   margin: 0;
 }
 
 .completion-icon,
 .error-icon {
-  font-size: 64px;
-  margin-bottom: 16px;
+  font-size: 2.5rem;
+  color: var(--color-text);
 }
 
 .completion-state h2,
 .error-state h2 {
-  font-size: 24px;
-  font-weight: 700;
-  color: #1f2937;
-  margin: 0 0 12px;
-}
-
-.retry-btn {
-  margin-top: 20px;
-  padding: 12px 32px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border: none;
-  border-radius: 10px;
-  color: white;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.retry-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  margin: 0 0 var(--space-2);
 }
 
 .topics-panel {
-  margin-top: 24px;
-  padding: 24px;
-  background: #f8faff;
-  border: 2px solid #667eea;
-  border-radius: 12px;
+  margin-top: var(--space-5);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-subtle);
+  display: grid;
+  gap: var(--space-3);
 }
 
 .topics-panel h3 {
-  margin: 0 0 16px;
-  font-size: 18px;
-  font-weight: 700;
-  color: #1f2937;
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
 }
 
 .topics-panel ul {
   list-style: none;
   padding: 0;
-  margin: 0 0 16px;
+  margin: 0;
+  display: grid;
+  gap: var(--space-2);
 }
 
 .topics-panel li {
-  padding: 10px;
-  background: white;
-  border: 1px solid #e6e8ec;
-  border-radius: 8px;
-  margin-bottom: 8px;
-  color: #374151;
-}
-
-.close-topics-btn {
-  padding: 10px 20px;
-  background: #667eea;
-  border: none;
-  border-radius: 8px;
-  color: white;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.close-topics-btn:hover {
-  background: #5a67d8;
-}
-
-@media (max-width: 1024px) {
-  .adaptive-quiz-page {
-    padding-bottom: 120px;
-  }
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
 }
 
 @media (max-width: 768px) {
-  .adaptive-quiz-page {
-    padding: 16px;
-    padding-bottom: 100px;
-  }
-
-  .page-header {
+  .page-toolbar {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 16px;
+    align-items: stretch;
   }
-
-  .page-header h1 {
-    font-size: 24px;
-  }
-
-  .header-actions {
-    width: 100%;
-  }
-
-  .action-btn {
-    flex: 1;
-  }
-}
-
-/* Dark mode */
-body.dark .page-header h1 {
-  color: #e5e7eb;
-}
-
-body.dark .pause-btn {
-  background: #1f2a44;
-  border-color: #334155;
-  color: #e5e7eb;
-}
-
-body.dark .pause-btn:hover {
-  background: #334155;
 }
 
 body.dark .loading-state,
 body.dark .completion-state,
 body.dark .error-state {
-  background: #0f172a;
-  border-color: #1f2a44;
-}
-
-body.dark .loading-state p,
-body.dark .completion-state p,
-body.dark .error-state p {
-  color: #9ca3af;
-}
-
-body.dark .completion-state h2,
-body.dark .error-state h2 {
-  color: #e5e7eb;
-}
-
-body.dark .spinner {
-  border-color: #1f2a44;
-  border-top-color: #667eea;
+  background: var(--color-surface);
+  border-color: var(--color-border);
 }
 
 body.dark .topics-panel {
-  background: #1f2a44;
-  border-color: #667eea;
-}
-
-body.dark .topics-panel h3 {
-  color: #e5e7eb;
+  background: rgba(15, 23, 42, 0.9);
+  border-color: #1f2a44;
 }
 
 body.dark .topics-panel li {
-  background: #0f172a;
-  border-color: #334155;
-  color: #e5e7eb;
+  background: var(--color-surface);
+  border-color: #1f2a44;
 }
 </style>
 

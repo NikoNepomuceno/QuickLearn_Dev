@@ -5,6 +5,10 @@ import { logoutUser, clearLegacyTokens } from '../services/authService'
 import ConfirmModal from './ConfirmModal.vue'
 import { BookOpen, Upload, Brain, LogOut, Trash, Menu, X, Settings, Book, Trophy } from 'lucide-vue-next'
 
+defineOptions({
+  inheritAttrs: false
+})
+
 const router = useRouter()
 const showConfirm = ref(false)
 const isOpen = ref(false)
@@ -71,7 +75,7 @@ onBeforeUnmount(() => {
   ></div>
 
   <!-- Sidebar -->
-  <aside class="sidebar" :class="{ open: isOpen }">
+  <aside class="sidebar" :class="{ open: isOpen }" v-bind="$attrs">
     <div class="brand">
       <BookOpen class="logo" :size="24" />
       <span class="brand-text">QuickLearn</span>
@@ -166,7 +170,7 @@ body.dark .mobile-menu-btn:hover {
 .sidebar {
   position: sticky;
   top: 0;
-  height: 100vh;
+  max-height: 100vh;
   width: 260px;
   box-sizing: border-box;
   display: flex;
@@ -178,7 +182,7 @@ body.dark .mobile-menu-btn:hover {
   backdrop-filter: blur(10px);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
   transition: all 0.3s ease;
-  overflow: hidden;
+  overflow: auto;
 }
 
 body.dark .sidebar {
@@ -187,7 +191,7 @@ body.dark .sidebar {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 900px) {
   .mobile-menu-btn {
     display: flex;
     align-items: center;

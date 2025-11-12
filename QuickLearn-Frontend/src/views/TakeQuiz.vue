@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import cloudQuizService from '../services/cloudQuizService'
 import VoiceQuiz from '../components/VoiceQuiz.vue'
@@ -7,6 +7,13 @@ import { Clock, CheckCircle, ArrowRight, ArrowLeft } from 'lucide-vue-next'
 
 const router = useRouter()
 const route = useRoute()
+
+const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1280)
+const screenReaderStatus = ref('')
+const storageKey = computed(() => {
+  const id = route.params.quizId
+  return id ? `quiz-progress-${id}` : null
+})
 
 const quiz = ref(null)
 const currentQuestionIndex = ref(0)
@@ -156,12 +163,11 @@ onMounted(async () => {
       const quizData = await cloudQuizService.getQuizByUuid(route.params.quizId)
       if (quizData) {
         quiz.value = quizData
-        // init per-question timing buckets
         const count = quizData.questions?.length || 0
         questionTimesMs.value = Array.from({ length: count }, () => 0)
         startTimer()
-        // mark the first question start time
         questionStartedAt.value = Date.now()
+        restoreProgress()
       } else {
         window.$toast?.error('Quiz not found')
         router.push('/')
@@ -173,6 +179,20 @@ onMounted(async () => {
     }
   } else {
     router.push('/')
+  }
+
+  if (typeof window !== 'undefined') {
+    updateWindowWidth()
+    window.addEventListener('resize', updateWindowWidth)
+  }
+})
+
+onBeforeUnmount(() => {
+  if (timer) {
+    clearInterval(timer)
+  }
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('resize', updateWindowWidth)
   }
 })
 
@@ -196,6 +216,8 @@ function accumulateTimeForCurrent() {
 
 function selectAnswer(answer) {
   answers.value[currentQuestionIndex.value] = answer
+  persistProgress()
+  screenReaderStatus.value = `Answer recorded for question ${currentQuestionIndex.value + 1}.`
 }
 
 function updateEnumerationAnswer() {
@@ -204,6 +226,8 @@ function updateEnumerationAnswer() {
     const lines = textarea.value.split('\n').filter((line) => line.trim() !== '')
     answers.value[currentQuestionIndex.value] = lines
     enumerationAnswers.value[currentQuestionIndex.value] = textarea.value
+    persistProgress()
+    screenReaderStatus.value = `Answer recorded for question ${currentQuestionIndex.value + 1}.`
   }
 }
 
@@ -218,6 +242,8 @@ function nextQuestion() {
   if (currentQuestionIndex.value < totalQuestions.value - 1) {
     accumulateTimeForCurrent()
     currentQuestionIndex.value++
+    persistProgress()
+    screenReaderStatus.value = `Moved to question ${currentQuestionIndex.value + 1}.`
   }
 }
 
@@ -225,11 +251,12 @@ function previousQuestion() {
   if (currentQuestionIndex.value > 0) {
     accumulateTimeForCurrent()
     currentQuestionIndex.value--
+    persistProgress()
+    screenReaderStatus.value = `Returned to question ${currentQuestionIndex.value + 1}.`
   }
 }
 
 async function submitQuiz() {
-  // capture final question time slice
   accumulateTimeForCurrent()
   if (timer) {
     clearInterval(timer)
@@ -250,7 +277,8 @@ async function submitQuiz() {
     console.error('Error saving quiz attempt:', error)
   }
 
-  // Redirect to the dedicated results view to avoid duplication
+  clearProgress()
+  screenReaderStatus.value = 'Quiz submitted. Preparing results.'
   router.push({ name: 'quiz-results', params: { quizId: route.params.quizId || quiz.value?.id } })
 }
 
@@ -268,7 +296,8 @@ function handleVoiceAnswer(answer) {
   console.log('Voice answer received:', answer, 'Current question:', currentQuestionIndex.value)
   selectAnswer(answer)
   window.$toast?.success('Answer recorded via voice')
-  
+  screenReaderStatus.value = `Answer recorded via voice for question ${currentQuestionIndex.value + 1}.`
+
 
   setTimeout(() => {
     console.log('Auto-advancing from question', currentQuestionIndex.value, 'to next question')
@@ -279,7 +308,7 @@ function handleVoiceAnswer(answer) {
       console.log('Last question reached, submitting quiz')
       submitQuiz()
     }
-  }, 1500) 
+  }, 1500)
 }
 
 function handleVoiceError(error) {
@@ -293,12 +322,54 @@ function handleVoiceStatusChange(status) {
     isVoiceEnabled.value = false
   }
 }
+
+function updateWindowWidth() {
+  if (typeof window === 'undefined') return
+  windowWidth.value = window.innerWidth
+}
+
+function persistProgress() {
+  if (!storageKey.value) return
+  try {
+    const payload = {
+      answers: answers.value,
+      currentQuestionIndex: currentQuestionIndex.value
+    }
+    localStorage.setItem(storageKey.value, JSON.stringify(payload))
+  } catch {}
+}
+
+function restoreProgress() {
+  if (!storageKey.value) return
+  try {
+    const raw = localStorage.getItem(storageKey.value)
+    if (!raw) return
+    const saved = JSON.parse(raw)
+    if (saved.answers && typeof saved.answers === 'object') {
+      answers.value = { ...saved.answers }
+    }
+    if (typeof saved.currentQuestionIndex === 'number' && quiz.value?.questions?.length) {
+      currentQuestionIndex.value = Math.min(
+        saved.currentQuestionIndex,
+        quiz.value.questions.length - 1
+      )
+    }
+  } catch {}
+}
+
+function clearProgress() {
+  if (!storageKey.value) return
+  try {
+    localStorage.removeItem(storageKey.value)
+  } catch {}
+}
 </script>
 
 <template>
   <div class="quiz-page">
+    <div class="sr-status" aria-live="polite">{{ screenReaderStatus }}</div>
     <!-- Floating Progress Indicator -->
-    <div class="floating-progress">
+    <div class="floating-progress" aria-hidden="true">
       <div class="progress-circle">
         <svg class="progress-ring" width="60" height="60">
           <circle
@@ -350,7 +421,7 @@ function handleVoiceStatusChange(status) {
             </svg>
             Back to Home
           </button>
-          
+
           <div class="quiz-meta">
             <div class="timer">
               <Clock :size="16" />
@@ -369,7 +440,7 @@ function handleVoiceStatusChange(status) {
             <h1>{{ quiz?.title || 'Quiz' }}</h1>
             <p class="description">{{ quiz?.description }}</p>
           </div>
-          
+
           <!-- Voice Quiz Component -->
           <div class="voice-controls">
             <VoiceQuiz
@@ -433,15 +504,16 @@ function handleVoiceStatusChange(status) {
               "
               class="choices"
             >
-              <div
+              <label
                 v-for="(choice, index) in currentQuestion?.choices"
                 :key="index"
                 class="choice-option"
                 :class="{ selected: answers[currentQuestionIndex] === choice }"
-                @click="selectAnswer(choice)"
+                :for="`question-${currentQuestionIndex}-choice-${index}`"
               >
                 <div class="choice-radio">
                   <input
+                    :id="`question-${currentQuestionIndex}-choice-${index}`"
                     type="radio"
                     :name="`question-${currentQuestionIndex}`"
                     :value="choice"
@@ -456,7 +528,7 @@ function handleVoiceStatusChange(status) {
                   <span class="choice-letter">{{ String.fromCharCode(65 + index) }}</span>
                   <span class="choice-text">{{ choice }}</span>
                 </div>
-                <div class="choice-indicator">
+                <div class="choice-indicator" aria-hidden="true">
                   <svg
                     v-if="answers[currentQuestionIndex] === choice"
                     width="20"
@@ -469,7 +541,7 @@ function handleVoiceStatusChange(status) {
                     <polyline points="20,6 9,17 4,12" />
                   </svg>
                 </div>
-              </div>
+              </label>
             </div>
 
             <!-- Identification (Fill-in-the-blank) Questions -->
@@ -577,6 +649,12 @@ function handleVoiceStatusChange(status) {
   border-radius: 50%;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   padding: 8px;
+}
+
+@media (max-width: 900px) {
+  .floating-progress {
+    display: none;
+  }
 }
 
 .progress-circle {
