@@ -165,9 +165,6 @@ function clearBadge() {
   gap: 24px;
   padding: 28px;
   min-height: 100%;
-  background:
-    radial-gradient(1000px 600px at 10% -20%, rgba(102, 126, 234, 0.12), transparent 60%),
-    radial-gradient(900px 500px at 120% 10%, rgba(118, 75, 162, 0.1), transparent 60%);
 }
 
 .content-grid {
@@ -409,11 +406,11 @@ function clearBadge() {
 }
 
 /* Dark mode */
-body.dark .leaderboards-page {
+/* body.dark .leaderboards-page {
   background:
     radial-gradient(1000px 600px at 10% -20%, rgba(102, 126, 234, 0.16), transparent 60%),
     radial-gradient(900px 500px at 120% 10%, rgba(118, 75, 162, 0.14), transparent 60%);
-}
+} */
 
 body.dark .main-panel__headline h3,
 body.dark .card h4 {

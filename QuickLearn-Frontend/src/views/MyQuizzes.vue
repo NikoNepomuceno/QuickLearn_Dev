@@ -227,6 +227,10 @@ function closeDropdown() {
 function isDropdownOpen(quizId) {
   return openDropdownId.value === quizId
 }
+
+function viewResults(quiz) {
+  router.push({ name: 'quiz-results', params: { quizId: quiz.id } })
+}
 </script>
 
 <template>
@@ -402,6 +406,15 @@ function isDropdownOpen(quizId) {
                   <BaseButton variant="primary" size="sm" @click="openQuiz(quiz)">
                     <Play :size="16" />
                     Take quiz
+                  </BaseButton>
+                  <BaseButton 
+                    v-if="cloudQuizService.getQuizSummary(quiz).attemptsCount > 0"
+                    variant="secondary" 
+                    size="sm" 
+                    @click="viewResults(quiz)"
+                  >
+                    <BarChart3 :size="16" />
+                    View Results
                   </BaseButton>
                 </div>
               </div>

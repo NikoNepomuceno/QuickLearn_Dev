@@ -87,26 +87,6 @@ function handleGitHubLogin() {
       <ArrowLeft :size="16" />
     </template>
 
-    <template #avatar>
-      <div class="auth-icon" aria-hidden="true">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-          <path
-            d="M12 12C14.7614 12 17 9.76142 17 7C17 4.23858 14.7614 2 12 2C9.23858 2 7 4.23858 7 7C7 9.76142 9.23858 12 12 12Z"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-          <path
-            d="M20.59 22C20.59 18.13 16.74 15 12 15C7.26 15 3.41 18.13 3.41 22"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-      </div>
-    </template>
 
     <form class="auth-form" @submit.prevent="onSubmit" novalidate>
       <FormField
@@ -224,18 +204,6 @@ function handleGitHubLogin() {
 </template>
 
 <style scoped>
-.auth-icon {
-  width: 64px;
-  height: 64px;
-  border-radius: var(--radius-pill);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
-  box-shadow: var(--shadow-md);
-}
-
 .auth-form {
   display: grid;
   gap: var(--space-5);
@@ -321,13 +289,6 @@ function handleGitHubLogin() {
 
 .auth-footer__link:hover {
   color: var(--color-primary-dark);
-}
-
-@media (max-width: 480px) {
-  .auth-icon {
-    width: 56px;
-    height: 56px;
-  }
 }
 
 body.dark .auth-divider span {

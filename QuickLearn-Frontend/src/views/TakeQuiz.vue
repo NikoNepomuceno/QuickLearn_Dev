@@ -3,7 +3,8 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import cloudQuizService from '../services/cloudQuizService'
 import VoiceQuiz from '../components/VoiceQuiz.vue'
-import { Clock, CheckCircle, ArrowRight, ArrowLeft } from 'lucide-vue-next'
+import { DotLottieVue } from '@lottiefiles/dotlottie-vue'
+import { Clock, CheckCircle, ArrowRight, Play } from 'lucide-vue-next'
 
 const router = useRouter()
 const route = useRoute()
@@ -25,6 +26,10 @@ const startTime = ref(null)
 const questionTimesMs = ref([]) // per-question timings in milliseconds
 const questionStartedAt = ref(null) // timestamp when current question started
 let timer = null
+
+// Quiz stage management: 'overview', 'countdown', 'active'
+const quizStage = ref('overview')
+let countdownTimeout = null
 
 const currentQuestion = computed(() => {
   return quiz.value?.questions?.[currentQuestionIndex.value] || null
@@ -147,7 +152,6 @@ const isCurrentQuestionAnswered = computed(() => {
   if (currentQuestion.value?.type === 'enumeration') {
     return (
       Array.isArray(currentAnswer) &&
-      currentAnswer.length > 0 &&
       currentAnswer.some((item) => item.trim() !== '')
     )
   }
@@ -165,9 +169,7 @@ onMounted(async () => {
         quiz.value = quizData
         const count = quizData.questions?.length || 0
         questionTimesMs.value = Array.from({ length: count }, () => 0)
-        startTimer()
-        questionStartedAt.value = Date.now()
-        restoreProgress()
+        // Timer will start after countdown completes
       } else {
         window.$toast?.error('Quiz not found')
         router.push('/')
@@ -190,6 +192,9 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   if (timer) {
     clearInterval(timer)
+  }
+  if (countdownTimeout) {
+    clearTimeout(countdownTimeout)
   }
   if (typeof window !== 'undefined') {
     window.removeEventListener('resize', updateWindowWidth)
@@ -247,15 +252,6 @@ function nextQuestion() {
   }
 }
 
-function previousQuestion() {
-  if (currentQuestionIndex.value > 0) {
-    accumulateTimeForCurrent()
-    currentQuestionIndex.value--
-    persistProgress()
-    screenReaderStatus.value = `Returned to question ${currentQuestionIndex.value + 1}.`
-  }
-}
-
 async function submitQuiz() {
   accumulateTimeForCurrent()
   if (timer) {
@@ -283,6 +279,16 @@ async function submitQuiz() {
 }
 
 // restartQuiz removed; navigation goes to results page instead
+
+function startQuiz() {
+  quizStage.value = 'countdown'
+  // Start quiz after animation plays (4 seconds)
+  countdownTimeout = setTimeout(() => {
+    quizStage.value = 'active'
+    startTimer()
+    questionStartedAt.value = Date.now()
+  }, 4000)
+}
 
 function goHome() {
   router.push('/upload')
@@ -368,8 +374,82 @@ function clearProgress() {
 <template>
   <div class="quiz-page">
     <div class="sr-status" aria-live="polite">{{ screenReaderStatus }}</div>
-    <!-- Floating Progress Indicator -->
-    <div class="floating-progress" aria-hidden="true">
+
+    <!-- Overview Screen -->
+    <div v-if="quizStage === 'overview'" class="quiz-overview">
+      <div class="overview-content">
+        <div class="overview-icon">
+          <svg
+            width="80"
+            height="80"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+            <path d="M12 17h.01" />
+          </svg>
+        </div>
+
+        <h1 class="overview-title">{{ quiz?.title || 'Quiz' }}</h1>
+        <p class="overview-description">{{ quiz?.description || 'Test your knowledge' }}</p>
+
+        <div class="overview-stats">
+          <div class="stat-item">
+            <div class="stat-icon">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                <path d="M12 17h.01" />
+              </svg>
+            </div>
+            <div class="stat-content">
+              <span class="stat-value">{{ totalQuestions }}</span>
+              <span class="stat-label">Questions</span>
+            </div>
+          </div>
+
+          <div class="stat-item">
+            <div class="stat-icon">
+              <Clock :size="24" />
+            </div>
+            <div class="stat-content">
+              <span class="stat-value">~{{ Math.ceil(totalQuestions * 1.5) }}m</span>
+              <span class="stat-label">Est. Time</span>
+            </div>
+          </div>
+        </div>
+
+        <button @click="startQuiz" class="start-quiz-btn">
+          <Play :size="20" />
+          Start Quiz
+        </button>
+      </div>
+    </div>
+
+    <!-- Countdown Overlay -->
+    <div v-if="quizStage === 'countdown'" class="countdown-overlay">
+      <div class="countdown-content">
+        <DotLottieVue
+          src="https://lottie.host/28b0b7a5-3b6a-4642-99d7-922f09c7b97a/XVIKM8XHHC.lottie"
+          style="width: 300px; height: 300px"
+          autoplay
+          loop
+        />
+      </div>
+    </div>
+
+    <!-- Floating Progress Indicator (only show when quiz is active) -->
+    <div v-if="quizStage === 'active'" class="floating-progress" aria-hidden="true">
       <div class="progress-circle">
         <svg class="progress-ring" width="60" height="60">
           <circle
@@ -403,9 +483,11 @@ function clearProgress() {
       </div>
     </div>
 
-    <div class="quiz-container">
-      <!-- Quiz Header -->
-      <div class="quiz-header">
+    <!-- Active Quiz -->
+    <Transition name="quiz-enter">
+      <div v-if="quizStage === 'active'" class="quiz-container">
+        <!-- Quiz Header -->
+        <div class="quiz-header">
         <div class="header-top">
           <button class="back-btn" @click="goHome">
             <svg
@@ -588,15 +670,6 @@ function clearProgress() {
         <div class="navigation">
           <div class="nav-controls">
             <button
-              class="nav-btn secondary"
-              @click="previousQuestion"
-              :disabled="currentQuestionIndex === 0"
-            >
-              <ArrowLeft :size="16" />
-              Previous
-            </button>
-
-            <button
               v-if="currentQuestionIndex < totalQuestions - 1"
               class="nav-btn primary"
               @click="nextQuestion"
@@ -618,7 +691,8 @@ function clearProgress() {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -637,6 +711,208 @@ function clearProgress() {
 .quiz-container {
   position: relative;
   z-index: 1;
+}
+
+/* Quiz Overview Screen */
+.quiz-overview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 48px 24px;
+}
+
+.overview-content {
+  max-width: 600px;
+  width: 100%;
+  text-align: center;
+  background: white;
+  border-radius: 24px;
+  padding: 64px 48px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+  border: 1px solid #f1f5f9;
+}
+
+.overview-icon {
+  width: 120px;
+  height: 120px;
+  margin: 0 auto 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 24px;
+  color: white;
+  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
+}
+
+.overview-title {
+  font-size: 48px;
+  font-weight: 800;
+  margin: 0 0 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.overview-description {
+  font-size: 18px;
+  color: #6b7280;
+  margin: 0 0 48px;
+  line-height: 1.6;
+}
+
+.overview-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+  margin-bottom: 48px;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 24px;
+  background: linear-gradient(135deg, #f8faff 0%, #f0f4ff 100%);
+  border-radius: 16px;
+  border: 2px solid #e0e7ff;
+}
+
+.stat-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  color: white;
+  flex-shrink: 0;
+}
+
+.stat-content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 800;
+  color: #1f2937;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.stat-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.start-quiz-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 48px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 16px;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
+}
+
+.start-quiz-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(102, 126, 234, 0.4);
+}
+
+.start-quiz-btn:active {
+  transform: translateY(0);
+}
+
+/* Countdown Overlay */
+.countdown-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px) saturate(180%);
+  -webkit-backdrop-filter: blur(8px) saturate(180%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.3s ease;
+}
+
+.countdown-content {
+  text-align: center;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.5s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Quiz entrance animation */
+.quiz-enter-enter-active {
+  animation: quizScaleIn 0.5s ease-out;
+}
+
+@keyframes quizScaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 /* Floating Progress Indicator */
@@ -1651,6 +1927,25 @@ function clearProgress() {
   .answer-label {
     min-width: auto;
   }
+
+  .overview-content {
+    padding: 48px 32px;
+  }
+
+  .overview-title {
+    font-size: 36px;
+  }
+
+  .overview-icon {
+    width: 100px;
+    height: 100px;
+  }
+
+  .overview-stats {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
 }
 
 @media (max-width: 480px) {
@@ -1773,6 +2068,37 @@ function clearProgress() {
   .answer-value {
     font-size: 13px;
   }
+
+  .overview-content {
+    padding: 32px 24px;
+  }
+
+  .overview-title {
+    font-size: 28px;
+  }
+
+  .overview-description {
+    font-size: 16px;
+  }
+
+  .overview-icon {
+    width: 80px;
+    height: 80px;
+  }
+
+  .stat-item {
+    padding: 16px;
+  }
+
+  .stat-value {
+    font-size: 24px;
+  }
+
+  .start-quiz-btn {
+    padding: 16px 32px;
+    font-size: 16px;
+  }
+
 }
 
 /* New question type styles */

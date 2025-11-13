@@ -147,12 +147,6 @@ if (route.query.pp === '1') {
       <ArrowLeft :size="16" />
     </template>
 
-    <template #avatar>
-      <div class="auth-icon" aria-hidden="true">
-        <User :size="24" />
-      </div>
-    </template>
-
     <form class="auth-form" @submit.prevent="onSubmit" novalidate autocomplete="off">
       <FormField
         label="Username"
@@ -343,17 +337,6 @@ if (route.query.pp === '1') {
   overflow-x: hidden;
 }
 
-.auth-icon {
-  width: 64px;
-  height: 64px;
-  border-radius: var(--radius-pill);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
-  box-shadow: var(--shadow-md);
-}
 
 .auth-form {
   display: grid;
@@ -473,13 +456,6 @@ if (route.query.pp === '1') {
 
 .auth-footer__link:hover {
   color: var(--color-primary-dark);
-}
-
-@media (max-width: 480px) {
-  .auth-icon {
-    width: 56px;
-    height: 56px;
-  }
 }
 
 body.dark .password-checklist {

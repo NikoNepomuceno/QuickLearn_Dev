@@ -36,14 +36,19 @@ const emit = defineEmits(['back'])
           <span>{{ backLabel }}</span>
         </button>
 
-        <div v-if="$slots.avatar" class="auth-layout__avatar">
-          <slot name="avatar" />
-        </div>
+      <div v-if="$slots.avatar" class="auth-layout__avatar">
+        <slot name="avatar" />
       </div>
+    </div>
 
-      <div class="auth-layout__content">
-        <slot />
-      </div>
+    <div v-if="title || subtitle" class="auth-layout__header">
+      <h1 v-if="title" class="auth-layout__title">{{ title }}</h1>
+      <p v-if="subtitle" class="auth-layout__subtitle">{{ subtitle }}</p>
+    </div>
+
+    <div class="auth-layout__content">
+      <slot />
+    </div>
 
       <footer v-if="$slots.footer" class="auth-layout__footer">
         <slot name="footer" />
@@ -116,6 +121,25 @@ const emit = defineEmits(['back'])
 .auth-layout__avatar {
   display: flex;
   justify-content: flex-start;
+}
+
+.auth-layout__header {
+  display: grid;
+  gap: var(--space-2);
+  text-align: center;
+}
+
+.auth-layout__title {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+  margin: 0;
+}
+
+.auth-layout__subtitle {
+  font-size: var(--font-size-base);
+  color: var(--color-text-muted);
+  margin: 0;
 }
 
 .auth-layout__content {
