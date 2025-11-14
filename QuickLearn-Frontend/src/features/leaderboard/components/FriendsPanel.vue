@@ -37,6 +37,16 @@
               </div>
             </div>
             <BaseButton
+              v-if="u.requestStatus === 'pending'"
+              variant="outline"
+              size="sm"
+              disabled
+            >
+              <Clock :size="16" aria-hidden="true" />
+              <span>Friend request sent</span>
+            </BaseButton>
+            <BaseButton
+              v-else
               variant="outline"
               size="sm"
               @mousedown.prevent="sendRequest(u.userId)"
@@ -83,7 +93,7 @@ import { ref, onMounted, watch } from 'vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
-import { Search, UserPlus } from 'lucide-vue-next'
+import { Search, UserPlus, Clock } from 'lucide-vue-next'
 import { searchUsers, sendFriendRequest, getFriends } from '../services/leaderboard.api'
 
 const query = ref('')
@@ -124,11 +134,21 @@ async function loadFriends() {
 }
 
 async function sendRequest(userId) {
-	await sendFriendRequest(userId)
-	showDropdown.value = false
-	query.value = ''
-	results.value = []
-	await loadFriends()
+	try {
+		await sendFriendRequest(userId)
+		// Find the user's display name for the toast message
+		const user = results.value.find(u => u.userId === userId)
+		const userName = user?.displayName || 'Friend'
+		window.$toast?.success(`Friend request sent to ${userName} successfully!`)
+		// Update the request status in the results so the button shows "Friend request sent"
+		if (user) {
+			user.requestStatus = 'pending'
+		}
+		await loadFriends()
+	} catch (error) {
+		console.error('Failed to send friend request:', error)
+		window.$toast?.error('Failed to send friend request. Please try again.')
+	}
 }
 
 function handleBlur() {

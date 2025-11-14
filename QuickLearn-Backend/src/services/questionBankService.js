@@ -6,16 +6,46 @@ class QuestionBankService {
 
     /**
      * Extract questions from a quiz and categorize them using AI
-     * @param {number} quizId - Quiz ID
+     * @param {number|Object} quizIdOrQuiz - Quiz ID or Quiz object
      * @param {number} userId - User ID
      * @returns {Promise<{extracted: number, skipped: number}>}
      */
-    async extractQuestionsFromQuiz(quizId, userId) {
+    async extractQuestionsFromQuiz(quizIdOrQuiz, userId) {
         try {
-            // Fetch quiz
-            const quiz = await Quiz.findById(quizId);
-            if (!quiz || quiz.userId !== userId) {
-                throw new Error('Quiz not found or access denied');
+            // Accept either quiz ID or quiz object
+            let quiz;
+            let needsUserIdCheck = false;
+            
+            if (typeof quizIdOrQuiz === 'object' && quizIdOrQuiz !== null && !Array.isArray(quizIdOrQuiz)) {
+                // Already have quiz object (from findByUserId - already filtered by userId)
+                quiz = quizIdOrQuiz;
+                needsUserIdCheck = false; // Trust that findByUserId already filtered correctly
+            } else {
+                // Fetch quiz by ID - need to verify userId
+                quiz = await Quiz.findById(quizIdOrQuiz);
+                needsUserIdCheck = true;
+            }
+
+            // Check if quiz exists
+            if (!quiz) {
+                throw new Error('Quiz not found');
+            }
+
+            // Check if quiz is soft-deleted (in trash)
+            if (quiz.metadata && quiz.metadata.deletedAt) {
+                // Skip quizzes that are in trash
+                return { extracted: 0, skipped: 0 };
+            }
+
+            // Only check userId if we fetched by ID (not from findByUserId)
+            if (needsUserIdCheck) {
+                const quizUserId = Number(quiz.userId);
+                const requestUserId = Number(userId);
+                
+                if (isNaN(quizUserId) || isNaN(requestUserId) || quizUserId !== requestUserId) {
+                    console.error(`[QuestionBank] UserId mismatch - Quiz ID: ${quiz.id}, Quiz userId: ${quiz.userId}, Request userId: ${userId}`);
+                    throw new Error(`Quiz access denied: quiz userId (${quiz.userId}) does not match request userId (${userId})`);
+                }
             }
 
             if (!quiz.questions || !Array.isArray(quiz.questions) || quiz.questions.length === 0) {
@@ -39,7 +69,7 @@ class QuestionBankService {
 
                 questionsToInsert.push({
                     userId,
-                    originalQuizId: quizId,
+                    originalQuizId: quiz.id,
                     questionData: question,
                     topic: categorization.topic,
                     category: categorization.category,
@@ -82,13 +112,23 @@ class QuestionBankService {
 
             for (const quiz of quizzes) {
                 try {
-                    const result = await this.extractQuestionsFromQuiz(quiz.id, userId);
+                    // Skip quizzes that are soft-deleted (in trash)
+                    if (quiz.metadata && quiz.metadata.deletedAt) {
+                        continue;
+                    }
+
+                    // Pass quiz object directly instead of re-fetching by ID
+                    // This avoids errors if quiz was deleted between queries
+                    const result = await this.extractQuestionsFromQuiz(quiz, userId);
                     totalExtracted += result.extracted;
                     totalSkipped += result.skipped;
                     processed++;
                 } catch (error) {
-                    console.error(`Error extracting from quiz ${quiz.id}:`, error);
-                    // Continue with next quiz
+                    // Log error but continue with next quiz
+                    // This handles cases where quiz might have been deleted or has access issues
+                    const quizIdentifier = quiz.id || quiz.uuid || 'unknown';
+                    console.error(`Error extracting from quiz ${quizIdentifier}:`, error.message || error);
+                    // Continue with next quiz - don't throw, just skip
                 }
             }
 

@@ -1,9 +1,7 @@
 const { getPool } = require('../config/db');
-
-// Optional short-TTL caches (enabled with ENABLE_LB_CACHE=1)
-const friendsCache = new Map(); // userId -> { data, exp }
-const lbCache = new Map(); // viewerId -> { data, exp }
-const lastBroadcastAt = new Map(); // userId -> timestamp
+const friendsCache = new Map(); 
+const lbCache = new Map(); 
+const lastBroadcastAt = new Map();
 
 function nowMs() { return Date.now(); }
 function getWithTtl(map, key) {
@@ -16,7 +14,6 @@ function setWithTtl(map, key, data, ttlMs) {
 
 async function getFriendsOfUser(userId) {
 	const pool = await getPool();
-	// Accepted friendships bidirectionally
 	const [rows] = await pool.execute(
 		`SELECT CASE WHEN fr.requester_id = ? THEN fr.addressee_id ELSE fr.requester_id END AS friend_id
 		 FROM friend_requests fr
@@ -29,7 +26,6 @@ async function getFriendsOfUser(userId) {
 async function getUserPoints(userIds) {
 	if (!userIds.length) return [];
 	const pool = await getPool();
-	// Compute from quiz_attempts as initial model
 	const [rows] = await pool.query(
 		`SELECT qa.user_id AS userId, COALESCE(SUM(COALESCE(qa.points_earned, qa.score)), 0) AS points
 		 FROM quiz_attempts qa
@@ -37,7 +33,6 @@ async function getUserPoints(userIds) {
 		 GROUP BY qa.user_id`,
 		userIds
 	);
-	// Ensure all users present with 0
 	const map = new Map(rows.map(r => [Number(r.userId), Number(r.points)]));
 	return userIds.map(id => ({ userId: id, points: map.get(id) || 0 }));
 }
@@ -60,7 +55,9 @@ async function getUserBasicProfile(userIds) {
 }
 
 async function getLeaderboardForUser(userId) {
+	// Get only accepted friends - this ensures we only show current user + their friends
 	const friendIds = await getFriendsOfUser(userId);
+	// Include current user + friends only (not all users)
 	const all = Array.from(new Set([Number(userId), ...friendIds]));
 	const [points, profiles] = await Promise.all([
 		getUserPoints(all),
@@ -104,7 +101,6 @@ function setupLeaderboardRealtime(io) {
 		if (!viewerId) {
 			return socket.disconnect(true);
 		}
-		// Each viewer has their own room; we will emit updates relevant to their friend list
 		socket.join(`leaderboard:${viewerId}`);
 
 		socket.on('leaderboard:subscribe', async () => {
@@ -115,13 +111,11 @@ function setupLeaderboardRealtime(io) {
 		});
 
 		socket.on('disconnect', () => {
-			// no-op
 		});
 	});
 }
 
 async function broadcastLeaderboardFor(io, userId) {
-	// The affected viewers are: the user and all their friends
 	if (process.env.ENABLE_LB_CACHE === '1') {
 		const last = lastBroadcastAt.get(userId) || 0;
 		const n = nowMs();

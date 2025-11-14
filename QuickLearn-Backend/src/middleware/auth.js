@@ -27,18 +27,15 @@ function authGuard(req, res, next) {
     }
 }
 
-// Alternative authentication for API endpoints (supports both cookies and Authorization header)
 function authenticateToken(req, res, next) {
     try {
         let token = null;
 
-        // Try to get token from Authorization header first
         const authHeader = req.headers['authorization'];
         if (authHeader && authHeader.startsWith('Bearer ')) {
             token = authHeader.substring(7);
         }
 
-        // Fallback to cookie
         if (!token && req.cookies && req.cookies.access_token) {
             token = req.cookies.access_token;
         }
@@ -60,7 +57,6 @@ function authenticateToken(req, res, next) {
     }
 }
 
-// Optional authentication (doesn't fail if no token)
 function optionalAuth(req, res, next) {
     try {
         let token = null;
@@ -85,7 +81,6 @@ function optionalAuth(req, res, next) {
 
         return next();
     } catch (err) {
-        // Continue without authentication
         return next();
     }
 }

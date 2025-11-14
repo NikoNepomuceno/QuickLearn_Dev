@@ -413,9 +413,6 @@ function handlePageSelectionConfirm(payload) {
     if (selectedQuizMode.value === 'adaptive') {
       // Start adaptive session
       startAdaptiveSession()
-    } else if (selectedQuizMode.value === 'custom') {
-      // Navigate to Question Bank for custom quiz building
-      router.push('/question-bank')
     } else {
       // Show config modal for standard quiz generation
       showConfigModal.value = true

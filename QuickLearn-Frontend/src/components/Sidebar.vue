@@ -3,7 +3,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { logoutUser, clearLegacyTokens } from '../services/authService'
 import ConfirmModal from './ConfirmModal.vue'
-import { BookOpen, Upload, Brain, LogOut, Trash, Menu, X, Settings, Book, Trophy } from 'lucide-vue-next'
+import { BookOpen, Upload, Brain, LogOut, Trash, Menu, X, Settings, Book, Trophy, Database } from 'lucide-vue-next'
 
 defineOptions({
   inheritAttrs: false
@@ -91,6 +91,12 @@ onBeforeUnmount(() => {
       <router-link class="nav-item" to="/my-quizzes" @click="closeSidebar">
         <Brain class="icon" :size="20" />
         <span>My Quizzes</span>
+      </router-link>
+
+      <!-- Question Bank Page -->
+      <router-link class="nav-item" to="/question-bank" @click="closeSidebar">
+        <Database class="icon" :size="20" />
+        <span>Question Bank</span>
       </router-link>
 
       <!-- Notes Page -->

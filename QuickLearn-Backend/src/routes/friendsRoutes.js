@@ -1,6 +1,7 @@
 const express = require('express');
 const { authenticateToken } = require('../middleware/auth');
 const { getPool } = require('../config/db');
+const { broadcastLeaderboardFor } = require('../realtime/leaderboard');
 
 const router = express.Router();
 
@@ -9,17 +10,34 @@ router.get('/search', authenticateToken, async (req, res) => {
 	try {
 		const q = (req.query.query || '').trim();
 		if (!q) return res.json({ users: [] });
+		const userId = Number(req.user.id);
 		const pool = await getPool();
+		// Search users excluding self and users who are already friends
+		// Include request status to show if a request is pending
 		const [rows] = await pool.execute(
-			`SELECT id AS userId, username, COALESCE(display_name, username) AS displayName,
-				COALESCE(profile_picture_url, '') AS profilePicture
-			 FROM users
-			 WHERE username LIKE ? OR display_name LIKE ?
+			`SELECT u.id AS userId, u.username, COALESCE(u.display_name, u.username) AS displayName,
+				COALESCE(u.profile_picture_url, '') AS profilePicture,
+				COALESCE(fr.status, 'none') AS requestStatus
+			 FROM users u
+			 LEFT JOIN friend_requests fr ON (
+			   (fr.requester_id = ? AND fr.addressee_id = u.id)
+			   OR (fr.requester_id = u.id AND fr.addressee_id = ?)
+			 )
+			 WHERE (u.username LIKE ? OR u.display_name LIKE ?)
+			   AND u.id != ?
+			   AND (fr.status IS NULL OR fr.status != 'accepted')
 			 LIMIT 20`,
-			[`%${q}%`, `%${q}%`]
+			[userId, userId, `%${q}%`, `%${q}%`, userId]
 		);
-		// Exclude self
-		return res.json({ users: rows.filter(u => Number(u.userId) !== Number(req.user.id)) });
+		// Map the results and set requestStatus appropriately
+		const users = rows.map(row => ({
+			userId: Number(row.userId),
+			username: row.username,
+			displayName: row.displayName,
+			profilePicture: row.profilePicture,
+			requestStatus: row.requestStatus === 'accepted' ? 'none' : (row.requestStatus || 'none')
+		}));
+		return res.json({ users });
 	} catch (err) {
 		console.error('Search users error:', err);
 		return res.status(500).json({ error: 'Failed to search users' });
@@ -114,11 +132,26 @@ router.post('/requests/:id/accept', authenticateToken, async (req, res) => {
         if (!requesterId || !addresseeId) return res.status(400).json({ error: 'Invalid request id' });
         if (Number(req.user.id) !== Number(addresseeId)) return res.status(403).json({ error: 'Forbidden' });
         const pool = await getPool();
-        await pool.execute(
+        const [result] = await pool.execute(
             `UPDATE friend_requests SET status = 'accepted'
              WHERE requester_id = ? AND addressee_id = ? AND status = 'pending'`,
             [requesterId, addresseeId]
         );
+        // Broadcast leaderboard updates to both users so they see each other immediately
+        if (result.affectedRows > 0) {
+            try {
+                const io = global.__io;
+                if (io) {
+                    await Promise.all([
+                        broadcastLeaderboardFor(io, Number(requesterId)),
+                        broadcastLeaderboardFor(io, Number(addresseeId))
+                    ]);
+                }
+            } catch (broadcastErr) {
+                // Don't fail the request if broadcast fails
+                console.error('Leaderboard broadcast error:', broadcastErr);
+            }
+        }
         return res.json({ ok: true });
     } catch (err) {
         console.error('Accept request by id error:', err);
@@ -133,11 +166,26 @@ router.post('/requests/:requesterId/accept', authenticateToken, async (req, res)
         const addresseeId = Number(req.user.id);
         if (!requesterId) return res.status(400).json({ error: 'Invalid request' });
         const pool = await getPool();
-        await pool.execute(
+        const [result] = await pool.execute(
             `UPDATE friend_requests SET status = 'accepted'
              WHERE requester_id = ? AND addressee_id = ?`,
             [requesterId, addresseeId]
         );
+        // Broadcast leaderboard updates to both users so they see each other immediately
+        if (result.affectedRows > 0) {
+            try {
+                const io = global.__io;
+                if (io) {
+                    await Promise.all([
+                        broadcastLeaderboardFor(io, Number(requesterId)),
+                        broadcastLeaderboardFor(io, Number(addresseeId))
+                    ]);
+                }
+            } catch (broadcastErr) {
+                // Don't fail the request if broadcast fails
+                console.error('Leaderboard broadcast error:', broadcastErr);
+            }
+        }
         return res.json({ ok: true });
     } catch (err) {
         console.error('Accept friend request error:', err);

@@ -9,7 +9,7 @@
       <div class="loading-content">
         <DotLottieVue
           src="https://lottie.host/c9a79438-794c-4085-9fc2-2d9646a06ba7/ICInAK6k3O.lottie"
-          style="width: 300px; height: 300px"
+          class="loading-animation"
           autoplay
           loop
         />
@@ -252,6 +252,8 @@ function clearBadge() {
   max-width: 520px;
   color: #4b5563;
   line-height: 1.6;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .tab-group {
@@ -375,6 +377,13 @@ function clearBadge() {
   font-size: 13px;
   font-weight: 600;
   color: #1e3a8a;
+  gap: 8px;
+}
+
+.progress__meta span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .card-list {
@@ -428,25 +437,233 @@ function clearBadge() {
   }
 }
 
+/* Tablet and below */
 @media (max-width: 1200px) {
   .content-grid {
     grid-template-columns: 1fr;
   }
+
+  .side-panel {
+    order: -1;
+  }
 }
 
+/* Mobile landscape and below */
 @media (max-width: 768px) {
   .leaderboards-page {
-    padding: 20px;
+    padding: 16px;
+    gap: 16px;
   }
 
   .main-panel {
-    padding: 22px;
+    padding: 20px;
+    border-radius: 20px;
+    gap: 16px;
+  }
+
+  .main-panel__header {
+    gap: 16px;
+  }
+
+  .main-panel__headline h3 {
+    font-size: 18px;
+  }
+
+  .main-panel__headline p {
+    font-size: 14px;
+    max-width: 100%;
+  }
+
+  .tab-group {
+    gap: 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 4px;
+  }
+
+  .tab-group::-webkit-scrollbar {
+    display: none;
+  }
+
+  .btn {
+    padding: 10px 16px;
+    font-size: 14px;
+    white-space: nowrap;
+    min-height: 44px;
+    flex-shrink: 0;
+  }
+
+  .tab-helper {
+    font-size: 13px;
+  }
+
+  .panel-body {
+    padding: 16px;
+    border-radius: 16px;
+    min-height: 280px;
+  }
+
+  .card {
+    padding: 20px;
+    border-radius: 16px;
+    gap: 14px;
+  }
+
+  .card h4 {
+    font-size: 15px;
+  }
+
+  .card p {
+    font-size: 14px;
+  }
+
+  .progress__meta {
+    font-size: 12px;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .card-list {
+    gap: 12px;
+  }
+
+  .card-list__title {
+    font-size: 14px;
+  }
+
+  .card-list__meta {
+    font-size: 12px;
+  }
+
+  .badge {
+    font-size: 10px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    top: -4px;
+    right: -4px;
   }
 }
 
-@media (max-width: 520px) {
+/* Small mobile */
+@media (max-width: 480px) {
+  .leaderboards-page {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .main-panel {
+    padding: 16px;
+    border-radius: 16px;
+    gap: 14px;
+  }
+
+  .main-panel__header {
+    gap: 12px;
+  }
+
   .main-panel__headline h3 {
-    font-size: 18px;
+    font-size: 16px;
+    margin-bottom: 6px;
+  }
+
+  .main-panel__headline p {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .tab-group {
+    gap: 6px;
+  }
+
+  .btn {
+    padding: 10px 14px;
+    font-size: 13px;
+    min-height: 42px;
+  }
+
+  .tab-helper {
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .panel-body {
+    padding: 14px;
+    border-radius: 12px;
+    min-height: 240px;
+  }
+
+  .card {
+    padding: 16px;
+    border-radius: 12px;
+    gap: 12px;
+  }
+
+  .card h4 {
+    font-size: 14px;
+  }
+
+  .card p {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .progress {
+    gap: 10px;
+  }
+
+  .progress__bar {
+    height: 8px;
+  }
+
+  .progress__meta {
+    font-size: 11px;
+  }
+
+  .card-list {
+    gap: 10px;
+  }
+
+  .card-list__title {
+    font-size: 13px;
+  }
+
+  .card-list__meta {
+    font-size: 11px;
+    margin-top: 2px;
+  }
+
+  .side-panel {
+    gap: 12px;
+  }
+}
+
+/* Extra small mobile */
+@media (max-width: 360px) {
+  .leaderboards-page {
+    padding: 10px;
+  }
+
+  .main-panel {
+    padding: 14px;
+  }
+
+  .main-panel__headline h3 {
+    font-size: 15px;
+  }
+
+  .btn {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .panel-body {
+    padding: 12px;
+  }
+
+  .card {
+    padding: 14px;
   }
 }
 
@@ -495,6 +712,37 @@ body.dark .btn:hover {
   box-shadow: 0 15px 28px rgba(129, 140, 248, 0.25);
 }
 
+/* Touch device optimizations */
+@media (hover: none) and (pointer: coarse) {
+  .btn {
+    min-height: 44px;
+  }
+
+  .btn:active {
+    transform: translateY(0);
+    opacity: 0.8;
+  }
+
+  .btn:hover {
+    transform: none;
+  }
+}
+
+/* Landscape orientation adjustments */
+@media (max-width: 768px) and (orientation: landscape) {
+  .leaderboards-page {
+    padding: 12px;
+  }
+
+  .main-panel {
+    padding: 16px;
+  }
+
+  .panel-body {
+    min-height: 200px;
+  }
+}
+
 /* Loading Overlay */
 .loading-overlay {
   position: fixed;
@@ -519,6 +767,32 @@ body.dark .btn:hover {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  padding: 20px;
+}
+
+.loading-animation {
+  width: 300px;
+  height: 300px;
+  max-width: 90vw;
+  max-height: 90vw;
+}
+
+@media (max-width: 768px) {
+  .loading-animation {
+    width: 250px;
+    height: 250px;
+  }
+}
+
+@media (max-width: 480px) {
+  .loading-animation {
+    width: 200px;
+    height: 200px;
+  }
+
+  .loading-content {
+    padding: 16px;
+  }
 }
 
 @keyframes fadeIn {

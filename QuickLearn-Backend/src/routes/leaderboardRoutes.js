@@ -19,9 +19,13 @@ router.get('/', authenticateToken, async (req, res) => {
 		const userId = Number(req.user.id);
 		const limit = Math.min(50, Number(req.query.limit) || 50);
 		const pool = await getPool();
+		// Get only accepted friends - this ensures we only show current user + their friends
 		const friendIds = await getFriends(userId, pool);
+		// Include current user + friends only (not all users)
 		const allIds = Array.from(new Set([userId, ...friendIds]));
+		// If no friends and no user (shouldn't happen), return empty
 		if (!allIds.length) return res.json({ data: [] });
+		// Query points only for current user and their friends
 		const [points] = await pool.query(
 			`SELECT qa.user_id AS userId, COALESCE(SUM(COALESCE(qa.points_earned, qa.score)), 0) AS points
 			 FROM quiz_attempts qa
@@ -29,6 +33,7 @@ router.get('/', authenticateToken, async (req, res) => {
 			 GROUP BY qa.user_id`,
 			allIds
 		);
+		// Query profiles only for current user and their friends
 		const [profiles] = await pool.query(
 			`SELECT id AS userId, username, COALESCE(display_name, username) AS displayName,
 				COALESCE(profile_picture_url, '') AS profilePicture
