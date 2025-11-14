@@ -18,7 +18,6 @@ function authGuard(req, res, next) {
         const payload = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
         req.user = payload;
 
-        // Sliding idle timeout: refresh cookie expiration with a new token
         const refreshedToken = jwt.sign({ sub: payload.sub, uuid: payload.uuid, username: payload.username }, process.env.JWT_ACCESS_SECRET, { expiresIn: '30m' });
         res.cookie('access_token', refreshedToken, getCookieOptions());
 
