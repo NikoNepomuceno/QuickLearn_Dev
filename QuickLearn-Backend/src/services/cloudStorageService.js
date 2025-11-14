@@ -2,7 +2,7 @@ const Quiz = require('../models/Quiz');
 const QuizAttempt = require('../models/QuizAttempt');
 const File = require('../models/File');
 const { parseUploadedFile } = require('../utils/parseFile');
-const { generateAIPoweredQuiz, generateAdvancedQuiz, generateAIPoweredSummary } = require('./quizService');
+const { generateAIPoweredQuiz, generateAdvancedQuiz, generateAIPoweredSummary, generateAIPoweredFlashcards } = require('./quizService');
 
 // ----- Scoring helpers -----
 function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
@@ -408,6 +408,33 @@ class CloudStorageService {
     }
 
     /**
+     * Get user's flashcards
+     */
+    static async getUserFlashcards(userId, limit = 20, offset = 0) {
+        try {
+            const items = await Quiz.findByUserId(userId, limit, offset);
+            const flashcards = items
+                .map(q => q.toJSON())
+                .filter(q => q.metadata?.type === 'flashcards' && !q.metadata?.deletedAt)
+                .map(q => {
+                    const fc = q.metadata?.flashcards || {};
+                    return {
+                        id: q.id,
+                        title: fc.title || q.title || 'Flashcards',
+                        description: q.description || '',
+                        cardsCount: Array.isArray(fc.cards) ? fc.cards.length : 0,
+                        createdAt: q.createdAt,
+                        sourceFile: q.sourceFile,
+                        metadata: q.metadata
+                    };
+                });
+            return flashcards;
+        } catch (error) {
+            console.error('Error getting user flashcards:', error);
+            throw error;
+        }
+    }
+    /**
      * Get user's summaries (stored in quizzes with metadata.type === 'summary')
      */
     static async getUserSummaries(userId, limit = 20, offset = 0) {
@@ -722,6 +749,146 @@ class CloudStorageService {
 
         } catch (error) {
             console.error('Error creating summary with file:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Create flashcards with file upload to Cloudinary
+     */
+    static async createFlashcardsWithFile(fileBuffer, originalFilename, userId, options = {}) {
+        try {
+            // Upload file
+            const { file, cloudinaryResult } = await File.uploadAndSave(
+                fileBuffer,
+                originalFilename,
+                userId,
+                {
+                    quality: 'auto:good',
+                    flags: 'attachment'
+                }
+            );
+
+            // Extract text and pages
+            const mockFile = {
+                originalname: originalFilename,
+                mimetype: this.getMimeTypeFromFilename(originalFilename),
+                buffer: fileBuffer
+            };
+            const parseResult = await parseUploadedFile(mockFile);
+            const textContent = parseResult.text;
+            const pages = parseResult.pages || [textContent];
+            const pageCount = parseResult.pageCount || 1;
+            if (!textContent || !textContent.trim()) {
+                throw new Error('Unable to extract text from the uploaded file.');
+            }
+
+            // Use selected pages if provided
+            const { customInstructions = '', selectedPages = [] } = options;
+            let contentToUse = textContent;
+            if (Array.isArray(selectedPages) && selectedPages.length > 0) {
+                const selectedPageContents = selectedPages.map(p => p.content).filter(Boolean);
+                if (selectedPageContents.length > 0) {
+                    contentToUse = selectedPageContents.join('\n\n');
+                }
+            }
+
+            // Generate flashcards
+            const generated = await generateAIPoweredFlashcards(contentToUse, { customInstructions });
+
+            // Persist in quizzes table with metadata.type='flashcards'
+            const quizData = {
+                userId: userId,
+                title: generated.title || 'Flashcards',
+                description: 'Flashcards generated from uploaded content',
+                questions: [], // none
+                sourceFileId: file.id,
+                sourceFileName: originalFilename,
+                sourceFileType: file.format,
+                sourceFileSize: file.bytes,
+                textLength: textContent.length,
+                difficulty: 'medium',
+                generatedWithAi: true,
+                processingTime: new Date(),
+                metadata: {
+                    type: 'flashcards',
+                    flashcards: {
+                        title: generated.title || 'Flashcards',
+                        cards: Array.isArray(generated.cards) ? generated.cards : []
+                    },
+                    generatedWithAI: true,
+                    textLength: textContent.length,
+                    processingTime: new Date().toISOString(),
+                    cloudinaryPublicId: cloudinaryResult.public_id,
+                    cloudinaryUrl: cloudinaryResult.secure_url,
+                    options: options,
+                    pages,
+                    pageCount
+                }
+            };
+
+            const quiz = await Quiz.create(quizData);
+            const out = {
+                flashcards: {
+                    id: quiz.uuid,
+                    title: quizData.metadata.flashcards.title,
+                    cards: quizData.metadata.flashcards.cards
+                }
+            };
+            return out;
+        } catch (error) {
+            console.error('Error creating flashcards with file:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get flashcards by UUID
+     */
+    static async getFlashcards(uuid, userId) {
+        try {
+            const quiz = await Quiz.findByUuid(uuid);
+            if (!quiz) return null;
+            const meta = quiz.metadata || {};
+            if (meta.type !== 'flashcards') return null;
+            const fc = meta.flashcards || { title: quiz.title || 'Flashcards', cards: [] };
+            return {
+                id: quiz.uuid,
+                title: fc.title || quiz.title || 'Flashcards',
+                cards: Array.isArray(fc.cards) ? fc.cards : []
+            };
+        } catch (error) {
+            console.error('Error getting flashcards:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Update flashcards by UUID (title/cards)
+     */
+    static async updateFlashcards(uuid, userId, payload) {
+        try {
+            const quiz = await Quiz.findByUuid(uuid);
+            if (!quiz || Number(quiz.userId) !== Number(userId)) {
+                return null;
+            }
+            const meta = quiz.metadata || {};
+            if (meta.type !== 'flashcards') return null;
+            meta.flashcards = {
+                title: payload.title ?? (meta.flashcards?.title || quiz.title || 'Flashcards'),
+                cards: Array.isArray(payload.cards) ? payload.cards : (meta.flashcards?.cards || [])
+            };
+            const updated = await quiz.update({
+                title: payload.title !== undefined ? payload.title : quiz.title,
+                metadata: meta
+            });
+            return {
+                id: updated.uuid,
+                title: meta.flashcards.title,
+                cards: meta.flashcards.cards
+            };
+        } catch (error) {
+            console.error('Error updating flashcards:', error);
             throw error;
         }
     }

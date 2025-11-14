@@ -369,6 +369,16 @@ function clearProgress() {
     localStorage.removeItem(storageKey.value)
   } catch {}
 }
+
+function formatQuestionType(type) {
+  const typeMap = {
+    'multiple_choice': 'Multiple Choice',
+    'true_false': 'True/False',
+    'identification': 'Identification',
+    'enumeration': 'Enumeration'
+  }
+  return typeMap[type] || 'Question'
+}
 </script>
 
 <template>
@@ -448,135 +458,161 @@ function clearProgress() {
       </div>
     </div>
 
-    <!-- Floating Progress Indicator (only show when quiz is active) -->
-    <div v-if="quizStage === 'active'" class="floating-progress" aria-hidden="true">
-      <div class="progress-circle">
-        <svg class="progress-ring" width="60" height="60">
-          <circle
-            class="progress-ring-circle"
-            stroke="#e5e7eb"
-            stroke-width="4"
-            fill="transparent"
-            r="26"
-            cx="30"
-            cy="30"
-          />
-          <circle
-            class="progress-ring-circle progress-ring-fill"
-            stroke="url(#gradient)"
-            stroke-width="4"
-            fill="transparent"
-            r="26"
-            cx="30"
-            cy="30"
-            :stroke-dasharray="163.36"
-            :stroke-dashoffset="163.36 - (163.36 * progress) / 100"
-          />
-          <defs>
-            <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" style="stop-color: #667eea; stop-opacity: 1" />
-              <stop offset="100%" style="stop-color: #764ba2; stop-opacity: 1" />
-            </linearGradient>
-          </defs>
-        </svg>
-        <div class="progress-text">{{ currentQuestionIndex + 1 }}/{{ totalQuestions }}</div>
-      </div>
-    </div>
 
     <!-- Active Quiz -->
     <Transition name="quiz-enter">
       <div v-if="quizStage === 'active'" class="quiz-container">
-        <!-- Quiz Header -->
-        <div class="quiz-header">
-        <div class="header-top">
-          <button class="back-btn" @click="goHome">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path d="m12 19-7-7 7-7" />
-              <path d="m19 12H5" />
-            </svg>
-            Back to Home
-          </button>
-
-          <div class="quiz-meta">
-            <div class="timer">
-              <Clock :size="16" />
-              {{ timeFormatted }}
-            </div>
-            <div class="question-counter">
-              <span class="current">{{ currentQuestionIndex + 1 }}</span>
-              <span class="separator">of</span>
-              <span class="total">{{ totalQuestions }}</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="header-content">
-          <div class="quiz-title">
-            <h1>{{ quiz?.title || 'Quiz' }}</h1>
-            <p class="description">{{ quiz?.description }}</p>
-          </div>
-
-          <!-- Voice Quiz Component -->
-          <div class="voice-controls">
-            <VoiceQuiz
-              :question="currentQuestion"
-              :question-number="currentQuestionIndex + 1"
-              :is-enabled="isVoiceEnabled"
-              @answer-selected="handleVoiceAnswer"
-              @error="handleVoiceError"
-              @status-change="handleVoiceStatusChange"
-            />
-          </div>
-        </div>
-      </div>
-
-      <!-- Progress Bar -->
-      <div class="progress-bar">
-        <div class="progress-fill" :style="{ width: progress + '%' }"></div>
-        <div class="progress-markers">
-          <div
-            v-for="(_, index) in quiz?.questions"
-            :key="index"
-            class="marker"
-            :class="{
-              active: index <= currentQuestionIndex,
-              current: index === currentQuestionIndex,
-            }"
-            :style="{ left: `${(index / (totalQuestions - 1)) * 100}%` }"
-          ></div>
-        </div>
-      </div>
-
-      <!-- Quiz Content -->
-      <div class="quiz-content">
-        <div class="question-section">
-          <div class="question-card">
-            <div class="question-badge">
+        <!-- Minimal Sticky Header -->
+        <div class="quiz-header-minimal">
+          <div class="header-left">
+            <button class="icon-btn back-btn" @click="goHome" title="Exit Quiz">
               <svg
-                width="16"
-                height="16"
+                width="20"
+                height="20"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
                 stroke-width="2"
               >
-                <circle cx="12" cy="12" r="10" />
-                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-                <path d="M12 17h.01" />
+                <path d="m12 19-7-7 7-7" />
+                <path d="m19 12H5" />
               </svg>
-              Question {{ currentQuestionIndex + 1 }}
+            </button>
+            <div class="quiz-breadcrumb">
+              <span class="quiz-title-small">{{ quiz?.title || 'Quiz' }}</span>
+            </div>
+          </div>
+        </div>
+
+      <!-- Two-Column Grid Layout -->
+      <div class="quiz-active-layout">
+        <!-- Sidebar -->
+        <div class="quiz-sidebar">
+          <!-- Progress Circle -->
+          <div class="progress-circle-large">
+            <svg class="progress-svg" viewBox="0 0 120 120">
+              <circle
+                class="progress-bg"
+                cx="60"
+                cy="60"
+                r="54"
+                fill="none"
+                stroke="#e5e7eb"
+                stroke-width="8"
+              />
+              <circle
+                class="progress-fill-circle"
+                cx="60"
+                cy="60"
+                r="54"
+                fill="none"
+                stroke="url(#gradient)"
+                stroke-width="8"
+                :stroke-dasharray="339.292"
+                :stroke-dashoffset="339.292 - (339.292 * progress) / 100"
+                stroke-linecap="round"
+              />
+              <defs>
+                <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" style="stop-color: #667eea; stop-opacity: 1" />
+                  <stop offset="100%" style="stop-color: #764ba2; stop-opacity: 1" />
+                </linearGradient>
+              </defs>
+            </svg>
+            <div class="progress-center">
+              <div class="progress-number">{{ currentQuestionIndex + 1 }}</div>
+              <div class="progress-total">of {{ totalQuestions }}</div>
+            </div>
+          </div>
+
+          <!-- Timer Card -->
+          <div class="timer-card">
+            <div class="timer-icon">
+              <Clock :size="20" />
+            </div>
+            <div class="timer-info">
+              <div class="timer-label">Time Elapsed</div>
+              <div class="timer-value">{{ timeFormatted }}</div>
+            </div>
+          </div>
+
+          <!-- Linear Progress Bar -->
+          <div class="linear-progress-card">
+            <div class="progress-header">
+              <span class="progress-label">Progress</span>
+              <span class="progress-count">{{ Object.keys(answers).length }} of {{ totalQuestions }} answered</span>
+            </div>
+            <div class="linear-progress-bar">
+              <div
+                class="linear-progress-fill"
+                :style="{ width: `${(Object.keys(answers).length / totalQuestions) * 100}%` }"
+              ></div>
+            </div>
+          </div>
+
+          <!-- Voice Control Card -->
+          <div class="voice-control-card">
+            <div class="voice-header">
+              <div class="voice-title">
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                  <line x1="12" x2="12" y1="19" y2="22" />
+                </svg>
+                <span>Voice Input</span>
+              </div>
+            </div>
+            <div class="voice-component">
+              <VoiceQuiz
+                :question="currentQuestion"
+                :question-number="currentQuestionIndex + 1"
+                :is-enabled="isVoiceEnabled"
+                @answer-selected="handleVoiceAnswer"
+                @error="handleVoiceError"
+                @status-change="handleVoiceStatusChange"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- Main Question Area -->
+        <div class="quiz-content">
+        <div class="question-section">
+          <div class="question-card-enhanced">
+            <!-- Question Meta -->
+            <div class="question-meta">
+              <span class="question-type-badge">
+                {{ formatQuestionType(currentQuestion?.type) }}
+              </span>
+              <span class="question-number-badge">
+                Question {{ currentQuestionIndex + 1 }} of {{ totalQuestions }}
+              </span>
             </div>
 
-            <div class="question-text">
+            <!-- Question Text -->
+            <h2 class="question-text-large">
               {{ currentQuestion?.question }}
+            </h2>
+
+            <!-- Voice Listening Indicator -->
+            <div v-if="isVoiceEnabled" class="voice-listening-indicator">
+              <div class="voice-wave-animation">
+                <span class="wave"></span>
+                <span class="wave"></span>
+                <span class="wave"></span>
+              </div>
+              <span class="voice-text">Voice input active - speak your answer</span>
             </div>
+
+            <!-- Answer Area -->
+            <div class="answer-area">
 
             <!-- Multiple Choice and True/False Questions -->
             <div
@@ -584,52 +620,28 @@ function clearProgress() {
                 currentQuestion?.type === 'multiple_choice' ||
                 currentQuestion?.type === 'true_false'
               "
-              class="choices"
+              class="choices-enhanced"
             >
-              <label
+              <button
                 v-for="(choice, index) in currentQuestion?.choices"
                 :key="index"
-                class="choice-option"
+                class="choice-button"
                 :class="{ selected: answers[currentQuestionIndex] === choice }"
-                :for="`question-${currentQuestionIndex}-choice-${index}`"
+                @click="selectAnswer(choice)"
+                type="button"
               >
-                <div class="choice-radio">
-                  <input
-                    :id="`question-${currentQuestionIndex}-choice-${index}`"
-                    type="radio"
-                    :name="`question-${currentQuestionIndex}`"
-                    :value="choice"
-                    :checked="answers[currentQuestionIndex] === choice"
-                    @change="selectAnswer(choice)"
-                  />
-                  <div class="radio-custom">
-                    <div class="radio-dot"></div>
-                  </div>
-                </div>
-                <div class="choice-content">
-                  <span class="choice-letter">{{ String.fromCharCode(65 + index) }}</span>
-                  <span class="choice-text">{{ choice }}</span>
-                </div>
-                <div class="choice-indicator" aria-hidden="true">
-                  <svg
-                    v-if="answers[currentQuestionIndex] === choice"
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <polyline points="20,6 9,17 4,12" />
-                  </svg>
-                </div>
-              </label>
+                <span class="choice-key">{{ String.fromCharCode(65 + index) }}</span>
+                <span class="choice-text">{{ choice }}</span>
+                <span class="choice-check">
+                  <CheckCircle v-if="answers[currentQuestionIndex] === choice" :size="20" />
+                </span>
+              </button>
             </div>
 
             <!-- Identification (Fill-in-the-blank) Questions -->
             <div
               v-else-if="currentQuestion?.type === 'identification'"
-              class="identification-input"
+              class="input-enhanced"
             >
               <div class="input-group">
                 <label for="identification-answer" class="input-label">Your Answer:</label>
@@ -637,15 +649,16 @@ function clearProgress() {
                   id="identification-answer"
                   type="text"
                   v-model="answers[currentQuestionIndex]"
-                  class="text-input"
+                  class="text-input-large"
                   placeholder="Type your answer here..."
                   @input="selectAnswer($event.target.value)"
+                  autofocus
                 />
               </div>
             </div>
 
             <!-- Enumeration (List multiple answers) Questions -->
-            <div v-else-if="currentQuestion?.type === 'enumeration'" class="enumeration-input">
+            <div v-else-if="currentQuestion?.type === 'enumeration'" class="enumeration-enhanced">
               <div class="input-group">
                 <label for="enumeration-answer" class="input-label"
                   >Your Answers (one per line):</label
@@ -653,43 +666,48 @@ function clearProgress() {
                 <textarea
                   id="enumeration-answer"
                   v-model="enumerationAnswers[currentQuestionIndex]"
-                  class="text-area"
+                  class="text-area-large"
                   placeholder="Enter each answer on a new line..."
-                  rows="4"
+                  rows="5"
                   @input="updateEnumerationAnswer"
                 ></textarea>
                 <div class="enumeration-preview" v-if="enumerationAnswers[currentQuestionIndex]">
                   <small>Preview: {{ getEnumerationPreview() }}</small>
                 </div>
+                <div class="enumeration-hint">
+                  {{ (answers[currentQuestionIndex] || []).filter(item => item.trim()).length }} answers added
+                </div>
               </div>
+            </div>
+            </div>
+
+            <!-- Navigation Actions -->
+            <div class="question-actions">
+              <div class="spacer"></div>
+
+              <button
+                v-if="currentQuestionIndex < totalQuestions - 1"
+                class="nav-btn-primary"
+                @click="nextQuestion"
+                :disabled="!isCurrentQuestionAnswered"
+              >
+                Next Question
+                <ArrowRight :size="16" />
+              </button>
+
+              <button
+                v-else
+                class="nav-btn-submit"
+                @click="submitQuiz"
+                :disabled="!isCurrentQuestionAnswered"
+              >
+                <CheckCircle :size="16" />
+                Submit Quiz
+              </button>
             </div>
           </div>
         </div>
-
-        <!-- Navigation -->
-        <div class="navigation">
-          <div class="nav-controls">
-            <button
-              v-if="currentQuestionIndex < totalQuestions - 1"
-              class="nav-btn primary"
-              @click="nextQuestion"
-              :disabled="!isCurrentQuestionAnswered"
-            >
-              Next
-              <ArrowRight :size="16" />
-            </button>
-
-            <button
-              v-else
-              class="nav-btn submit"
-              @click="submitQuiz"
-              :disabled="!isCurrentQuestionAnswered"
-            >
-              <CheckCircle :size="16" />
-              Submit Quiz
-            </button>
-          </div>
-        </div>
+      </div>
       </div>
       </div>
     </Transition>
@@ -701,9 +719,6 @@ function clearProgress() {
   max-width: 1200px;
   margin: 0 auto;
   padding: 24px;
-  background:
-    radial-gradient(1000px 600px at 20% -10%, rgba(102, 126, 234, 0.08), transparent 60%),
-    radial-gradient(900px 500px at 120% 10%, rgba(118, 75, 162, 0.06), transparent 60%);
   min-height: 100vh;
   position: relative;
 }
@@ -711,6 +726,355 @@ function clearProgress() {
 .quiz-container {
   position: relative;
   z-index: 1;
+}
+
+/* Minimal Sticky Header */
+.quiz-header-minimal {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border-bottom: 1px solid #e5e7eb;
+  padding: 16px 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+  border-radius: 0 0 20px 20px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #374151;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.icon-btn:hover {
+  background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+  border-color: #d1d5db;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+}
+
+.quiz-breadcrumb {
+  display: flex;
+  align-items: center;
+  background: linear-gradient(135deg, #f8faff 0%, #f0f4ff 100%);
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px solid #e0e7ff;
+}
+
+.quiz-title-small {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+  max-width: 400px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+  .quiz-header-minimal {
+    background: rgba(15, 23, 42, 0.98) !important;
+    border-bottom: 1px solid #334155 !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+  }
+
+  .icon-btn {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
+    border-color: #475569 !important;
+    color: #e2e8f0 !important;
+  }
+
+  .icon-btn:hover {
+    background: linear-gradient(135deg, #334155 0%, #475569 100%) !important;
+    border-color: #64748b !important;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4) !important;
+  }
+
+  .quiz-breadcrumb {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
+    border-color: #475569 !important;
+  }
+
+  .quiz-title-small {
+    color: #f1f5f9 !important;
+  }
+
+  /* Sidebar Cards */
+  .progress-circle-large,
+  .timer-card,
+  .linear-progress-card,
+  .voice-control-card {
+    background: #1e293b !important;
+    border-color: #334155 !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3) !important;
+  }
+
+  .progress-bg {
+    stroke: #334155 !important;
+  }
+
+  .progress-number {
+    color: #f1f5f9 !important;
+  }
+
+  .progress-total {
+    color: #94a3b8 !important;
+  }
+
+  .timer-label,
+  .progress-label {
+    color: #94a3b8 !important;
+  }
+
+  .timer-value,
+  .progress-count {
+    color: #f1f5f9 !important;
+  }
+
+  .voice-title {
+    color: #f1f5f9 !important;
+  }
+
+  /* Timer icon keeps its gradient in dark mode */
+  .timer-icon {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  }
+
+  .linear-progress-bar {
+    background: #334155 !important;
+  }
+
+  .linear-progress-fill {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  }
+
+  /* Keep question type badge vibrant */
+  .question-type-badge {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    color: white !important;
+  }
+
+  /* Question Card */
+  .question-card-enhanced {
+    background: #1e293b !important;
+    border-color: #334155 !important;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3) !important;
+  }
+
+  .question-number-badge {
+    color: #94a3b8 !important;
+  }
+
+  .question-text-large {
+    color: #f1f5f9 !important;
+  }
+
+  .voice-listening-indicator {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
+    border-color: #667eea !important;
+  }
+
+  .voice-text {
+    color: #818cf8 !important;
+  }
+
+  /* Choice Buttons */
+  .choice-button {
+    background: #1e293b !important;
+    border-color: #334155 !important;
+  }
+
+  .choice-button:hover {
+    border-color: #667eea !important;
+    box-shadow: 0 8px 16px rgba(102, 126, 234, 0.2) !important;
+  }
+
+  .choice-button.selected {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
+    border-color: #667eea !important;
+    box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3) !important;
+  }
+
+  .choice-key {
+    background: #334155 !important;
+    color: #94a3b8 !important;
+  }
+
+  .choice-button.selected .choice-key {
+    background: #667eea !important;
+    color: white !important;
+  }
+
+  .choice-text {
+    color: #e2e8f0 !important;
+  }
+
+  /* Input Fields */
+  .text-input-large,
+  .text-area-large {
+    background: #1e293b !important;
+    border-color: #334155 !important;
+    color: #f1f5f9 !important;
+  }
+
+  .text-input-large:focus,
+  .text-area-large:focus {
+    border-color: #667eea !important;
+    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.2) !important;
+  }
+
+  .text-input-large::placeholder,
+  .text-area-large::placeholder {
+    color: #64748b !important;
+  }
+
+  .input-label {
+    color: #e2e8f0 !important;
+  }
+
+  .enumeration-preview {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
+    border-color: #475569 !important;
+    color: #818cf8 !important;
+  }
+
+  .enumeration-preview small {
+    color: #818cf8 !important;
+  }
+
+  .enumeration-hint {
+    color: #94a3b8 !important;
+  }
+
+  /* Navigation Buttons */
+  .question-actions {
+    border-top-color: #334155 !important;
+  }
+
+  /* Overview Screen */
+  .overview-content {
+    background: #1e293b !important;
+    border-color: #334155 !important;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4) !important;
+  }
+
+  .overview-description {
+    color: #94a3b8 !important;
+  }
+
+  .stat-item {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
+    border-color: #475569 !important;
+  }
+
+  .stat-value {
+    color: #f1f5f9 !important;
+  }
+
+  .stat-label {
+    color: #94a3b8 !important;
+  }
+
+  /* Countdown Overlay */
+  .countdown-overlay {
+    background: rgba(15, 23, 42, 0.9) !important;
+  }
+
+  /* Results Section (if visible) */
+  .results-section {
+    background: #1e293b !important;
+    border-color: #334155 !important;
+  }
+
+  .results-header h2 {
+    color: #f1f5f9 !important;
+  }
+
+  .results-subtitle {
+    color: #94a3b8 !important;
+  }
+
+  .stat-card {
+    background: #1e293b !important;
+    border-color: #334155 !important;
+  }
+
+  .stat-card.correct {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%) !important;
+    border-color: #059669 !important;
+  }
+
+  .stat-card.incorrect {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.1) 100%) !important;
+    border-color: #dc2626 !important;
+  }
+
+  .stat-card.time {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.1) 100%) !important;
+    border-color: #2563eb !important;
+  }
+
+  .review-item {
+    background: #1e293b !important;
+    border-color: #334155 !important;
+  }
+
+  .review-question {
+    color: #f1f5f9 !important;
+  }
+
+  .answer-value {
+    color: #e2e8f0 !important;
+  }
+
+  .detailed-results {
+    background: #1e293b !important;
+    border-color: #334155 !important;
+  }
+}
+
+/* Two-Column Grid Layout */
+.quiz-active-layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 32px;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 32px 32px;
+  min-height: calc(100vh - 120px);
+}
+
+/* Sidebar Styles */
+.quiz-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  position: sticky;
+  top: 100px;
+  height: fit-content;
 }
 
 /* Quiz Overview Screen */
@@ -915,44 +1279,167 @@ function clearProgress() {
   }
 }
 
-/* Floating Progress Indicator */
-.floating-progress {
-  position: fixed;
-  top: 24px;
-  right: 24px;
-  z-index: 1000;
-  background: white;
-  border-radius: 50%;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  padding: 8px;
-}
-
-@media (max-width: 900px) {
-  .floating-progress {
-    display: none;
-  }
-}
-
-.progress-circle {
+/* Progress Circle Large */
+.progress-circle-large {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
+  background: white;
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  border: 1px solid #f1f5f9;
 }
 
-.progress-ring {
+.progress-svg {
+  width: 120px;
+  height: 120px;
   transform: rotate(-90deg);
 }
 
-.progress-ring-circle {
+.progress-bg {
   transition: stroke-dashoffset 0.5s ease-in-out;
 }
 
-.progress-text {
+.progress-fill-circle {
+  transition: stroke-dashoffset 0.5s ease-in-out;
+}
+
+.progress-center {
   position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.progress-number {
+  font-size: 32px;
+  font-weight: 800;
+  color: #1f2937;
+  line-height: 1;
+}
+
+.progress-total {
+  font-size: 14px;
+  font-weight: 600;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+/* Timer Card */
+.timer-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  border: 1px solid #f1f5f9;
+}
+
+.timer-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  color: white;
+  flex-shrink: 0;
+}
+
+.timer-info {
+  flex: 1;
+}
+
+.timer-label {
   font-size: 12px;
   font-weight: 600;
-  color: #374151;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.timer-value {
+  font-size: 24px;
+  font-weight: 800;
+  color: #1f2937;
+  line-height: 1;
+}
+
+/* Linear Progress Card */
+.linear-progress-card {
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  border: 1px solid #f1f5f9;
+}
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.progress-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.progress-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: #667eea;
+}
+
+.linear-progress-bar {
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.linear-progress-fill {
+  height: 100%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  transition: width 0.5s ease;
+  border-radius: 4px;
+}
+
+/* Voice Control Card */
+.voice-control-card {
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  border: 1px solid #f1f5f9;
+}
+
+.voice-header {
+  margin-bottom: 16px;
+}
+
+.voice-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.voice-title svg {
+  color: #667eea;
 }
 
 .quiz-header {
@@ -1124,22 +1611,117 @@ function clearProgress() {
 }
 
 .quiz-content {
-  background: white;
-  border-radius: 20px;
-  padding: 40px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
-  border: 1px solid #f1f5f9;
+  display: flex;
+  flex-direction: column;
 }
 
 .question-section {
-  margin-bottom: 40px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
-.question-card {
-  background: linear-gradient(135deg, #f8faff 0%, #f0f4ff 100%);
-  border-radius: 16px;
-  padding: 32px;
-  border: 1px solid #e0e7ff;
+/* Enhanced Question Card */
+.question-card-enhanced {
+  background: white;
+  border-radius: 24px;
+  padding: 48px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+  border: 1px solid #f1f5f9;
+  min-height: 600px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Question Meta */
+.question-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.question-type-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.question-number-badge {
+  font-size: 14px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+/* Question Text Large */
+.question-text-large {
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #1a1a1a;
+  margin: 0 0 40px 0;
+}
+
+/* Voice Listening Indicator */
+.voice-listening-indicator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #f0f3ff 0%, #e8ecff 100%);
+  border: 2px solid #667eea;
+  border-radius: 12px;
+  margin-bottom: 24px;
+}
+
+.voice-wave-animation {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.voice-wave-animation .wave {
+  width: 3px;
+  height: 16px;
+  background: #667eea;
+  border-radius: 2px;
+  animation: wave 1s ease-in-out infinite;
+}
+
+.voice-wave-animation .wave:nth-child(2) {
+  animation-delay: 0.1s;
+}
+
+.voice-wave-animation .wave:nth-child(3) {
+  animation-delay: 0.2s;
+}
+
+@keyframes wave {
+  0%, 100% {
+    transform: scaleY(1);
+  }
+  50% {
+    transform: scaleY(1.5);
+  }
+}
+
+.voice-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: #667eea;
+}
+
+/* Answer Area */
+.answer-area {
+  flex: 1;
+  margin-bottom: 32px;
 }
 
 .question-badge {
@@ -1164,214 +1746,142 @@ function clearProgress() {
   line-height: 1.4;
 }
 
-.choices {
-  display: grid;
+/* Enhanced Choice Buttons */
+.choices-enhanced {
+  display: flex;
+  flex-direction: column;
   gap: 16px;
 }
 
-.choice-option {
+.choice-button {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 20px;
   padding: 20px 24px;
   border: 2px solid #e5e7eb;
   border-radius: 16px;
+  background: white;
   cursor: pointer;
-  transition: all 0.3s ease;
-  background: white;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
-  overflow: hidden;
+  text-align: left;
+  font-family: inherit;
+  width: 100%;
 }
 
-.choice-option::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.choice-option:hover::before {
-  opacity: 1;
-}
-
-.choice-option:hover {
+.choice-button:hover {
   border-color: #667eea;
   transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.15);
+  box-shadow: 0 8px 16px rgba(102, 126, 234, 0.12);
 }
 
-.choice-option.selected {
+.choice-button.selected {
   border-color: #667eea;
-  background: linear-gradient(135deg, #f0f3ff 0%, #e0e7ff 100%);
+  background: linear-gradient(135deg, #f0f3ff 0%, #e8ecff 100%);
+  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.2);
   transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.2);
 }
 
-.choice-option.selected::before {
-  opacity: 1;
-}
-
-.choice-radio {
-  position: relative;
-  flex-shrink: 0;
-}
-
-.choice-radio input[type='radio'] {
-  opacity: 0;
-  position: absolute;
-  width: 20px;
-  height: 20px;
-  margin: 0;
-}
-
-.radio-custom {
-  width: 20px;
-  height: 20px;
-  border: 2px solid #d1d5db;
-  border-radius: 50%;
-  position: relative;
-  transition: all 0.3s ease;
-  background: white;
-}
-
-.choice-option.selected .radio-custom {
-  border-color: #667eea;
-  background: #667eea;
-}
-
-.radio-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: white;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) scale(0);
-  transition: transform 0.3s ease;
-}
-
-.choice-option.selected .radio-dot {
-  transform: translate(-50%, -50%) scale(1);
-}
-
-.choice-content {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex: 1;
-}
-
-.choice-letter {
+.choice-key {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   background: #f3f4f6;
-  color: #6b7280;
-  border-radius: 8px;
+  border-radius: 10px;
   font-weight: 700;
-  font-size: 14px;
-  transition: all 0.3s ease;
+  font-size: 18px;
+  color: #6b7280;
+  transition: all 0.2s;
+  flex-shrink: 0;
 }
 
-.choice-option.selected .choice-letter {
+.choice-button.selected .choice-key {
   background: #667eea;
   color: white;
 }
 
 .choice-text {
+  flex: 1;
   font-size: 16px;
   color: #374151;
   font-weight: 500;
   line-height: 1.5;
 }
 
-.choice-indicator {
-  flex-shrink: 0;
+.choice-check {
+  display: flex;
+  align-items: center;
   color: #667eea;
   opacity: 0;
   transform: scale(0.8);
-  transition: all 0.3s ease;
+  transition: all 0.2s;
+  flex-shrink: 0;
 }
 
-.choice-option.selected .choice-indicator {
+.choice-button.selected .choice-check {
   opacity: 1;
   transform: scale(1);
 }
 
-.navigation {
-  background: white;
-  border-radius: 16px;
-  padding: 24px;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
-  border: 1px solid #f1f5f9;
-}
-
-.nav-controls {
+/* Question Actions (Navigation) */
+.question-actions {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 24px;
+  gap: 16px;
+  padding-top: 24px;
+  border-top: 1px solid #e5e7eb;
 }
 
-.nav-btn {
+.spacer {
+  flex: 1;
+}
+
+.nav-btn-primary,
+.nav-btn-submit {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 14px 24px;
+  padding: 16px 32px;
   border-radius: 12px;
   border: none;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.3s ease;
-  font-size: 14px;
+  transition: all 0.2s ease;
+  font-size: 16px;
+  font-family: inherit;
 }
 
-.nav-btn.primary {
+.nav-btn-primary {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
 }
 
-.nav-btn.primary:hover:not(:disabled) {
+.nav-btn-primary:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
 }
 
-.nav-btn.secondary {
-  background: #f8fafc;
-  color: #475569;
-  border: 1px solid #e2e8f0;
-}
-
-.nav-btn.secondary:hover:not(:disabled) {
-  background: #f1f5f9;
-  border-color: #cbd5e1;
-  transform: translateY(-1px);
-}
-
-.nav-btn.submit {
+.nav-btn-submit {
   background: linear-gradient(135deg, #10b981 0%, #059669 100%);
   color: white;
   box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
 }
 
-.nav-btn.submit:hover:not(:disabled) {
+.nav-btn-submit:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
 }
 
-.nav-btn:disabled {
+.nav-btn-primary:disabled,
+.nav-btn-submit:disabled {
   opacity: 0.5;
   cursor: not-allowed;
   transform: none !important;
+  box-shadow: none;
 }
 
 .question-navigator {
@@ -1821,71 +2331,181 @@ function clearProgress() {
   font-style: italic;
 }
 
+/* Responsive Breakpoints */
+
+/* Tablet and Small Desktop (768px - 1024px) */
+@media (max-width: 1024px) {
+  .quiz-active-layout {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .quiz-sidebar {
+    position: relative;
+    top: 0;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  .progress-circle-large {
+    grid-column: 1 / -1;
+  }
+
+  .voice-control-card {
+    grid-column: 1 / -1;
+  }
+
+  .question-card-enhanced {
+    padding: 40px;
+    min-height: 500px;
+  }
+
+  .question-text-large {
+    font-size: 28px;
+  }
+}
+
+/* Mobile (≤ 768px) */
 @media (max-width: 768px) {
   .quiz-page {
     padding: 16px;
   }
 
-  .floating-progress {
-    top: 16px;
-    right: 16px;
-    transform: scale(0.9);
+  .quiz-header-minimal {
+    padding: 12px 16px;
+    margin-bottom: 20px;
+    border-radius: 0 0 16px 16px;
   }
 
-  .quiz-header {
-    padding: 24px;
+  .quiz-breadcrumb {
+    padding: 6px 12px;
   }
 
-  .header-top {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 16px;
+  .quiz-title-small {
+    font-size: 14px;
+    max-width: 200px;
   }
 
-  .header-content {
-    flex-direction: column;
-    align-items: stretch;
+  .icon-btn {
+    width: 38px;
+    height: 38px;
+  }
+
+  .quiz-active-layout {
+    grid-template-columns: 1fr;
     gap: 20px;
+    padding: 0 16px 16px;
   }
 
-  .quiz-meta {
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: center;
+  .quiz-sidebar {
+    grid-template-columns: 1fr;
+    gap: 12px;
   }
 
-  .quiz-title h1 {
-    font-size: 24px;
+  .progress-circle-large {
+    padding: 20px;
   }
 
-  .quiz-content {
-    padding: 24px;
+  .progress-svg {
+    width: 100px;
+    height: 100px;
   }
 
-  .question-card {
-    padding: 24px;
+  .progress-number {
+    font-size: 28px;
   }
 
-  .question-text {
+  .timer-card {
+    padding: 16px;
+  }
+
+  .timer-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .timer-value {
     font-size: 20px;
   }
 
-  .nav-controls {
+  .linear-progress-card {
+    padding: 16px;
+  }
+
+  .voice-control-card {
+    padding: 16px;
+  }
+
+  .question-card-enhanced {
+    padding: 24px;
+    min-height: auto;
+  }
+
+  .question-text-large {
+    font-size: 24px;
+    margin-bottom: 24px;
+  }
+
+  .choice-button {
+    padding: 16px 20px;
+    gap: 16px;
+  }
+
+  .choice-key {
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+  }
+
+  .choice-text {
+    font-size: 15px;
+  }
+
+  .question-actions {
     flex-direction: column;
-    gap: 20px;
+    gap: 12px;
   }
 
-  .question-navigator {
-    order: -1;
+  .spacer {
+    display: none;
   }
 
-  .nav-btn {
+  .nav-btn-primary,
+  .nav-btn-submit {
     width: 100%;
     justify-content: center;
+    padding: 14px 24px;
+    font-size: 15px;
   }
 
-  .question-dots {
-    max-width: none;
+  .text-input-large {
+    font-size: 16px;
+    padding: 14px 16px;
+  }
+
+  .text-area-large {
+    font-size: 15px;
+    padding: 14px 16px;
+    min-height: 100px;
+  }
+
+  .overview-content {
+    padding: 48px 32px;
+  }
+
+  .overview-title {
+    font-size: 36px;
+  }
+
+  .overview-icon {
+    width: 100px;
+    height: 100px;
+  }
+
+  .overview-stats {
+    grid-template-columns: 1fr;
+    gap: 16px;
   }
 
   .results-section {
@@ -1927,101 +2547,170 @@ function clearProgress() {
   .answer-label {
     min-width: auto;
   }
-
-  .overview-content {
-    padding: 48px 32px;
-  }
-
-  .overview-title {
-    font-size: 36px;
-  }
-
-  .overview-icon {
-    width: 100px;
-    height: 100px;
-  }
-
-  .overview-stats {
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
-
 }
 
+/* Small Mobile (≤ 480px) */
 @media (max-width: 480px) {
   .quiz-page {
     padding: 12px;
   }
 
-  .floating-progress {
-    top: 12px;
-    right: 12px;
-    transform: scale(0.8);
+  .quiz-header-minimal {
+    padding: 10px 12px;
+    margin-bottom: 16px;
+    border-radius: 0 0 14px 14px;
   }
 
-  .quiz-header {
-    padding: 20px;
+  .quiz-breadcrumb {
+    padding: 5px 10px;
   }
 
-  .header-top {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
+  .icon-btn {
+    width: 36px;
+    height: 36px;
   }
 
-  .header-content {
-    flex-direction: column;
-    align-items: stretch;
+  .quiz-title-small {
+    font-size: 13px;
+    max-width: 150px;
+  }
+
+  .quiz-active-layout {
+    padding: 0 12px 12px;
     gap: 16px;
   }
 
-  .quiz-title h1 {
-    font-size: 20px;
-  }
-
-  .quiz-content {
+  .progress-circle-large {
     padding: 16px;
   }
 
-  .question-card {
-    padding: 16px;
+  .progress-svg {
+    width: 90px;
+    height: 90px;
   }
 
-  .question-text {
+  .progress-number {
+    font-size: 24px;
+  }
+
+  .progress-total {
+    font-size: 12px;
+  }
+
+  .timer-card,
+  .linear-progress-card,
+  .voice-control-card {
+    padding: 14px;
+  }
+
+  .timer-icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  .timer-value {
     font-size: 18px;
   }
 
-  .choice-option {
-    padding: 12px;
+  .timer-label,
+  .progress-label,
+  .progress-count {
+    font-size: 11px;
+  }
+
+  .question-card-enhanced {
+    padding: 20px;
+  }
+
+  .question-meta {
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
   }
 
-  .choice-content {
-    gap: 8px;
-    width: 100%;
+  .question-type-badge {
+    font-size: 11px;
+    padding: 6px 12px;
   }
 
-  .choice-letter {
-    width: 24px;
-    height: 24px;
-    font-size: 11px;
+  .question-number-badge {
+    font-size: 12px;
+  }
+
+  .question-text-large {
+    font-size: 20px;
+    margin-bottom: 20px;
+  }
+
+  .voice-listening-indicator {
+    padding: 12px 16px;
+    font-size: 12px;
+  }
+
+  .choice-button {
+    padding: 14px 16px;
+    gap: 12px;
+  }
+
+  .choice-key {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
   }
 
   .choice-text {
     font-size: 14px;
   }
 
-  .nav-controls {
-    flex-direction: column;
-    gap: 12px;
+  .nav-btn-primary,
+  .nav-btn-submit {
+    padding: 12px 20px;
+    font-size: 14px;
   }
 
-  .nav-btn {
-    width: 100%;
-    justify-content: center;
-    padding: 12px 16px;
+  .text-input-large {
+    font-size: 15px;
+    padding: 12px 14px;
+  }
+
+  .text-area-large {
+    font-size: 14px;
+    padding: 12px 14px;
+    min-height: 90px;
+  }
+
+  .input-label {
+    font-size: 14px;
+  }
+
+  .overview-content {
+    padding: 32px 24px;
+  }
+
+  .overview-title {
+    font-size: 28px;
+  }
+
+  .overview-description {
+    font-size: 16px;
+  }
+
+  .overview-icon {
+    width: 80px;
+    height: 80px;
+  }
+
+  .stat-item {
+    padding: 16px;
+  }
+
+  .stat-value {
+    font-size: 24px;
+  }
+
+  .start-quiz-btn {
+    padding: 16px 32px;
+    font-size: 16px;
   }
 
   .results-section {
@@ -2068,43 +2757,12 @@ function clearProgress() {
   .answer-value {
     font-size: 13px;
   }
-
-  .overview-content {
-    padding: 32px 24px;
-  }
-
-  .overview-title {
-    font-size: 28px;
-  }
-
-  .overview-description {
-    font-size: 16px;
-  }
-
-  .overview-icon {
-    width: 80px;
-    height: 80px;
-  }
-
-  .stat-item {
-    padding: 16px;
-  }
-
-  .stat-value {
-    font-size: 24px;
-  }
-
-  .start-quiz-btn {
-    padding: 16px 32px;
-    font-size: 16px;
-  }
-
 }
 
-/* New question type styles */
-.identification-input,
-.enumeration-input {
-  margin-top: 20px;
+/* Enhanced Input Styles */
+.input-enhanced,
+.enumeration-enhanced {
+  width: 100%;
 }
 
 .input-group {
@@ -2116,55 +2774,67 @@ function clearProgress() {
 .input-label {
   font-weight: 600;
   color: #374151;
-  font-size: 14px;
+  font-size: 16px;
   margin-bottom: 8px;
 }
 
-.text-input {
-  padding: 12px 16px;
+.text-input-large {
+  padding: 16px 20px;
   border: 2px solid #e5e7eb;
-  border-radius: 8px;
-  font-size: 16px;
-  transition: all 0.3s ease;
+  border-radius: 12px;
+  font-size: 18px;
+  transition: all 0.2s ease;
   background: #fff;
+  font-family: inherit;
+  width: 100%;
 }
 
-.text-input:focus {
+.text-input-large:focus {
   outline: none;
   border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
 }
 
-.text-area {
-  padding: 12px 16px;
+.text-area-large {
+  padding: 16px 20px;
   border: 2px solid #e5e7eb;
-  border-radius: 8px;
+  border-radius: 12px;
   font-size: 16px;
   font-family: inherit;
   resize: vertical;
-  min-height: 100px;
-  transition: all 0.3s ease;
+  min-height: 120px;
+  transition: all 0.2s ease;
   background: #fff;
+  width: 100%;
+  line-height: 1.6;
 }
 
-.text-area:focus {
+.text-area-large:focus {
   outline: none;
   border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
 }
 
 .enumeration-preview {
   margin-top: 8px;
-  padding: 8px 12px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  font-size: 12px;
-  color: #6b7280;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, #f8faff 0%, #f0f4ff 100%);
+  border: 1px solid #e0e7ff;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #667eea;
 }
 
 .enumeration-preview small {
-  color: #6b7280;
+  color: #667eea;
   font-style: italic;
+  font-weight: 500;
+}
+
+.enumeration-hint {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #6b7280;
+  font-weight: 500;
 }
 </style>

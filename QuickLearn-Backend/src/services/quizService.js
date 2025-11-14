@@ -88,10 +88,33 @@ async function generateAIPoweredSummary(text, options = {}) {
 	}
 }
 
+// AI-powered flashcards generation
+async function generateAIPoweredFlashcards(text, options = {}) {
+	const {
+		customInstructions = ''
+	} = options;
+
+	if (!process.env.DEEPSEEK_API_KEY) {
+		// Fallback without throwing
+		return deepSeekService.createFallbackFlashcards(text);
+	}
+
+	try {
+		return await deepSeekService.generateFlashcardsFromText(text, {
+			customInstructions
+		});
+	} catch (error) {
+		console.error('DeepSeek flashcards generation failed:', error);
+		// Fallback rather than throwing
+		return deepSeekService.createFallbackFlashcards(text);
+	}
+}
+
 module.exports = { 
 	generateAIPoweredQuiz, // AI-powered function using DeepSeek
 	generateAdvancedQuiz, // Advanced AI function using DeepSeek
-	generateAIPoweredSummary // AI-powered summary function using DeepSeek
+	generateAIPoweredSummary, // AI-powered summary function using DeepSeek
+    generateAIPoweredFlashcards // AI-powered flashcards function using DeepSeek
 };
 
 

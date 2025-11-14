@@ -37,6 +37,16 @@ const quizModeOptions = [
     color: '#10b981',
     gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
     features: ['Dynamic difficulty', 'Performance tracking', 'Personalized learning', 'Progressive challenges']
+  },
+  {
+    key: 'custom',
+    title: 'Custom Quiz',
+    shortDescription: 'Build your own quiz from Question Bank',
+    description: 'Browse and select questions from your question bank to build your own quiz.',
+    icon: 'FileText',
+    color: '#f59e0b',
+    gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+    features: ['Browse Question Bank', 'Select specific questions', 'Personalized compilation', 'Full control']
   }
 ]
 
@@ -48,7 +58,7 @@ function selectMode(mode) {
 
 function handleConfirm() {
   if (!selectedMode.value) return
-  
+
   emit('confirm', {
     mode: selectedMode.value
   })
@@ -80,8 +90,8 @@ function handleClose() {
         <div class="mode-selection">
           <h3>How would you like to learn?</h3>
           <div class="options-grid">
-            <div 
-              v-for="option in quizModeOptions" 
+            <div
+              v-for="option in quizModeOptions"
               :key="option.key"
               class="mode-card"
               :class="{ selected: selectedMode === option.key }"
@@ -100,8 +110,8 @@ function handleClose() {
                 <div class="hover-description">
                   <p>{{ option.description }}</p>
                   <div class="features-list">
-                    <div 
-                      v-for="feature in option.features" 
+                    <div
+                      v-for="feature in option.features"
                       :key="feature"
                       class="feature-item"
                     >
@@ -130,7 +140,7 @@ function handleClose() {
           <button class="cancel-btn" @click="handleClose">
             Cancel
           </button>
-          <button 
+          <button
             class="confirm-btn"
             :disabled="!selectedMode"
             @click="handleConfirm"
@@ -232,8 +242,8 @@ function handleClose() {
 
 .options-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
   margin-bottom: 24px;
 }
 
@@ -429,16 +439,24 @@ function handleClose() {
   }
 
   .options-grid {
-    grid-template-columns: 1fr;
-    gap: 16px;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+
+  .card-visual {
+    height: 80px;
+  }
+
+  .card-header h4 {
+    font-size: 16px;
+  }
+
+  .short-desc {
+    font-size: 12px;
   }
 
   .mode-card {
     margin-bottom: 0;
-  }
-
-  .card-visual {
-    height: 100px;
   }
 
   .modal-body {

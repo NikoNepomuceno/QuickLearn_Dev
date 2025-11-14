@@ -16,6 +16,9 @@ const router = useRouter()
 const isLoading = ref(false)
 const error = ref(null)
 const notes = ref([])
+const flashcards = ref([])
+const filterType = ref('all') // 'all' | 'summary' | 'flashcards'
+const filterKeys = ['all', 'summary', 'flashcards']
 const showDeleteModal = ref(false)
 const noteToDelete = ref(null)
 const showExportModal = ref(false)
@@ -40,7 +43,12 @@ async function loadNotes() {
       return
     }
 
-    notes.value = await cloudQuizService.getUserSummaries()
+    const [summaries, cards] = await Promise.all([
+      cloudQuizService.getUserSummaries(),
+      cloudQuizService.getUserFlashcards()
+    ])
+    notes.value = summaries || []
+    flashcards.value = cards || []
   } catch (err) {
     console.error('Error loading notes:', err)
     error.value = err.message || 'Failed to load notes'
@@ -49,6 +57,12 @@ async function loadNotes() {
     isLoading.value = false
   }
 }
+
+const filteredItems = computed(() => {
+  if (filterType.value === 'summary') return { summaries: notes.value, flashcards: [] }
+  if (filterType.value === 'flashcards') return { summaries: [], flashcards: flashcards.value }
+  return { summaries: notes.value, flashcards: flashcards.value }
+})
 
 function openDownloadModal(note) {
   noteToExport.value = note
@@ -164,6 +178,27 @@ function cancelDelete() {
   showDeleteModal.value = false
   noteToDelete.value = null
 }
+
+function focusTab(tab) {
+  const el = document.getElementById(`notes-filter-tab-${tab}`)
+  el?.focus()
+}
+
+function handleTabKeydown(event, tab) {
+  const index = filterKeys.indexOf(tab)
+  if (index === -1) return
+  if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+    const nextTab = filterKeys[(index + 1) % filterKeys.length]
+    filterType.value = nextTab
+    focusTab(nextTab)
+    event.preventDefault()
+  } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+    const prevTab = filterKeys[(index - 1 + filterKeys.length) % filterKeys.length]
+    filterType.value = prevTab
+    focusTab(prevTab)
+    event.preventDefault()
+  }
+}
 </script>
 
 <template>
@@ -172,12 +207,58 @@ function cancelDelete() {
     subtitle="All summaries generated from your uploads. Export, copy, or revisit them anytime."
     content-width="wide"
   >
-    <template #header-actions>
-      <BaseButton variant="primary" size="sm" @click="router.push('/upload')">
-        <Plus :size="16" />
-        Generate summary
-      </BaseButton>
-    </template>
+    <div class="page-toolbar">
+      <div class="tab-group" role="tablist" aria-label="Note filters">
+        <button
+          id="notes-filter-tab-all"
+          class="tab"
+          :class="{ 'tab--active': filterType === 'all' }"
+          type="button"
+          role="tab"
+          :aria-selected="filterType === 'all'"
+          :tabindex="filterType === 'all' ? 0 : -1"
+          aria-controls="notes-panel"
+          @click="filterType = 'all'"
+          @keydown="handleTabKeydown($event, 'all')"
+        >
+          All
+        </button>
+        <button
+          id="notes-filter-tab-summary"
+          class="tab"
+          :class="{ 'tab--active': filterType === 'summary' }"
+          type="button"
+          role="tab"
+          :aria-selected="filterType === 'summary'"
+          :tabindex="filterType === 'summary' ? 0 : -1"
+          aria-controls="notes-panel"
+          @click="filterType = 'summary'"
+          @keydown="handleTabKeydown($event, 'summary')"
+        >
+          Summaries
+        </button>
+        <button
+          id="notes-filter-tab-flashcards"
+          class="tab"
+          :class="{ 'tab--active': filterType === 'flashcards' }"
+          type="button"
+          role="tab"
+          :aria-selected="filterType === 'flashcards'"
+          :tabindex="filterType === 'flashcards' ? 0 : -1"
+          aria-controls="notes-panel"
+          @click="filterType = 'flashcards'"
+          @keydown="handleTabKeydown($event, 'flashcards')"
+        >
+          Flashcards
+        </button>
+      </div>
+      <div class="page-toolbar__actions">
+        <BaseButton variant="primary" size="sm" @click="router.push('/upload')">
+          <Plus :size="16" />
+          Generate
+        </BaseButton>
+      </div>
+    </div>
 
     <div v-if="isLoading" class="loading-state">
       <BeatLoader :loading="true" text="Loading your notes..." color="#667eea" size="20px" />
@@ -197,22 +278,23 @@ function cancelDelete() {
     </div>
 
     <div v-else>
-      <div v-if="notes.length === 0" class="empty-state">
+      <div v-if="filteredItems.summaries.length === 0 && filteredItems.flashcards.length === 0" class="empty-state">
         <BaseCard padding="lg">
           <div class="empty-card">
             <FolderOpen :size="48" />
-            <h3>No notes yet</h3>
-            <p>Generate a summary from the Upload page to see it here.</p>
+            <h3>Nothing here yet</h3>
+            <p>Generate a summary or flashcards from the Upload page to see it here.</p>
             <BaseButton variant="primary" @click="router.push('/upload')">
               <Plus :size="16" />
-              Generate a summary
+              Generate
             </BaseButton>
           </div>
         </BaseCard>
       </div>
 
-      <div v-else class="library-grid">
-        <BaseCard v-for="note in notes" :key="note.id" padding="lg">
+      <div v-else id="notes-panel" class="library-grid" role="tabpanel" tabindex="0">
+        <!-- Summaries list -->
+        <BaseCard v-for="note in filteredItems.summaries" :key="note.id" padding="lg">
           <div class="note-card">
             <div class="note-card__header">
               <div class="note-card__meta">
@@ -256,6 +338,44 @@ function cancelDelete() {
             </div>
           </div>
         </BaseCard>
+
+        <!-- Flashcards list -->
+        <BaseCard v-for="fc in filteredItems.flashcards" :key="fc.id" padding="lg">
+          <div class="note-card">
+            <div class="note-card__header">
+              <div class="note-card__meta">
+                <FileText :size="20" />
+                <div>
+                  <h3>{{ fc.title || 'Flashcards' }}</h3>
+                  <p class="note-card__subtitle">
+                    {{ fc.description || 'Flashcards generated by QuickLearn' }}
+                  </p>
+                </div>
+              </div>
+              <div class="note-card__actions">
+                <BaseButton variant="outline" size="sm" @click="router.push(`/flashcards/${fc.id}`)">EDIT</BaseButton>
+              </div>
+            </div>
+
+            <div class="note-card__details" v-if="fc.sourceFile && fc.sourceFile.name">
+              <span>{{ fc.sourceFile.name }}</span>
+              <span>•</span>
+              <span>{{ fc.sourceFile.type?.toUpperCase() || 'FILE' }}</span>
+              <span>•</span>
+              <span>{{ formatFileSize(fc.sourceFile.size) }}</span>
+            </div>
+
+            <div class="note-card__stats">
+              <div class="stat-chip">Cards: {{ fc.cardsCount || 0 }}</div>
+            </div>
+
+            <div class="note-card__actions">
+              <BaseButton variant="primary" size="sm" @click="router.push(`/flashcards/${fc.id}/study`)">
+                Study
+              </BaseButton>
+            </div>
+          </div>
+        </BaseCard>
       </div>
     </div>
 
@@ -280,6 +400,53 @@ function cancelDelete() {
 </template>
 
 <style scoped>
+.page-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.page-toolbar__actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.tab-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-subtle);
+  border: 1px solid var(--color-border);
+}
+
+.tab {
+  border: none;
+  background: none;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background var(--transition-base), color var(--transition-base);
+}
+
+.tab:focus-visible {
+  outline: 2px solid rgba(102, 126, 234, 0.45);
+  outline-offset: 2px;
+}
+
+.tab--active {
+  background: var(--color-surface);
+  color: var(--color-primary);
+  box-shadow: var(--shadow-xs);
+}
+
 .loading-state,
 .error-state,
 .empty-state {
@@ -384,5 +551,19 @@ body.dark .note-card__details {
 body.dark .stat-chip {
   background: var(--color-surface-subtle);
   color: var(--color-text-muted);
+}
+
+body.dark .tab-group {
+  background: var(--color-surface-subtle);
+  border-color: var(--color-border);
+}
+
+body.dark .tab {
+  color: var(--color-text-muted);
+}
+
+body.dark .tab--active {
+  background: var(--color-surface);
+  color: var(--color-primary);
 }
 </style>

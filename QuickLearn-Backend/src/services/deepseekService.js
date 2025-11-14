@@ -22,6 +22,116 @@ class DeepSeekService {
         this.initialized = false;
     }
 
+    async generateFlashcardsFromText(text, options = {}) {
+        const { customInstructions = '' } = options;
+        try {
+            // Initialize client if not already done
+            this.initializeClient();
+
+            const prompt = this.buildFlashcardsPrompt(text, { customInstructions });
+            const response = await this.makeApiCallWithRetry({
+                model: 'deepseek-chat',
+                messages: [
+                    {
+                        role: 'system',
+                        content: 'You are an expert at creating concise, high-quality flashcards for studying. Generate clear front/back cards.'
+                    },
+                    {
+                        role: 'user',
+                        content: prompt
+                    }
+                ],
+                temperature: 0.6,
+                max_tokens: 4000,
+                stream: false
+            });
+            const content = response.choices[0].message.content;
+            return this.parseFlashcardsResponse(content, text);
+        } catch (error) {
+            if (DEBUG_AI) console.error('DeepSeek flashcards API Error:', error);
+            return this.createFallbackFlashcards(text);
+        }
+    }
+
+    buildFlashcardsPrompt(text, options) {
+        const { customInstructions } = options;
+        let prompt = `Create a set of concise study flashcards from the text below.
+
+TEXT:
+${text.substring(0, 10000)} ${text.length > 10000 ? '...[truncated]' : ''}
+
+REQUIREMENTS:
+- Create between 8 and 16 flashcards depending on content richness.
+- Each card must have a "front" and "back".
+- "Front" should be a short question/term; "Back" should be a clear answer/definition.
+- Keep language simple and direct; avoid long paragraphs.
+- Prefer one concept per card.
+${customInstructions ? `- Additional instructions: ${customInstructions}` : ''}
+
+OUTPUT FORMAT (JSON):
+{
+  "title": "Short collection title",
+  "cards": [
+    { "front": "Question or term", "back": "Answer or definition" }
+  ]
+}
+
+STRICT OUTPUT RULES:
+- Respond with ONLY the JSON (no code fences or commentary).
+- Ensure the JSON is valid and properly formatted.`;
+        return prompt;
+    }
+
+    parseFlashcardsResponse(aiResponse, originalText) {
+        try {
+            let content = aiResponse.trim();
+            content = content.replace(/^```json\s*|^```\s*|\s*```$/gmi, '');
+            try {
+                const parsed = JSON.parse(content);
+                return this.validateAndCleanFlashcards(parsed, originalText);
+            } catch {}
+            const jsonMatch = content.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                const data = JSON.parse(jsonMatch[0]);
+                return this.validateAndCleanFlashcards(data, originalText);
+            }
+            throw new Error('No valid JSON found in AI response');
+        } catch (error) {
+            if (DEBUG_AI) console.error('Error parsing AI flashcards response:', error);
+            return this.createFallbackFlashcards(originalText);
+        }
+    }
+
+    validateAndCleanFlashcards(data, originalText) {
+        const title = data.title || 'Flashcards';
+        let cards = Array.isArray(data.cards) ? data.cards : [];
+        cards = cards
+            .filter(c => c && typeof c.front === 'string' && typeof c.back === 'string')
+            .map(c => ({ front: c.front.trim(), back: c.back.trim() }))
+            .filter(c => c.front.length > 0 && c.back.length > 0);
+        if (cards.length === 0) {
+            return this.createFallbackFlashcards(originalText);
+        }
+        return { title, cards };
+    }
+
+    createFallbackFlashcards(text) {
+        const sentences = text.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 20);
+        const take = Math.min(10, Math.max(6, sentences.length));
+        const cards = [];
+        for (let i = 0; i < take; i++) {
+            const s = sentences[i] || sentences[0] || 'This material discusses important concepts.';
+            const term = (s.split(' ').find(w => w.length > 5) || 'Key concept').replace(/[^a-z0-9 ]/ig, '');
+            cards.push({
+                front: `What is ${term}?`,
+                back: s.substring(0, 140) + (s.length > 140 ? '...' : '')
+            });
+        }
+        return {
+            title: 'Flashcards',
+            cards
+        };
+    }
     initializeClient() {
         if (!this.initialized) {
             if (!process.env.DEEPSEEK_API_KEY) {
@@ -344,12 +454,6 @@ Please ensure the JSON is valid and properly formatted.`;
             commonWords[word] = (commonWords[word] || 0) + 1;
         });
         
-        // Get most common words
-        const topWords = Object.entries(commonWords)
-            .sort(([,a], [,b]) => b - a)
-            .slice(0, 10)
-            .map(([word]) => word);
-
         // Generate questions with variety from the start
         for (let i = 0; i < desiredCount; i++) {
             const questionType = requestedTypes[i % requestedTypes.length]; // Cycle through requested types only
@@ -690,6 +794,116 @@ STRICT OUTPUT RULES:
                 'Key concepts are well-explained and easy to understand.'
             ]
         };
+    }
+
+    /**
+     * Categorize a question using AI
+     * @param {Object} question - Question object with stem, choices, answer, explanation, etc.
+     * @returns {Promise<{topic: string, category: string, subject: string, keywords: Array, difficulty: string}>}
+     */
+    async categorizeQuestion(question) {
+        try {
+            this.initializeClient();
+
+            const questionText = question.question || question.stem || '';
+            const choices = question.choices ? JSON.stringify(question.choices) : '';
+            const answer = question.answer || question.correctAnswer || '';
+            const explanation = question.explanation || '';
+            const existingDifficulty = question.difficulty || 'medium';
+
+            const prompt = `Analyze the following question and provide categorization information in JSON format.
+
+Question: ${questionText}
+${choices ? `Choices: ${choices}` : ''}
+Answer: ${answer}
+${explanation ? `Explanation: ${explanation}` : ''}
+
+Please provide a JSON object with the following structure:
+{
+  "topic": "Main subject area (e.g., 'Biology', 'History', 'Mathematics')",
+  "category": "Specific category within the topic (e.g., 'Cell Biology', 'World War II', 'Calculus')",
+  "subject": "Academic subject classification (e.g., 'Science', 'Social Studies', 'Math')",
+  "keywords": ["keyword1", "keyword2", "keyword3"],
+  "difficulty": "easy|medium|hard"
+}
+
+Rules:
+- topic: Should be a broad subject area (max 50 characters)
+- category: Should be more specific than topic (max 50 characters, can be null if not applicable)
+- subject: Should be a general academic subject classification (max 50 characters)
+- keywords: Array of 3-5 relevant keywords extracted from the question
+- difficulty: Assess the difficulty level. If the question already has a difficulty, use it unless you strongly disagree.
+
+Return ONLY valid JSON, no additional text.`;
+
+            const cacheKey = shaKey({ method: 'categorizeQuestion', question: questionText });
+            const cached = cacheGet(cacheKey);
+            if (cached) {
+                if (DEBUG_AI) console.log('Cache hit for question categorization');
+                return cached;
+            }
+
+            const response = await this.makeApiCallWithRetry({
+                model: 'deepseek-chat',
+                messages: [
+                    {
+                        role: 'system',
+                        content: 'You are an expert at analyzing and categorizing educational questions. Provide accurate categorization in JSON format only.'
+                    },
+                    {
+                        role: 'user',
+                        content: prompt
+                    }
+                ],
+                temperature: 0.3,
+                max_tokens: 500,
+                stream: false
+            });
+
+            const content = response.choices[0].message.content.trim();
+            
+            // Parse JSON response
+            let categorization;
+            try {
+                // Remove code fences if present
+                const cleaned = content.replace(/^```json\s*|^```\s*|\s*```$/gmi, '');
+                categorization = JSON.parse(cleaned);
+            } catch {
+                // Try to extract JSON from response
+                const jsonMatch = content.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    categorization = JSON.parse(jsonMatch[0]);
+                } else {
+                    throw new Error('Failed to parse categorization response');
+                }
+            }
+
+            // Validate and normalize response
+            const result = {
+                topic: categorization.topic || 'General',
+                category: categorization.category || null,
+                subject: categorization.subject || null,
+                keywords: Array.isArray(categorization.keywords) ? categorization.keywords.slice(0, 5) : [],
+                difficulty: ['easy', 'medium', 'hard'].includes(categorization.difficulty?.toLowerCase()) 
+                    ? categorization.difficulty.toLowerCase() 
+                    : existingDifficulty
+            };
+
+            // Cache result for 24 hours
+            cacheSet(cacheKey, result, 24 * 60 * 60 * 1000);
+
+            return result;
+        } catch (error) {
+            console.error('Error categorizing question with AI:', error);
+            // Return default categorization on error
+            return {
+                topic: 'General',
+                category: null,
+                subject: null,
+                keywords: [],
+                difficulty: question.difficulty || 'medium'
+            };
+        }
     }
 }
 

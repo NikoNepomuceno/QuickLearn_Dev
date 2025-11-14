@@ -16,6 +16,7 @@ import UserProfile from '@/views/UserProfile.vue'
 import NotesPage from '@/views/NotesPage.vue'
 import { adaptiveRoutes } from '../features/adaptive'
 import { leaderboardRoutes } from '../features/leaderboard'
+import { questionBankRoutes } from '../features/question-bank'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -34,10 +35,14 @@ const router = createRouter({
     { path: '/settings', name: 'settings', component: SettingsPage, meta: { requiresAuth: true }},
     { path: '/user-profile', name: 'user-profile', component: UserProfile, meta: { requiresAuth: true } },
     { path: '/notes', name: 'notes', component: NotesPage, meta: { requiresAuth: true } },
+    { path: '/flashcards/:id', name: 'flashcards-view', component: () => import('../views/FlashcardsPage.vue'), meta: { requiresAuth: true } },
+    { path: '/flashcards/:id/study', name: 'flashcards-study', component: () => import('../views/FlashcardsStudy.vue'), meta: { requiresAuth: true } },
     // Adaptive quiz routes
     ...adaptiveRoutes,
     // Leaderboard routes
-    ...leaderboardRoutes
+    ...leaderboardRoutes,
+    // Question Bank routes
+    ...questionBankRoutes
   ],
 })
 

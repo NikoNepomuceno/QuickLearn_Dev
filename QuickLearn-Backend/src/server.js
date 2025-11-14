@@ -13,6 +13,8 @@ const userRoutes = require('./routes/userRoutes');
 const adaptiveRoutes = require('./routes/adaptiveRoutes');
 const friendsRoutes = require('./routes/friendsRoutes');
 const leaderboardRoutes = require('./routes/leaderboardRoutes');
+const flashcardsRoutes = require('./routes/flashcardsRoutes');
+const questionBankRoutes = require('./routes/questionBankRoutes');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -22,7 +24,7 @@ const allowedOrigin = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
 app.use(cors({
 	origin: allowedOrigin,
 	credentials: true,
-	methods: ['GET','POST','PUT','DELETE','OPTIONS'],
+	methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
 	allowedHeaders: ['Content-Type','Authorization'],
 	maxAge: 600
 }));
@@ -66,6 +68,8 @@ app.use('/api/user', userRoutes);
 app.use('/api/adaptive', adaptiveRoutes);
 app.use('/api/friends', friendsRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
+app.use('/api/flashcards', flashcardsRoutes);
+app.use('/api/question-bank', questionBankRoutes);
 
 module.exports = app;
 

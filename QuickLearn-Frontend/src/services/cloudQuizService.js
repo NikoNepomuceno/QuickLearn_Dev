@@ -453,6 +453,112 @@ class CloudQuizService {
   }
 
   /**
+   * Create flashcards from file
+   */
+  async createFlashcardsFromFile(file, options = {}) {
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      if (options.selectedPages && options.selectedPages.length > 0) {
+        formData.append('selectedPages', JSON.stringify(options.selectedPages))
+      }
+      if (options.customInstructions) {
+        formData.append('customInstructions', options.customInstructions)
+      }
+
+      const headers = {}
+      const token = authService.getToken()
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+
+      // Try primary endpoint first, then fall back for older servers
+      const candidateEndpoints = [
+        `${API_BASE}/api/flashcards`,
+        `${API_BASE}/api/quiz/flashcards`
+      ]
+
+      let lastResponse = null
+      for (const url of candidateEndpoints) {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: formData,
+          credentials: 'include'
+        })
+        if (res.ok) {
+          const data = await res.json()
+          return data
+        }
+        lastResponse = res
+        // If 404, try next endpoint; otherwise, surface the error text
+        if (res.status !== 404) {
+          const errorText = await res.text()
+          throw new Error(errorText || `Flashcards generation failed with status ${res.status}`)
+        }
+      }
+
+      // If we exhausted all endpoints
+      const msg = lastResponse
+        ? `Flashcards endpoint not available (received ${lastResponse.status}). Please enable the API or update the server.`
+        : 'Flashcards endpoint not available.'
+      throw new Error(msg)
+    } catch (error) {
+      console.error('Error creating flashcards from file:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get flashcards by id
+   */
+  async getFlashcards(id) {
+    try {
+      const response = await fetch(`${API_BASE}/api/flashcards/${id}`, {
+        headers: this.getAuthHeaders(),
+        credentials: 'include'
+      })
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          return null
+        }
+        throw new Error(`Failed to get flashcards: ${response.status}`)
+      }
+
+      const data = await response.json()
+      return data.flashcards || data
+    } catch (error) {
+      console.error('Error getting flashcards:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Update flashcards by id
+   */
+  async updateFlashcards(id, payload) {
+    try {
+      const response = await fetch(`${API_BASE}/api/flashcards/${id}`, {
+        method: 'PATCH',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(payload),
+        credentials: 'include'
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to update flashcards: ${response.status}`)
+      }
+
+      const data = await response.json()
+      return data.flashcards || data
+    } catch (error) {
+      console.error('Error updating flashcards:', error)
+      throw error
+    }
+  }
+  /**
    * Get user's summaries (notes)
    */
   async getUserSummaries(limit = 20, offset = 0) {
@@ -474,6 +580,29 @@ class CloudQuizService {
       return data.summaries || data.notes || []
     } catch (error) {
       console.error('Error getting user summaries:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get user's flashcards
+   */
+  async getUserFlashcards(limit = 20, offset = 0) {
+    try {
+      const response = await fetch(`${API_BASE}/api/flashcards?limit=${limit}&offset=${offset}`, {
+        headers: this.getAuthHeaders(),
+        credentials: 'include'
+      })
+      if (!response.ok) {
+        if (response.status === 404) {
+          return []
+        }
+        throw new Error(`Failed to get flashcards: ${response.status}`)
+      }
+      const data = await response.json()
+      return data.flashcards || []
+    } catch (error) {
+      console.error('Error getting user flashcards:', error)
       throw error
     }
   }

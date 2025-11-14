@@ -7,6 +7,7 @@ import PageSelectionModal from '../components/PageSelectionModal.vue'
 import GenerationTypeModal from '../components/GenerationTypeModal.vue'
 import QuizModeModal from '../components/QuizModeModal.vue'
 import SummarySuccessModal from '../components/SummarySuccessModal.vue'
+import GenerationChoiceModal from '../components/GenerationChoiceModal.vue'
 import AppShell from '@/components/layout/AppShell.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
@@ -14,6 +15,7 @@ import { downloadQuizAsPDF } from '../services/quizService'
 import cloudQuizService from '../services/cloudQuizService'
 import { Upload, FileText, X, Lightbulb, Target, Copy } from 'lucide-vue-next'
 import { adaptiveApi } from '../features/adaptive'
+import { DotLottieVue } from '@lottiefiles/dotlottie-vue'
 
 const router = useRouter()
 const selectedFile = ref(null)
@@ -32,6 +34,7 @@ const showPageSelectionModal = ref(false)
 const showGenerationTypeModal = ref(false)
 const showQuizModeModal = ref(false)
 const showSummarySuccessModal = ref(false)
+const showGenerationChoiceModal = ref(false)
 const shareLink = ref('')
 const showShareSuccess = ref(false)
 const filePages = ref([])
@@ -89,7 +92,6 @@ async function onFileChange(event) {
 }
 
 function triggerFileInput() {
-  // Don't trigger file input if a file is already selected
   if (selectedFile.value) {
     return
   }
@@ -411,13 +413,16 @@ function handlePageSelectionConfirm(payload) {
     if (selectedQuizMode.value === 'adaptive') {
       // Start adaptive session
       startAdaptiveSession()
+    } else if (selectedQuizMode.value === 'custom') {
+      // Navigate to Question Bank for custom quiz building
+      router.push('/question-bank')
     } else {
       // Show config modal for standard quiz generation
       showConfigModal.value = true
     }
   } else if (selectedGenerationType.value === 'summary') {
-    // Generate summary directly
-    generateSummary()
+    // Open choice modal to select Summary Notes or Flashcards
+    showGenerationChoiceModal.value = true
   }
 }
 
@@ -518,6 +523,60 @@ async function generateSummary() {
   }
 }
 
+// Flashcards generation function
+async function generateFlashcards() {
+  errorMessage.value = ''
+  quiz.value = null
+  showAnswers.value = {}
+
+  if (!selectedFile.value) {
+    const message = 'Please choose a .txt, .pdf, or .docx file.'
+    errorMessage.value = message
+    window.$toast?.error(message)
+    return
+  }
+
+  // Check if user is authenticated
+  if (!(await cloudQuizService.isAuthenticated())) {
+    window.$toast?.error('Please log in to create flashcards')
+    router.push('/login')
+    return
+  }
+
+  // Flashcards generation loading text
+  loadingMessage.value = 'Generating your flashcards…'
+  isLoading.value = true
+  startProgress()
+
+  try {
+    const pageSelectionData = window.pageSelectionData || {}
+    const options = {
+      customInstructions: pageSelectionData.customInstructions || customInstructions.value,
+      selectedPages: pageSelectionData.selectedPages || []
+    }
+
+    const result = await cloudQuizService.createFlashcardsFromFile(selectedFile.value, options)
+    // Expect { flashcards: { id, title, cards: [...] } }
+    const fc = result.flashcards
+    if (!fc?.id) {
+      throw new Error('Flashcards generation did not return an id')
+    }
+
+    // Clear the stored page selection data
+    delete window.pageSelectionData
+
+    // Navigate to flashcards page
+    router.push(`/flashcards/${fc.id}`)
+    window.$toast?.success('Flashcards generated!')
+  } catch (err) {
+    errorMessage.value = err?.message || 'Flashcards generation failed.'
+    window.$toast?.error(errorMessage.value)
+  } finally {
+    completeProgress()
+    isLoading.value = false
+  }
+}
+
 // Summary success modal handlers
 function handleSummarySuccessClose() {
   showSummarySuccessModal.value = false
@@ -582,6 +641,20 @@ async function copyLatestSummary() {
     window.$toast?.error('Unable to copy summary')
   }
 }
+
+// Generation choice modal handlers
+function handleGenerationChoiceClose() {
+  showGenerationChoiceModal.value = false
+}
+
+function handleGenerationChoiceSelect(option) {
+  showGenerationChoiceModal.value = false
+  if (option === 'summary') {
+    generateSummary()
+  } else if (option === 'flashcards') {
+    generateFlashcards()
+  }
+}
 </script>
 
 <template>
@@ -607,10 +680,6 @@ async function copyLatestSummary() {
             <p class="dropzone-card__subtitle">
               QuickLearn parses your document, lets you pick pages, then generates quizzes or summaries in one flow.
             </p>
-          </div>
-
-          <div class="dropzone-progress" v-show="isLoading || progressPercent > 0">
-            <div class="dropzone-progress__bar" :style="{ width: `${progressPercent}%` }"></div>
           </div>
 
           <div
@@ -858,20 +927,33 @@ async function copyLatestSummary() {
       @share-quiz="handleShareQuiz"
     />
 
+    <GenerationChoiceModal
+      :visible="showGenerationChoiceModal"
+      :file-name="fileName"
+      @close="handleGenerationChoiceClose"
+      @select="handleGenerationChoiceSelect"
+    />
+
     <SummarySuccessModal
       :visible="showSummarySuccessModal"
       :summary="generatedSummary"
       @close="handleSummarySuccessClose"
     />
 
-    <BeatLoader
-      v-if="isLoading"
-      :loading="isLoading"
-      :text="loadingMessage || 'Analyzing your file and generating questions…'"
-      color="#667eea"
-      size="20px"
-      :overlay="true"
-    />
+    <!-- Loading Overlay with Lottie Animation -->
+    <div v-if="isLoading" class="loading-overlay">
+      <div class="loading-content">
+        <DotLottieVue
+          src="https://lottie.host/f7efbef6-2888-49ad-8688-2dbe7735a5ad/yA3Du1fYA3.lottie"
+          style="width: 300px; height: 300px"
+          autoplay
+          loop
+        />
+        <p v-if="loadingMessage" class="loading-text">
+          {{ loadingMessage || 'Analyzing your file and generating questions…' }}
+        </p>
+      </div>
+    </div>
   </AppShell>
 </template>
 
@@ -981,20 +1063,6 @@ async function copyLatestSummary() {
   margin: 0;
   font-size: var(--font-size-base);
   color: var(--color-text-muted);
-}
-
-.dropzone-progress {
-  height: 6px;
-  background: rgba(102, 126, 234, 0.12);
-  border-radius: var(--radius-pill);
-  overflow: hidden;
-  margin-bottom: var(--space-4);
-}
-
-.dropzone-progress__bar {
-  height: 100%;
-  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
-  transition: width var(--transition-base);
 }
 
 .dropzone {
@@ -1290,5 +1358,59 @@ body.dark .share-banner__input {
   background: var(--color-surface-subtle);
   border-color: var(--color-border);
   color: var(--color-text);
+}
+
+/* Loading Overlay */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px) saturate(180%);
+  -webkit-backdrop-filter: blur(8px) saturate(180%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.3s ease;
+}
+
+.loading-content {
+  text-align: center;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+}
+
+.loading-text {
+  margin: 0;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 500;
+  text-align: center;
+  max-width: 400px;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Dark mode for loading overlay */
+body.dark .loading-overlay {
+  background: rgba(15, 23, 42, 0.9);
+}
+
+body.dark .loading-text {
+  color: #e2e8f0;
 }
 </style>

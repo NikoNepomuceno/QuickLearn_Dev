@@ -96,7 +96,7 @@ onBeforeUnmount(() => {
       <!-- Notes Page -->
       <router-link class="nav-item" to="/notes" @click="closeSidebar">
         <Book class="icon" :size="20" />
-        <span>Notes</span>
+        <span>Summary</span>
       </router-link>
 
       <!-- Leaderboards Page -->

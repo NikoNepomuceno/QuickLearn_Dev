@@ -4,8 +4,21 @@
     subtitle="Track your progress and connect with the community."
     content-width="wide"
   >
-    <div class="leaderboards-page">
-      <div class="content-grid">
+    <!-- Animation Overlay -->
+    <div v-if="showAnimation" class="loading-overlay">
+      <div class="loading-content">
+        <DotLottieVue
+          src="https://lottie.host/c9a79438-794c-4085-9fc2-2d9646a06ba7/ICInAK6k3O.lottie"
+          style="width: 300px; height: 300px"
+          autoplay
+          loop
+        />
+      </div>
+    </div>
+
+    <Transition name="fade" appear>
+      <div v-if="!showAnimation" class="leaderboards-page">
+        <div class="content-grid">
         <section class="main-panel">
           <header class="main-panel__header">
             <div class="main-panel__headline">
@@ -100,20 +113,35 @@
           </section>
         </aside>
       </div>
-    </div>
+      </div>
+    </Transition>
   </AppShell>
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount, Transition } from 'vue'
 import AppShell from '@/components/layout/AppShell.vue'
 import FriendsPanel from '../components/FriendsPanel.vue'
 import LeaderboardPanel from '../components/LeaderboardPanel.vue'
 import InboxPanel from '../components/InboxPanel.vue'
 import { getPendingRequestsCount } from '../services/leaderboard.api'
+import { DotLottieVue } from '@lottiefiles/dotlottie-vue'
 
 const activeTab = ref('leaderboard')
 const badgeCount = ref(0)
+
+// Check if animation has been shown before (using sessionStorage so it clears on browser close)
+const ANIMATION_STORAGE_KEY = 'leaderboard-animation-shown'
+const hasSeenAnimation = () => {
+  try {
+    return sessionStorage.getItem(ANIMATION_STORAGE_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+const showAnimation = ref(!hasSeenAnimation())
+let animationTimeout = null
 
 const milestone = {
   description: 'Complete two more AI lessons to unlock the Expert badge.',
@@ -130,14 +158,31 @@ const quickWins = [
 let pollHandle
 
 onMounted(async () => {
-  await fetchRequestsCount()
+  // Start fetching data in parallel
+  fetchRequestsCount()
   pollHandle = window.setInterval(fetchRequestsCount, 30000)
+  
+  // Hide animation after it plays (3 seconds) and mark as shown
+  if (showAnimation.value) {
+    animationTimeout = setTimeout(() => {
+      showAnimation.value = false
+      try {
+        sessionStorage.setItem(ANIMATION_STORAGE_KEY, 'true')
+      } catch (error) {
+        console.warn('Failed to save animation state:', error)
+      }
+    }, 3000)
+  }
 })
 
 onBeforeUnmount(() => {
   if (pollHandle) {
     clearInterval(pollHandle)
     pollHandle = undefined
+  }
+  if (animationTimeout) {
+    clearTimeout(animationTimeout)
+    animationTimeout = null
   }
 })
 
@@ -448,6 +493,59 @@ body.dark .btn:hover {
   color: #ffffff;
   border-color: rgba(129, 140, 248, 0.6);
   box-shadow: 0 15px 28px rgba(129, 140, 248, 0.25);
+}
+
+/* Loading Overlay */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px) saturate(180%);
+  -webkit-backdrop-filter: blur(8px) saturate(180%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.3s ease;
+}
+
+.loading-content {
+  text-align: center;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Dark mode for loading overlay */
+body.dark .loading-overlay {
+  background: rgba(15, 23, 42, 0.9);
+}
+
+/* Fade-in transition for page content */
+.fade-enter-active {
+  transition: opacity 0.5s ease-out;
+}
+
+.fade-enter-from {
+  opacity: 0;
+}
+
+.fade-enter-to {
+  opacity: 1;
 }
 </style>
 

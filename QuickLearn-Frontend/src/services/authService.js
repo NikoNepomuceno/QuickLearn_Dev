@@ -109,6 +109,8 @@ export function clearLegacyTokens() {
   try {
     localStorage.removeItem('accessToken')
     localStorage.removeItem('refreshToken')
+    // Clear leaderboard animation flag so it shows again after logout
+    sessionStorage.removeItem('leaderboard-animation-shown')
   } catch (error) {
     console.warn('Failed to clear tokens!', error)
   }
