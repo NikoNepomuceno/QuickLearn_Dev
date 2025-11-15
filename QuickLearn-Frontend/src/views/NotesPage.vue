@@ -371,122 +371,142 @@ function handleTabKeydown(event, tab) {
         </BaseCard>
       </div>
 
-      <div v-else id="notes-panel" class="library-grid" role="tabpanel" tabindex="0">
-        <!-- Summaries list -->
-        <BaseCard v-for="note in filteredItems.summaries" :key="note.id" padding="lg">
-          <div class="note-card">
-            <div class="note-card__header">
-              <div class="note-card__meta">
-                <FileText :size="20" />
-                <div>
-                  <h3>{{ note.title || 'Untitled note' }}</h3>
-                  <p class="note-card__subtitle">
-                    {{ note.description || 'Summary created by QuickLearn' }}
-                  </p>
+      <div v-else id="notes-panel" role="tabpanel" tabindex="0">
+        <section
+          v-if="filteredItems.summaries.length"
+          class="library-section"
+        >
+          <header class="library-section__header">
+            <h2>Summaries</h2>
+            <span class="library-section__count">{{ filteredItems.summaries.length }} total</span>
+          </header>
+          <div class="library-grid">
+            <BaseCard v-for="note in filteredItems.summaries" :key="note.id" padding="lg">
+              <div class="note-card">
+                <div class="note-card__header">
+                  <div class="note-card__meta">
+                    <FileText :size="20" />
+                    <div>
+                      <h3>{{ note.title || 'Untitled note' }}</h3>
+                      <p class="note-card__subtitle">
+                        {{ note.description || 'Summary created by QuickLearn' }}
+                      </p>
+                    </div>
+                  </div>
+                  <div class="dropdown-wrapper">
+                    <button
+                      class="dropdown-trigger"
+                      :aria-label="'More actions for ' + (note.title || 'Untitled summary')"
+                      @click.stop="toggleDropdown(`summary-${note.id}`)"
+                    >
+                      <MoreVertical :size="20" />
+                    </button>
+                    <div
+                      v-if="isDropdownOpen(`summary-${note.id}`)"
+                      class="dropdown-menu"
+                      @click.stop
+                    >
+                      <button class="dropdown-item" @click="handleEditSummary(note)">
+                        <Edit :size="16" />
+                        Edit
+                      </button>
+                      <button class="dropdown-item" @click="handleExportSummary(note)">
+                        <Download :size="16" />
+                        Export
+                      </button>
+                      <button class="dropdown-item dropdown-item--danger" @click="handleDeleteSummary(note)">
+                        <Trash2 :size="16" />
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="note-card__details" v-if="note.sourceFile && note.sourceFile.name">
+                  <span>{{ note.sourceFile.name }}</span>
+                  <span>•</span>
+                  <span>{{ note.sourceFile.type?.toUpperCase() || 'FILE' }}</span>
+                  <span>•</span>
+                  <span>{{ formatFileSize(note.sourceFile.size) }}</span>
+                </div>
+
+                <div class="note-card__stats">
+                  <div class="stat-chip">Key points: {{ note.keyPoints?.length || 0 }}</div>
+                  <div class="stat-chip">Sections: {{ note.sections?.length || 0 }}</div>
+                  <div class="stat-chip">Takeaways: {{ note.conclusions?.length || 0 }}</div>
                 </div>
               </div>
-              <div class="dropdown-wrapper">
-                <button
-                  class="dropdown-trigger"
-                  :aria-label="'More actions for ' + (note.title || 'Untitled summary')"
-                  @click.stop="toggleDropdown(`summary-${note.id}`)"
-                >
-                  <MoreVertical :size="20" />
-                </button>
-                <div
-                  v-if="isDropdownOpen(`summary-${note.id}`)"
-                  class="dropdown-menu"
-                  @click.stop
-                >
-                  <button class="dropdown-item" @click="handleEditSummary(note)">
-                    <Edit :size="16" />
-                    Edit
-                  </button>
-                  <button class="dropdown-item" @click="handleExportSummary(note)">
-                    <Download :size="16" />
-                    Export
-                  </button>
-                  <button class="dropdown-item dropdown-item--danger" @click="handleDeleteSummary(note)">
-                    <Trash2 :size="16" />
-                    Delete
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div class="note-card__details" v-if="note.sourceFile && note.sourceFile.name">
-              <span>{{ note.sourceFile.name }}</span>
-              <span>•</span>
-              <span>{{ note.sourceFile.type?.toUpperCase() || 'FILE' }}</span>
-              <span>•</span>
-              <span>{{ formatFileSize(note.sourceFile.size) }}</span>
-            </div>
-
-            <div class="note-card__stats">
-              <div class="stat-chip">Key points: {{ note.keyPoints?.length || 0 }}</div>
-              <div class="stat-chip">Sections: {{ note.sections?.length || 0 }}</div>
-              <div class="stat-chip">Takeaways: {{ note.conclusions?.length || 0 }}</div>
-            </div>
+            </BaseCard>
           </div>
-        </BaseCard>
+        </section>
 
-        <!-- Flashcards list -->
-        <BaseCard v-for="fc in filteredItems.flashcards" :key="fc.id" padding="lg">
-          <div class="note-card">
-            <div class="note-card__header">
-              <div class="note-card__meta">
-                <FileText :size="20" />
-                <div>
-                  <h3>{{ fc.title || 'Flashcards' }}</h3>
-                  <p class="note-card__subtitle">
-                    {{ fc.description || 'Flashcards generated by QuickLearn' }}
-                  </p>
+        <section
+          v-if="filteredItems.flashcards.length"
+          class="library-section"
+        >
+          <header class="library-section__header">
+            <h2>Flashcards</h2>
+            <span class="library-section__count">{{ filteredItems.flashcards.length }} total</span>
+          </header>
+          <div class="library-grid">
+            <BaseCard v-for="fc in filteredItems.flashcards" :key="fc.id" padding="lg">
+              <div class="note-card">
+                <div class="note-card__header">
+                  <div class="note-card__meta">
+                    <FileText :size="20" />
+                    <div>
+                      <h3>{{ fc.title || 'Flashcards' }}</h3>
+                      <p class="note-card__subtitle">
+                        {{ fc.description || 'Flashcards generated by QuickLearn' }}
+                      </p>
+                    </div>
+                  </div>
+                  <div class="dropdown-wrapper">
+                    <button
+                      class="dropdown-trigger"
+                      :aria-label="'More actions for ' + (fc.title || 'Untitled flashcards')"
+                      @click.stop="toggleDropdown(`flashcard-${fc.id}`)"
+                    >
+                      <MoreVertical :size="20" />
+                    </button>
+                    <div
+                      v-if="isDropdownOpen(`flashcard-${fc.id}`)"
+                      class="dropdown-menu"
+                      @click.stop
+                    >
+                      <button class="dropdown-item" @click="handleEditFlashcard(fc)">
+                        <Pencil :size="16" />
+                        Edit
+                      </button>
+                      <button class="dropdown-item dropdown-item--danger" @click="handleDeleteFlashcard(fc)">
+                        <Trash2 :size="16" />
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="note-card__details" v-if="fc.sourceFile && fc.sourceFile.name">
+                  <span>{{ fc.sourceFile.name }}</span>
+                  <span>•</span>
+                  <span>{{ fc.sourceFile.type?.toUpperCase() || 'FILE' }}</span>
+                  <span>•</span>
+                  <span>{{ formatFileSize(fc.sourceFile.size) }}</span>
+                </div>
+
+                <div class="note-card__stats">
+                  <div class="stat-chip">Cards: {{ fc.cardsCount || 0 }}</div>
+                </div>
+
+                <div class="note-card__actions">
+                  <BaseButton variant="primary" size="sm" @click="router.push(`/flashcards/${fc.id}/study`)">
+                    Study
+                  </BaseButton>
                 </div>
               </div>
-              <div class="dropdown-wrapper">
-                <button
-                  class="dropdown-trigger"
-                  :aria-label="'More actions for ' + (fc.title || 'Untitled flashcards')"
-                  @click.stop="toggleDropdown(`flashcard-${fc.id}`)"
-                >
-                  <MoreVertical :size="20" />
-                </button>
-                <div
-                  v-if="isDropdownOpen(`flashcard-${fc.id}`)"
-                  class="dropdown-menu"
-                  @click.stop
-                >
-                  <button class="dropdown-item" @click="handleEditFlashcard(fc)">
-                    <Pencil :size="16" />
-                    Edit
-                  </button>
-                  <button class="dropdown-item dropdown-item--danger" @click="handleDeleteFlashcard(fc)">
-                    <Trash2 :size="16" />
-                    Delete
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div class="note-card__details" v-if="fc.sourceFile && fc.sourceFile.name">
-              <span>{{ fc.sourceFile.name }}</span>
-              <span>•</span>
-              <span>{{ fc.sourceFile.type?.toUpperCase() || 'FILE' }}</span>
-              <span>•</span>
-              <span>{{ formatFileSize(fc.sourceFile.size) }}</span>
-            </div>
-
-            <div class="note-card__stats">
-              <div class="stat-chip">Cards: {{ fc.cardsCount || 0 }}</div>
-            </div>
-
-            <div class="note-card__actions">
-              <BaseButton variant="primary" size="sm" @click="router.push(`/flashcards/${fc.id}/study`)">
-                Study
-              </BaseButton>
-            </div>
+            </BaseCard>
           </div>
-        </BaseCard>
+        </section>
       </div>
     </div>
 
@@ -580,6 +600,29 @@ function handleTabKeydown(event, tab) {
   margin: 0;
   font-size: var(--font-size-xl);
   color: var(--color-text);
+}
+
+.library-section {
+  display: grid;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.library-section__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.library-section__header h2 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.library-section__count {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-soft);
 }
 
 .library-grid {

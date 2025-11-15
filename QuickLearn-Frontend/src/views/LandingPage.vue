@@ -52,6 +52,7 @@ function smoothScrollTo(event, sectionId) {
     <nav class="navbar">
       <div class="nav-container">
         <div class="nav-logo">
+          <img src="/img/QuickLearn-Logo.png" alt="QuickLearn Logo" class="nav-logo-img" />
           <h2>QuickLearn</h2>
         </div>
         <div class="nav-menu" :class="{ active: isMenuOpen }">
@@ -495,6 +496,12 @@ body.dark .navbar {
   height: 70px;
 }
 
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .nav-logo h2 {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   -webkit-background-clip: text;
@@ -502,6 +509,13 @@ body.dark .navbar {
   background-clip: text;
   font-size: 24px;
   font-weight: 700;
+  margin: 0;
+}
+
+.nav-logo-img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
 }
 
 .nav-menu {

@@ -21,16 +21,16 @@ const emit = defineEmits(['update:modelValue'])
 // Extract number from question text (e.g., "Name two scenarios" -> 2)
 function extractNumberFromQuestion(questionText) {
   if (!questionText) return null
-  
+
   const text = questionText.toLowerCase()
-  
+
   // Number word to number mapping
   const numberWords = {
     'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
     'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
     'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14, 'fifteen': 15
   }
-  
+
   // Try to find number words first
   for (const [word, num] of Object.entries(numberWords)) {
     const regex = new RegExp(`\\b${word}\\b`, 'i')
@@ -38,7 +38,7 @@ function extractNumberFromQuestion(questionText) {
       return num
     }
   }
-  
+
   // Try to find numeric patterns like "2", "3", etc.
   const numericMatch = text.match(/\b(\d+)\b/)
   if (numericMatch) {
@@ -47,7 +47,7 @@ function extractNumberFromQuestion(questionText) {
       return num
     }
   }
-  
+
   return null
 }
 
@@ -55,18 +55,18 @@ function extractNumberFromQuestion(questionText) {
 // Priority: 1) Number from question text, 2) Answer array length
 const expectedCount = computed(() => {
   if (props.question?.type !== 'enumeration') return 0
-  
+
   // First, try to extract number from question text
   const textNumber = extractNumberFromQuestion(props.question?.question)
   if (textNumber !== null) {
     return textNumber
   }
-  
+
   // Fallback to answer array length
   if (Array.isArray(props.question?.answer)) {
     return props.question.answer.length
   }
-  
+
   return 0
 })
 
@@ -103,7 +103,7 @@ watch(() => props.modelValue, (newValue) => {
 // Update field value and emit to parent
 function updateField(index, value) {
   fieldValues.value[index] = value
-  
+
   // Emit all field values (trimmed) so parent can validate all fields are filled
   const newAnswers = fieldValues.value.map(v => v.trim())
   emit('update:modelValue', newAnswers)
@@ -125,13 +125,13 @@ initializeFields()
         Your Answers ({{ expectedCount }} required):
       </label>
       <div class="enumeration-fields">
-        <div 
-          v-for="(_, index) in expectedCount" 
+        <div
+          v-for="(_, index) in expectedCount"
           :key="index"
           class="enumeration-field-wrapper"
         >
-          <label 
-            :for="`enumeration-answer-${questionIndex}-${index}`" 
+          <label
+            :for="`enumeration-answer-${questionIndex}-${index}`"
             class="enumeration-field-label"
           >
             Answer {{ index + 1 }}:

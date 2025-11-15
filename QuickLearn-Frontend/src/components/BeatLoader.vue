@@ -32,9 +32,9 @@ defineProps({
 <template>
   <div v-if="loading" class="beat-loader-container" :class="{ overlay: overlay }">
     <div class="beat-loader-content">
-      <BeatLoader 
-        :color="color" 
-        :size="size" 
+      <BeatLoader
+        :color="color"
+        :size="size"
         :margin="margin"
       />
       <p v-if="text" class="beat-loader-text">{{ text }}</p>

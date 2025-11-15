@@ -84,10 +84,30 @@ const fileName = computed(() => {
 
 async function onFileChange(event) {
   const files = event.target.files
-  selectedFile.value = files && files[0] ? files[0] : null
+  const file = files && files[0] ? files[0] : null
   errorMessage.value = ''
-  if (selectedFile.value) {
-    await handleFileUpload()
+  
+  if (file) {
+    // Validate file type
+    const allowedTypes = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'text/plain',
+      'application/msword'
+    ]
+    
+    if (allowedTypes.includes(file.type) || file.name.match(/\.(pdf|docx|pptx|txt|doc)$/i)) {
+      selectedFile.value = file
+      await handleFileUpload()
+    } else {
+      window.$toast?.error('Uploaded file is invalid')
+      errorMessage.value = 'Please upload a PDF, DOCX, PPTX, DOC, or TXT file.'
+      // Reset file input
+      event.target.value = ''
+    }
+  } else {
+    selectedFile.value = null
   }
 }
 
@@ -112,15 +132,15 @@ async function onDrop(event) {
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'application/vnd.openxmlformats-officedocument.presentationml.presentation',
       'text/plain',
+      'application/msword'
     ]
-    if (allowedTypes.includes(file.type) || file.name.match(/\.(pdf|docx|pptx|txt)$/i)) {
+    if (allowedTypes.includes(file.type) || file.name.match(/\.(pdf|docx|pptx|txt|doc)$/i)) {
       selectedFile.value = file
       errorMessage.value = ''
       await handleFileUpload()
     } else {
-      const message = 'Please upload a PDF, DOCX, PPTX, or TXT file.'
-      errorMessage.value = message
-      window.$toast?.error(message)
+      window.$toast?.error('Uploaded file is invalid')
+      errorMessage.value = 'Please upload a PDF, DOCX, PPTX, DOC, or TXT file.'
     }
   }
 }
@@ -170,8 +190,17 @@ async function handleFileUpload() {
     // Show generation type selection modal
     showGenerationTypeModal.value = true
   } catch (err) {
-    errorMessage.value = err?.message || 'Failed to parse file.'
-    window.$toast?.error(errorMessage.value)
+    const errorMsg = err?.message || 'Failed to parse file.'
+    // Check if error is related to invalid file type
+    if (errorMsg.toLowerCase().includes('invalid file') || 
+        errorMsg.toLowerCase().includes('file type') ||
+        errorMsg.toLowerCase().includes('not allowed')) {
+      errorMessage.value = 'Please upload a PDF, DOCX, PPTX, DOC, or TXT file.'
+      window.$toast?.error('Uploaded file is invalid')
+    } else {
+      errorMessage.value = errorMsg
+      window.$toast?.error(errorMessage.value)
+    }
   } finally {
     completeProgress()
     isLoading.value = false

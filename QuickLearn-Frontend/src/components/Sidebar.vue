@@ -3,7 +3,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { logoutUser, clearLegacyTokens } from '../services/authService'
 import ConfirmModal from './ConfirmModal.vue'
-import { BookOpen, Upload, Brain, LogOut, Trash, Menu, X, Settings, Book, Trophy, Database } from 'lucide-vue-next'
+import { Upload, Brain, LogOut, Trash, Menu, X, Settings, Book, Trophy, Database } from 'lucide-vue-next'
 
 defineOptions({
   inheritAttrs: false
@@ -77,7 +77,7 @@ onBeforeUnmount(() => {
   <!-- Sidebar -->
   <aside class="sidebar" :class="{ open: isOpen }" v-bind="$attrs">
     <div class="brand">
-      <BookOpen class="logo" :size="24" />
+      <img src="/img/QuickLearn-Logo.png" alt="QuickLearn Logo" class="logo" />
       <span class="brand-text">QuickLearn</span>
     </div>
 
@@ -247,6 +247,12 @@ body.dark .sidebar {
 
 body.dark .brand {
   color: #e2e8f0;
+}
+
+.logo {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
 }
 
 .nav {
