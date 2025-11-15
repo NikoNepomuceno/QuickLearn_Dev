@@ -222,14 +222,29 @@ onUnmounted(() => {
   }
 })
 
-function loadNotificationPreferences() {
+async function loadNotificationPreferences() {
   try {
-    const saved = localStorage.getItem('notificationPreferences')
-    if (saved) {
-      notificationPreferences.value = { ...notificationPreferences.value, ...JSON.parse(saved) }
+    const response = await fetch(`${API_BASE}/api/user/notifications`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch notification preferences')
+    }
+
+    const data = await response.json()
+    notificationPreferences.value = {
+      emailNotifications: data.emailNotifications ?? true,
+      quizReminders: data.quizReminders ?? true,
+      weeklyDigest: data.weeklyDigest ?? false
     }
   } catch (error) {
     console.warn('Failed to load notification preferences:', error)
+    // Keep default values on error
   }
 }
 
@@ -237,12 +252,24 @@ async function updateNotificationPreferences() {
   try {
     isUpdatingNotifications.value = true
     
-    // Save to localStorage for now (will be replaced with API call)
-    localStorage.setItem('notificationPreferences', JSON.stringify(notificationPreferences.value))
+    const response = await fetch(`${API_BASE}/api/user/notifications`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(notificationPreferences.value)
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error || 'Failed to update notification preferences')
+    }
     
     window.$toast?.success('Notification preferences updated')
   } catch (error) {
-    window.$toast?.error('Failed to update notification preferences')
+    console.error('Error updating notification preferences:', error)
+    window.$toast?.error(error.message || 'Failed to update notification preferences')
   } finally {
     isUpdatingNotifications.value = false
   }

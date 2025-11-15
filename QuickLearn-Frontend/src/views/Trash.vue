@@ -13,7 +13,7 @@ const items = ref([])
 const isLoading = ref(false)
 const error = ref('')
 const activeFilter = ref('all')
-const filterKeys = ['all', 'quizzes', 'summaries']
+const filterKeys = ['all', 'quizzes', 'summaries', 'flashcards']
 
 // Modal state
 const showRestoreModal = ref(false)
@@ -40,12 +40,23 @@ function resolveItemType(item) {
     .map((value) => `${value}`.toLowerCase())
 
   const declaredType = candidates.find((value) =>
-    value.includes('summary') || value.includes('note') || value.includes('quiz')
+    value.includes('summary') || value.includes('note') || value.includes('quiz') || value.includes('flashcard')
   )
 
   if (declaredType) {
+    if (declaredType.includes('flashcard')) return 'flashcard'
     if (declaredType.includes('summary') || declaredType.includes('note')) return 'summary'
-    return 'quiz'
+    if (declaredType.includes('quiz')) return 'quiz'
+  }
+
+  // Check for flashcard indicators
+  if (
+    typeof metadata.cardsCount === 'number' ||
+    Array.isArray(metadata.cards) ||
+    metadata.type === 'flashcard' ||
+    item.type === 'flashcard'
+  ) {
+    return 'flashcard'
   }
 
   if (typeof metadata.questionCount === 'number') return 'quiz'
@@ -64,11 +75,16 @@ function resolveItemType(item) {
 }
 
 function getItemTypeLabel(item) {
-  return resolveItemType(item) === 'summary' ? 'Summary' : 'Quiz'
+  const type = resolveItemType(item)
+  if (type === 'summary') return 'Summary'
+  if (type === 'flashcard') return 'Flashcard'
+  return 'Quiz'
 }
 
 function getCollectionLabel(type) {
-  return type === 'summary' ? 'summaries' : 'quizzes'
+  if (type === 'summary') return 'summaries'
+  if (type === 'flashcard') return 'flashcards'
+  return 'quizzes'
 }
 
 const restoreMessage = computed(() => {
@@ -105,8 +121,18 @@ const filteredItems = computed(() => {
   if (activeFilter.value === 'summaries') {
     return items.value.filter(item => resolveItemType(item) === 'summary')
   }
+  if (activeFilter.value === 'flashcards') {
+    return items.value.filter(item => resolveItemType(item) === 'flashcard')
+  }
   return items.value
 })
+
+function getFilterLabel(filter) {
+  if (filter === 'quizzes') return 'quizzes'
+  if (filter === 'summaries') return 'summaries'
+  if (filter === 'flashcards') return 'flashcards'
+  return 'items'
+}
 
 function focusFilterTab(tab) {
   const el = document.getElementById(`trash-filter-tab-${tab}`)
@@ -255,6 +281,20 @@ onMounted(loadTrash)
         >
           Summaries
         </button>
+        <button
+          id="trash-filter-tab-flashcards"
+          class="tab"
+          :class="{ 'tab--active': activeFilter === 'flashcards' }"
+          type="button"
+          role="tab"
+          :aria-selected="activeFilter === 'flashcards'"
+          :tabindex="activeFilter === 'flashcards' ? 0 : -1"
+          aria-controls="trash-items-panel"
+          @click="activeFilter = 'flashcards'"
+          @keydown="handleFilterKeydown($event, 'flashcards')"
+        >
+          Flashcards
+        </button>
       </div>
       <div class="page-toolbar__actions">
         <BaseButton variant="outline" size="sm" :disabled="isLoading" @click="loadTrash">
@@ -297,7 +337,7 @@ onMounted(loadTrash)
       <BaseCard padding="lg">
         <div class="empty-card">
           <FolderOpen :size="48" />
-          <h3>No {{ activeFilter === 'quizzes' ? 'quizzes' : 'summaries' }} in trash</h3>
+          <h3>No {{ getFilterLabel(activeFilter) }} in trash</h3>
           <p>Try selecting a different filter to view other items.</p>
         </div>
       </BaseCard>
@@ -330,12 +370,17 @@ onMounted(loadTrash)
                 {{ item.metadata.attemptsCount }} attempts
               </span>
             </template>
-            <template v-else>
+            <template v-else-if="resolveItemType(item) === 'summary'">
               <span v-if="item.metadata?.keyPointCount" class="stat-chip">
                 {{ item.metadata.keyPointCount }} key points
               </span>
               <span v-if="item.metadata?.sectionCount" class="stat-chip">
                 {{ item.metadata.sectionCount }} sections
+              </span>
+            </template>
+            <template v-else-if="resolveItemType(item) === 'flashcard'">
+              <span v-if="item.metadata?.cardsCount" class="stat-chip">
+                {{ item.metadata.cardsCount }} cards
               </span>
             </template>
           </div>

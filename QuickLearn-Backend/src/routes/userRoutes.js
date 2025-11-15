@@ -215,4 +215,85 @@ router.delete('/profile/picture', authenticateToken, async (req, res) => {
     }
 });
 
+// Get notification preferences
+router.get('/notifications', authenticateToken, async (req, res) => {
+    try {
+        const pool = await getPool();
+        const [users] = await pool.execute(
+            'SELECT notification_preferences FROM users WHERE id = ?',
+            [req.user.id]
+        );
+
+        if (!users.length) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        const preferences = users[0].notification_preferences;
+        
+        // Return default preferences if null
+        const defaultPreferences = {
+            emailNotifications: true,
+            quizReminders: true,
+            weeklyDigest: false
+        };
+
+        if (!preferences) {
+            return res.json(defaultPreferences);
+        }
+
+        // Parse JSON if it's a string, otherwise use as-is
+        try {
+            const parsed = typeof preferences === 'string' ? JSON.parse(preferences) : preferences;
+            res.json(parsed);
+        } catch (error) {
+            // If parsing fails, return defaults
+            console.warn('Failed to parse notification preferences, using defaults:', error);
+            res.json(defaultPreferences);
+        }
+    } catch (error) {
+        console.error('Error fetching notification preferences:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Update notification preferences
+router.put('/notifications', authenticateToken, async (req, res) => {
+    try {
+        const { emailNotifications, quizReminders, weeklyDigest } = req.body;
+
+        // Validate that all required fields are present and are booleans
+        if (typeof emailNotifications !== 'boolean' ||
+            typeof quizReminders !== 'boolean' ||
+            typeof weeklyDigest !== 'boolean') {
+            return res.status(400).json({ 
+                error: 'All notification preferences must be boolean values' 
+            });
+        }
+
+        const preferences = JSON.stringify({
+            emailNotifications,
+            quizReminders,
+            weeklyDigest
+        });
+
+        const pool = await getPool();
+        await pool.execute(
+            'UPDATE users SET notification_preferences = ?, updated_at = NOW() WHERE id = ?',
+            [preferences, req.user.id]
+        );
+
+        res.json({ 
+            message: 'Notification preferences updated successfully',
+            preferences: {
+                emailNotifications,
+                quizReminders,
+                weeklyDigest
+            }
+        });
+    } catch (error) {
+        console.error('Error updating notification preferences:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 module.exports = router;

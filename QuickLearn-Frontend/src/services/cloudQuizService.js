@@ -630,6 +630,28 @@ class CloudQuizService {
   }
 
   /**
+   * Delete a flashcard by id
+   */
+  async deleteFlashcard(id) {
+    try {
+      const response = await fetch(`${API_BASE}/api/flashcards/${id}`, {
+        method: 'DELETE',
+        headers: this.getAuthHeaders(),
+        credentials: 'include'
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to delete flashcard: ${response.status}`)
+      }
+
+      return true
+    } catch (error) {
+      console.error('Error deleting flashcard:', error)
+      throw error
+    }
+  }
+
+  /**
    * Get user's adaptive sessions
    */
   async getUserAdaptiveSessions(limit = 20, offset = 0) {

@@ -52,8 +52,19 @@ io.use((socket, next) => {
 // Wire leaderboard realtime events
 setupLeaderboardRealtime(io);
 
+// Initialize notification scheduler
+const { initializeScheduler } = require('./services/scheduler');
+const schedulerEnabled = process.env.ENABLE_NOTIFICATION_SCHEDULER !== 'false' && process.env.NODE_ENV !== 'test';
+
 server.listen(PORT, () => {
 	console.log(`Server listening on port ${PORT}`);
+	
+	// Initialize scheduler after server starts
+	if (schedulerEnabled) {
+		initializeScheduler(true);
+	} else {
+		console.log('[Scheduler] Notification scheduler is disabled');
+	}
 });
 
 

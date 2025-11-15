@@ -8,8 +8,9 @@ import ExportModal from '@/components/ExportModal.vue'
 import { useRouter } from 'vue-router'
 import BeatLoader from 'vue-spinner/src/BeatLoader.vue'
 import cloudQuizService from '@/services/cloudQuizService.js'
-import { FolderOpen, Download, Trash2, FileText, Copy, Plus } from 'lucide-vue-next'
+import { FolderOpen, Download, Trash2, FileText, Copy, Plus, MoreVertical, Edit, Pencil } from 'lucide-vue-next'
 import ExportService from '@/services/exportService.js'
+import { onBeforeUnmount } from 'vue'
 
 const router = useRouter()
 
@@ -21,16 +22,25 @@ const filterType = ref('all') // 'all' | 'summary' | 'flashcards'
 const filterKeys = ['all', 'summary', 'flashcards']
 const showDeleteModal = ref(false)
 const noteToDelete = ref(null)
+const flashcardToDelete = ref(null)
 const showExportModal = ref(false)
 const noteToExport = ref(null)
+const openDropdownId = ref(null)
 
 const deleteMessage = computed(() => {
-  if (!noteToDelete.value) return 'Are you sure you want to delete this note?'
-  return `Are you sure you want to delete "${noteToDelete.value.title || 'Untitled Note'}"? This action cannot be undone.`
+  if (!noteToDelete.value && !flashcardToDelete.value) return 'Are you sure you want to delete this item?'
+  const item = noteToDelete.value || flashcardToDelete.value
+  const itemType = noteToDelete.value ? 'summary' : 'flashcard'
+  return `Are you sure you want to delete "${item.title || `Untitled ${itemType}`}"? This action cannot be undone.`
 })
 
 onMounted(async () => {
   await loadNotes()
+  document.addEventListener('click', handleClickOutside)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleClickOutside)
 })
 
 async function loadNotes() {
@@ -157,26 +167,95 @@ function generateSummaryContent(summary) {
 
 function requestDelete(note) {
   noteToDelete.value = note
+  flashcardToDelete.value = null
+  showDeleteModal.value = true
+}
+
+function requestDeleteFlashcard(flashcard) {
+  flashcardToDelete.value = flashcard
+  noteToDelete.value = null
   showDeleteModal.value = true
 }
 
 async function confirmDelete() {
-  if (!noteToDelete.value) return
-  try {
-    await cloudQuizService.deleteSummary(noteToDelete.value.id)
-    window.$toast?.success('Note deleted')
-    await loadNotes()
-  } catch (e) {
-    window.$toast?.error('Failed to delete note')
-  } finally {
-    showDeleteModal.value = false
-    noteToDelete.value = null
+  if (noteToDelete.value) {
+    try {
+      await cloudQuizService.deleteSummary(noteToDelete.value.id)
+      window.$toast?.success('Summary deleted')
+      await loadNotes()
+    } catch (e) {
+      window.$toast?.error('Failed to delete summary')
+    } finally {
+      showDeleteModal.value = false
+      noteToDelete.value = null
+    }
+  } else if (flashcardToDelete.value) {
+    try {
+      await cloudQuizService.deleteFlashcard(flashcardToDelete.value.id)
+      window.$toast?.success('Flashcard deleted')
+      await loadNotes()
+    } catch (e) {
+      window.$toast?.error('Failed to delete flashcard')
+    } finally {
+      showDeleteModal.value = false
+      flashcardToDelete.value = null
+    }
   }
 }
 
 function cancelDelete() {
   showDeleteModal.value = false
   noteToDelete.value = null
+  flashcardToDelete.value = null
+}
+
+function toggleDropdown(itemId) {
+  openDropdownId.value = openDropdownId.value === itemId ? null : itemId
+}
+
+function closeDropdown() {
+  openDropdownId.value = null
+}
+
+function isDropdownOpen(itemId) {
+  return openDropdownId.value === itemId
+}
+
+function handleEditSummary(note) {
+  openDownloadModal(note)
+  closeDropdown()
+}
+
+function handleDeleteSummary(note) {
+  requestDelete(note)
+  closeDropdown()
+}
+
+function handleExportSummary(note) {
+  openDownloadModal(note)
+  closeDropdown()
+}
+
+function handleCopySummary(note) {
+  copyNote(note)
+  closeDropdown()
+}
+
+function handleEditFlashcard(flashcard) {
+  router.push(`/flashcards/${flashcard.id}`)
+  closeDropdown()
+}
+
+function handleDeleteFlashcard(flashcard) {
+  requestDeleteFlashcard(flashcard)
+  closeDropdown()
+}
+
+// Close dropdown when clicking outside
+function handleClickOutside(event) {
+  if (!event.target.closest('.dropdown-wrapper') && !event.target.closest('.dropdown-trigger')) {
+    closeDropdown()
+  }
 }
 
 function focusTab(tab) {
@@ -306,10 +385,33 @@ function handleTabKeydown(event, tab) {
                   </p>
                 </div>
               </div>
-              <BaseButton variant="danger" size="sm" @click="requestDelete(note)">
-                <Trash2 :size="16" />
-                Delete
-              </BaseButton>
+              <div class="dropdown-wrapper">
+                <button
+                  class="dropdown-trigger"
+                  :aria-label="'More actions for ' + (note.title || 'Untitled summary')"
+                  @click.stop="toggleDropdown(`summary-${note.id}`)"
+                >
+                  <MoreVertical :size="20" />
+                </button>
+                <div
+                  v-if="isDropdownOpen(`summary-${note.id}`)"
+                  class="dropdown-menu"
+                  @click.stop
+                >
+                  <button class="dropdown-item" @click="handleEditSummary(note)">
+                    <Edit :size="16" />
+                    Edit
+                  </button>
+                  <button class="dropdown-item" @click="handleExportSummary(note)">
+                    <Download :size="16" />
+                    Export
+                  </button>
+                  <button class="dropdown-item dropdown-item--danger" @click="handleDeleteSummary(note)">
+                    <Trash2 :size="16" />
+                    Delete
+                  </button>
+                </div>
+              </div>
             </div>
 
             <div class="note-card__details" v-if="note.sourceFile && note.sourceFile.name">
@@ -324,17 +426,6 @@ function handleTabKeydown(event, tab) {
               <div class="stat-chip">Key points: {{ note.keyPoints?.length || 0 }}</div>
               <div class="stat-chip">Sections: {{ note.sections?.length || 0 }}</div>
               <div class="stat-chip">Takeaways: {{ note.conclusions?.length || 0 }}</div>
-            </div>
-
-            <div class="note-card__actions">
-              <BaseButton variant="secondary" size="sm" @click="() => openDownloadModal(note)">
-                <Download :size="16" />
-                Export
-              </BaseButton>
-              <BaseButton variant="outline" size="sm" @click="() => copyNote(note)">
-                <Copy :size="16" />
-                Copy to clipboard
-              </BaseButton>
             </div>
           </div>
         </BaseCard>
@@ -352,8 +443,28 @@ function handleTabKeydown(event, tab) {
                   </p>
                 </div>
               </div>
-              <div class="note-card__actions">
-                <BaseButton variant="outline" size="sm" @click="router.push(`/flashcards/${fc.id}`)">EDIT</BaseButton>
+              <div class="dropdown-wrapper">
+                <button
+                  class="dropdown-trigger"
+                  :aria-label="'More actions for ' + (fc.title || 'Untitled flashcards')"
+                  @click.stop="toggleDropdown(`flashcard-${fc.id}`)"
+                >
+                  <MoreVertical :size="20" />
+                </button>
+                <div
+                  v-if="isDropdownOpen(`flashcard-${fc.id}`)"
+                  class="dropdown-menu"
+                  @click.stop
+                >
+                  <button class="dropdown-item" @click="handleEditFlashcard(fc)">
+                    <Pencil :size="16" />
+                    Edit
+                  </button>
+                  <button class="dropdown-item dropdown-item--danger" @click="handleDeleteFlashcard(fc)">
+                    <Trash2 :size="16" />
+                    Delete
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -381,7 +492,7 @@ function handleTabKeydown(event, tab) {
 
     <ConfirmModal
       v-model="showDeleteModal"
-      title="Delete note"
+      :title="noteToDelete ? 'Delete summary' : 'Delete flashcard'"
       :message="deleteMessage"
       confirm-text="Delete"
       cancel-text="Cancel"
@@ -565,5 +676,83 @@ body.dark .tab {
 body.dark .tab--active {
   background: var(--color-surface);
   color: var(--color-primary);
+}
+
+.dropdown-wrapper {
+  position: relative;
+}
+
+.dropdown-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: none;
+  color: var(--color-text-muted);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--transition-base), color var(--transition-base);
+}
+
+.dropdown-trigger:hover {
+  background: var(--color-surface-subtle);
+  color: var(--color-text);
+}
+
+.dropdown-trigger:focus-visible {
+  outline: 2px solid rgba(102, 126, 234, 0.45);
+  outline-offset: 2px;
+}
+
+.dropdown-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + var(--space-2));
+  min-width: 180px;
+  padding: var(--space-2);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3);
+  border: none;
+  background: none;
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  text-align: left;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--transition-base);
+}
+
+.dropdown-item:hover {
+  background: var(--color-surface-subtle);
+}
+
+.dropdown-item:focus-visible {
+  outline: 2px solid rgba(102, 126, 234, 0.45);
+  outline-offset: -2px;
+}
+
+.dropdown-item--danger {
+  color: var(--color-danger);
+}
+
+.dropdown-item--danger:hover {
+  background: rgba(239, 68, 68, 0.1);
 }
 </style>
