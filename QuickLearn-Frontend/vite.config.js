@@ -29,4 +29,8 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url))
     },
   },
+  build: {
+    minify: 'esbuild', // Explicitly enable minification for production builds
+    sourcemap: false, // Disable source maps for smaller bundle size
+  },
 })
