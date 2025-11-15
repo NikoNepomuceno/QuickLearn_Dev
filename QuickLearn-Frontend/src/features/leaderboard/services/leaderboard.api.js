@@ -1,6 +1,5 @@
 import { getCurrentUser } from '@/services/authService'
-
-const API = import.meta.env.VITE_API_BASE || 'http://localhost:3000'
+import { API_BASE as API } from '@/config/api.config'
 
 async function authFetch(path, options = {}) {
 	const headers = options.headers || {}

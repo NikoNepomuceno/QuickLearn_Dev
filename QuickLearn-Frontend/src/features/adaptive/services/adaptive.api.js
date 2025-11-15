@@ -1,7 +1,7 @@
 import { authService } from '../../../services/authService'
 import { adaptiveMock } from './adaptive.mock'
+import { API_BASE } from '../../../config/api.config'
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3000'
 const USE_MOCK = import.meta.env.VITE_MOCK_ADAPTIVE === 'true'
 
 /**
