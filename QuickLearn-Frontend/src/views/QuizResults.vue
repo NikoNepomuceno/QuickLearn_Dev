@@ -603,6 +603,30 @@ body.dark .question-item {
   background: var(--color-surface);
 }
 
+body.dark .question-item.correct {
+  border-color: #10b981;
+}
+
+body.dark .question-item.incorrect {
+  border-color: #ef4444;
+}
+
+body.dark .question-item.correct .question-status {
+  color: #10b981;
+}
+
+body.dark .question-item.correct .status-icon {
+  color: #10b981;
+}
+
+body.dark .question-item.incorrect .question-status {
+  color: #ef4444;
+}
+
+body.dark .question-item.incorrect .status-icon {
+  color: #ef4444;
+}
+
 body.dark .question-number {
   background: rgba(148, 163, 184, 0.12);
   color: var(--color-text);

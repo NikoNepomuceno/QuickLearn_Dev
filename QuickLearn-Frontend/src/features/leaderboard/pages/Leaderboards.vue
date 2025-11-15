@@ -51,6 +51,17 @@
               Leaderboard
             </button>
             <button
+              class="btn"
+              :class="{ active: activeTab === 'achievements' }"
+              type="button"
+              role="tab"
+              :aria-selected="activeTab === 'achievements'"
+              :tabindex="activeTab === 'achievements' ? 0 : -1"
+              @click="activeTab = 'achievements'"
+            >
+              Achievements
+            </button>
+            <button
               class="btn btn-with-badge"
               :class="{ active: activeTab === 'inbox' }"
               type="button"
@@ -71,6 +82,9 @@
             <span v-else-if="activeTab === 'leaderboard'">
               Track the top learners this week and stay motivated to climb the ranks.
             </span>
+            <span v-else-if="activeTab === 'achievements'">
+              View your earned achievements and track your progress toward unlocking new ones.
+            </span>
             <span v-else>
               Review friend requests and community invites waiting for your response.
             </span>
@@ -79,6 +93,7 @@
           <div class="panel-body">
             <FriendsPanel v-if="activeTab === 'friends'" />
             <LeaderboardPanel v-else-if="activeTab === 'leaderboard'" />
+            <AchievementsPanel v-else-if="activeTab === 'achievements'" />
             <InboxPanel
               v-else
               @requests-viewed="clearBadge"
@@ -124,6 +139,7 @@ import AppShell from '@/components/layout/AppShell.vue'
 import FriendsPanel from '../components/FriendsPanel.vue'
 import LeaderboardPanel from '../components/LeaderboardPanel.vue'
 import InboxPanel from '../components/InboxPanel.vue'
+import AchievementsPanel from '../components/AchievementsPanel.vue'
 import { getPendingRequestsCount } from '../services/leaderboard.api'
 import { DotLottieVue } from '@lottiefiles/dotlottie-vue'
 

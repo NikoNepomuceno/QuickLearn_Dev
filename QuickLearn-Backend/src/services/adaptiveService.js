@@ -167,6 +167,65 @@ async function submitAnswer(sessionUuid, userId, { questionId, answer }) {
 
     const updated = await session.update({ asked, correct, wrongStreak, currentDifficulty: nextDifficulty });
 
+    // Update user stats for achievement tracking
+    try {
+        const UserStats = require('../models/UserStats');
+        const AchievementService = require('./achievementService');
+        const stats = await UserStats.findByUserId(userId);
+        
+        // Calculate consecutive correct answers
+        // If correct and previous wrongStreak was 0, we're continuing a streak
+        let consecutiveCorrect = stats.consecutiveCorrectAnswers;
+        if (isCorrect) {
+            consecutiveCorrect = (session.wrongStreak === 0 && session.asked > 1) 
+                ? consecutiveCorrect + 1 
+                : 1; // Start new streak or continue
+        } else {
+            consecutiveCorrect = 0; // Reset streak
+        }
+
+        // Update stats
+        const statsUpdates = {
+            totalQuestionsAnswered: stats.totalQuestionsAnswered + 1,
+            totalCorrectAnswers: stats.totalCorrectAnswers + (isCorrect ? 1 : 0),
+            consecutiveCorrectAnswers: consecutiveCorrect
+        };
+
+        if (consecutiveCorrect > stats.longestStreak) {
+            statsUpdates.longestStreak = consecutiveCorrect;
+        }
+
+        await stats.update(statsUpdates);
+
+        // Check for streak achievements
+        const newAchievements = [];
+        if (consecutiveCorrect >= 5 && !(await require('../models/UserAchievement').hasAchievement(userId, 'five_streak'))) {
+            const achievement = await require('../models/Achievement').findByCode('five_streak');
+            if (achievement) {
+                await require('../models/UserAchievement').create(userId, achievement.id, { streak: consecutiveCorrect });
+                newAchievements.push(achievement);
+            }
+        }
+
+        if (consecutiveCorrect >= 10 && !(await require('../models/UserAchievement').hasAchievement(userId, 'ten_streak'))) {
+            const achievement = await require('../models/Achievement').findByCode('ten_streak');
+            if (achievement) {
+                await require('../models/UserAchievement').create(userId, achievement.id, { streak: consecutiveCorrect });
+                newAchievements.push(achievement);
+            }
+        }
+
+        // Broadcast new achievements via WebSocket if any were earned
+        if (newAchievements.length > 0 && global.__io) {
+            global.__io.to(`user:${userId}`).emit('achievement_earned', {
+                achievements: newAchievements.map(a => a.toJSON())
+            });
+        }
+    } catch (e) {
+        console.error('Error updating user stats for achievements:', e);
+        // Don't fail the answer submission if achievement tracking fails
+    }
+
     // Review suggestion on 4 wrong in a row
     let reviewSuggestion = null;
     if (updated.wrongStreak >= 4) {
@@ -207,6 +266,87 @@ async function finishSession(sessionUuid, userId) {
     const session = await AdaptiveSession.findActiveByUuidForUser(sessionUuid, userId);
     if (!session) throw new Error('Session not found');
     const updated = await session.update({ status: 'completed' });
+    
+    // Update user stats for quiz completion
+    try {
+        const UserStats = require('../models/UserStats');
+        const stats = await UserStats.findByUserId(userId);
+        const accuracy = updated.asked > 0 ? Math.round((updated.correct / updated.asked) * 100) : 0;
+        
+        const statsUpdates = {
+            totalQuizzesTaken: stats.totalQuizzesTaken + 1
+        };
+
+        // Check for perfect score (100% accuracy)
+        if (accuracy === 100 && updated.asked > 0) {
+            statsUpdates.totalPerfectScores = stats.totalPerfectScores + 1;
+        }
+
+        // Check for 90%+ accuracy
+        if (accuracy >= 90) {
+            statsUpdates.quizzes90PlusCount = (stats.quizzes90PlusCount || 0) + 1;
+        }
+
+        await stats.update(statsUpdates);
+
+        // Check for milestone achievements
+        const newAchievements = [];
+        const AchievementService = require('./achievementService');
+        const updatedStats = await UserStats.findByUserId(userId);
+
+        if (updatedStats.totalQuizzesTaken === 1 && !(await require('../models/UserAchievement').hasAchievement(userId, 'first_quiz'))) {
+            const achievement = await require('../models/Achievement').findByCode('first_quiz');
+            if (achievement) {
+                await require('../models/UserAchievement').create(userId, achievement.id);
+                newAchievements.push(achievement);
+            }
+        }
+
+        if (updatedStats.totalQuizzesTaken === 10 && !(await require('../models/UserAchievement').hasAchievement(userId, 'quiz_master'))) {
+            const achievement = await require('../models/Achievement').findByCode('quiz_master');
+            if (achievement) {
+                await require('../models/UserAchievement').create(userId, achievement.id);
+                newAchievements.push(achievement);
+            }
+        }
+
+        if (updatedStats.totalQuizzesTaken === 25 && !(await require('../models/UserAchievement').hasAchievement(userId, 'dedicated'))) {
+            const achievement = await require('../models/Achievement').findByCode('dedicated');
+            if (achievement) {
+                await require('../models/UserAchievement').create(userId, achievement.id);
+                newAchievements.push(achievement);
+            }
+        }
+
+        // Check for accuracy_king
+        if (updatedStats.quizzes90PlusCount === 5 && !(await require('../models/UserAchievement').hasAchievement(userId, 'accuracy_king'))) {
+            const achievement = await require('../models/Achievement').findByCode('accuracy_king');
+            if (achievement) {
+                await require('../models/UserAchievement').create(userId, achievement.id);
+                newAchievements.push(achievement);
+            }
+        }
+
+        // Check for unbeatable (3 perfect scores)
+        if (updatedStats.totalPerfectScores === 3 && !(await require('../models/UserAchievement').hasAchievement(userId, 'unbeatable'))) {
+            const achievement = await require('../models/Achievement').findByCode('unbeatable');
+            if (achievement) {
+                await require('../models/UserAchievement').create(userId, achievement.id);
+                newAchievements.push(achievement);
+            }
+        }
+
+        // Broadcast new achievements via WebSocket if any were earned
+        if (newAchievements.length > 0 && global.__io) {
+            global.__io.to(`user:${userId}`).emit('achievement_earned', {
+                achievements: newAchievements.map(a => a.toJSON())
+            });
+        }
+    } catch (e) {
+        console.error('Error checking achievements on session finish:', e);
+        // Don't fail the session finish if achievement checking fails
+    }
+
     // For simplicity, trajectory is not stored here; can be added later
     return { asked: updated.asked, correct: updated.correct, wrongStreakMax: updated.wrongStreak, trajectory: [], finishedAt: new Date(), durationMs: 0 };
 }

@@ -141,8 +141,7 @@ router.get('/profile/statistics', authenticateToken, async (req, res) => {
             SELECT 
                 COUNT(DISTINCT q.id) as quizzesCreated,
                 COUNT(DISTINCT qa.id) as quizzesTaken,
-                COALESCE(AVG(qa.score), 0) as averageScore,
-                COALESCE(SUM(qa.time_seconds), 0) as totalTimeSpent
+                COALESCE(AVG(qa.score), 0) as averageScore
             FROM users u
             LEFT JOIN quizzes q ON u.id = q.user_id
             LEFT JOIN quiz_attempts qa ON u.id = qa.user_id
@@ -174,7 +173,6 @@ router.get('/profile/statistics', authenticateToken, async (req, res) => {
             quizzesCreated: parseInt(stats.quizzesCreated) || 0,
             quizzesTaken: parseInt(stats.quizzesTaken) || 0,
             averageScore: Math.round(parseFloat(stats.averageScore) || 0),
-            totalTimeSpent: parseInt(stats.totalTimeSpent) || 0,
             recentActivity: recentActivity
         });
     } catch (error) {

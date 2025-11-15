@@ -26,15 +26,33 @@ async function getFriendsOfUser(userId) {
 async function getUserPoints(userIds) {
 	if (!userIds.length) return [];
 	const pool = await getPool();
-	const [rows] = await pool.query(
+	
+	// Get points from quiz attempts
+	const [quizPoints] = await pool.query(
 		`SELECT qa.user_id AS userId, COALESCE(SUM(COALESCE(qa.points_earned, qa.score)), 0) AS points
 		 FROM quiz_attempts qa
 		 WHERE qa.user_id IN (${userIds.map(() => '?').join(',')})
 		 GROUP BY qa.user_id`,
 		userIds
 	);
-	const map = new Map(rows.map(r => [Number(r.userId), Number(r.points)]));
-	return userIds.map(id => ({ userId: id, points: map.get(id) || 0 }));
+	
+	// Get points from achievements
+	const [achievementPoints] = await pool.query(
+		`SELECT ua.user_id AS userId, COALESCE(SUM(ua.points_earned), 0) AS points
+		 FROM user_achievements ua
+		 WHERE ua.user_id IN (${userIds.map(() => '?').join(',')})
+		 GROUP BY ua.user_id`,
+		userIds
+	);
+	
+	// Combine both sources
+	const quizMap = new Map(quizPoints.map(r => [Number(r.userId), Number(r.points)]));
+	const achievementMap = new Map(achievementPoints.map(r => [Number(r.userId), Number(r.points)]));
+	
+	return userIds.map(id => ({ 
+		userId: id, 
+		points: (quizMap.get(id) || 0) + (achievementMap.get(id) || 0)
+	}));
 }
 
 async function getUserBasicProfile(userIds) {

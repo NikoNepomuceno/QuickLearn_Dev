@@ -75,8 +75,7 @@ const editForm = ref({
 const accountStats = ref({
   quizzesCreated: 0,
   quizzesTaken: 0,
-  averageScore: 0,
-  totalTimeSpent: 0
+  averageScore: 0
 })
 
 // API base URL
@@ -430,8 +429,7 @@ async function loadAccountStats() {
     accountStats.value = {
       quizzesCreated: data.quizzesCreated,
       quizzesTaken: data.quizzesTaken,
-      averageScore: data.averageScore,
-      totalTimeSpent: data.totalTimeSpent
+      averageScore: data.averageScore
     }
   } catch (error) {
     console.error('Error loading account stats:', error)
@@ -574,15 +572,6 @@ function formatDate(dateString) {
     month: 'long',
     day: 'numeric'
   })
-}
-
-function formatTimeSpent(minutes) {
-  const hours = Math.floor(minutes / 60)
-  const mins = minutes % 60
-  if (hours > 0) {
-    return `${hours}h ${mins}m`
-  }
-  return `${mins}m`
 }
 
 </script>
@@ -741,20 +730,13 @@ function formatTimeSpent(minutes) {
                   <div class="stat-value">{{ accountStats.quizzesCreated }}</div>
                   <div class="stat-label">Quizzes Created</div>
                 </div>
-                <div class="stat-divider"></div>
                 <div class="stat-item">
                   <div class="stat-value">{{ accountStats.quizzesTaken }}</div>
                   <div class="stat-label">Quizzes Taken</div>
                 </div>
-                <div class="stat-divider"></div>
                 <div class="stat-item">
                   <div class="stat-value">{{ accountStats.averageScore }}%</div>
                   <div class="stat-label">Avg Score</div>
-                </div>
-                <div class="stat-divider"></div>
-                <div class="stat-item">
-                  <div class="stat-value">{{ formatTimeSpent(accountStats.totalTimeSpent) }}</div>
-                  <div class="stat-label">Time Spent</div>
                 </div>
               </div>
             </div>
@@ -1474,8 +1456,8 @@ function formatTimeSpent(minutes) {
 
 .stats-container {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
   background: #e5e7eb;
   border-top: 1px solid #e5e7eb;
 }
@@ -1488,6 +1470,10 @@ function formatTimeSpent(minutes) {
   align-items: center;
   text-align: center;
   gap: 8px;
+}
+
+.stat-item:not(:last-child) {
+  border-right: 1px solid #e5e7eb;
 }
 
 .stat-value {
@@ -1503,11 +1489,6 @@ function formatTimeSpent(minutes) {
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-}
-
-.stat-divider {
-  width: 1px;
-  background: #e5e7eb;
 }
 
 /* Info Cards */
@@ -2199,10 +2180,6 @@ input:disabled + .slider {
     gap: 8px;
   }
 
-  .stats-container {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
   .input-row {
     grid-template-columns: 1fr;
   }
@@ -2237,10 +2214,6 @@ input:disabled + .slider {
     align-items: center;
     text-align: center;
     gap: 24px;
-  }
-
-  .stats-container {
-    grid-template-columns: 1fr 1fr;
   }
 
   .info-cards {
@@ -2294,10 +2267,6 @@ input:disabled + .slider {
 
   .username {
     font-size: 24px;
-  }
-
-  .stats-container {
-    grid-template-columns: 1fr;
   }
 
   .avatar-actions {
@@ -2370,8 +2339,17 @@ body.dark .bio {
   color: #cbd5e1;
 }
 
+body.dark .stats-container {
+  background: #334155;
+  border-top-color: #334155;
+}
+
 body.dark .stat-item {
   background: #1e293b;
+}
+
+body.dark .stat-item:not(:last-child) {
+  border-right-color: #334155;
 }
 
 body.dark .stat-value {

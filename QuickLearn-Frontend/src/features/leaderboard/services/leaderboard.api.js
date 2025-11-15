@@ -52,3 +52,18 @@ export async function getPendingRequestsCount() {
 	return res.count || 0
 }
 
+export async function getUserAchievements() {
+	const res = await authFetch('/api/achievements/me')
+	return res.achievements || []
+}
+
+export async function getAllAchievements() {
+	const res = await authFetch('/api/achievements/all')
+	return res
+}
+
+export async function getAchievementProgress(achievementCode) {
+	const res = await authFetch(`/api/achievements/${achievementCode}/progress`)
+	return res
+}
+

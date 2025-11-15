@@ -25,14 +25,27 @@ router.get('/', authenticateToken, async (req, res) => {
 		const allIds = Array.from(new Set([userId, ...friendIds]));
 		// If no friends and no user (shouldn't happen), return empty
 		if (!allIds.length) return res.json({ data: [] });
-		// Query points only for current user and their friends
-		const [points] = await pool.query(
+		// Query points from quiz attempts
+		const [quizPoints] = await pool.query(
 			`SELECT qa.user_id AS userId, COALESCE(SUM(COALESCE(qa.points_earned, qa.score)), 0) AS points
 			 FROM quiz_attempts qa
 			 WHERE qa.user_id IN (${allIds.map(() => '?').join(',')})
 			 GROUP BY qa.user_id`,
 			allIds
 		);
+		
+		// Query points from achievements
+		const [achievementPoints] = await pool.query(
+			`SELECT ua.user_id AS userId, COALESCE(SUM(ua.points_earned), 0) AS points
+			 FROM user_achievements ua
+			 WHERE ua.user_id IN (${allIds.map(() => '?').join(',')})
+			 GROUP BY ua.user_id`,
+			allIds
+		);
+		
+		// Combine both sources
+		const quizPmap = new Map(quizPoints.map(r => [Number(r.userId), Number(r.points)]));
+		const achievementPmap = new Map(achievementPoints.map(r => [Number(r.userId), Number(r.points)]));
 		// Query profiles only for current user and their friends
 		const [profiles] = await pool.query(
 			`SELECT id AS userId, username, COALESCE(display_name, username) AS displayName,
@@ -40,13 +53,12 @@ router.get('/', authenticateToken, async (req, res) => {
 			 FROM users WHERE id IN (${allIds.map(() => '?').join(',')})`,
 			allIds
 		);
-		const pmap = new Map(points.map(r => [Number(r.userId), Number(r.points)]));
 		const data = profiles.map(p => ({
 			userId: Number(p.userId),
 			username: p.username,
 			displayName: p.displayName,
 			profilePicture: p.profilePicture,
-			points: pmap.get(Number(p.userId)) || 0
+			points: (quizPmap.get(Number(p.userId)) || 0) + (achievementPmap.get(Number(p.userId)) || 0)
 		}))
 		.sort((a, b) => b.points - a.points)
 		.slice(0, limit);

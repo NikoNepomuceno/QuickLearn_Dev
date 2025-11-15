@@ -310,6 +310,31 @@ class CloudStorageService {
                 questionTimesMs: usedTimes
             });
 
+            // Check and award achievements
+            try {
+                const AchievementService = require('./achievementService');
+                const newAchievements = await AchievementService.checkQuizAttemptAchievements(
+                    userId,
+                    {
+                        quizId: quiz.id,
+                        score: attemptData.score,
+                        timeSeconds: attemptData.timeSeconds,
+                        userAnswers: attemptData.userAnswers,
+                        quiz: quiz // Pass the full quiz object
+                    }
+                );
+                
+                // Broadcast new achievements via WebSocket if any were earned
+                if (newAchievements.length > 0 && global.__io) {
+                    global.__io.to(`user:${userId}`).emit('achievement_earned', {
+                        achievements: newAchievements.map(a => a.toJSON())
+                    });
+                }
+            } catch (e) {
+                console.error('Error checking achievements:', e);
+                // Don't fail the quiz attempt if achievement checking fails
+            }
+
             // Realtime: broadcast leaderboard updates for this user
             try {
                 const { broadcastLeaderboardFor } = require('../realtime/leaderboard');

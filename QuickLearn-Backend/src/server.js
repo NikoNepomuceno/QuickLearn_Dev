@@ -15,6 +15,7 @@ const friendsRoutes = require('./routes/friendsRoutes');
 const leaderboardRoutes = require('./routes/leaderboardRoutes');
 const flashcardsRoutes = require('./routes/flashcardsRoutes');
 const questionBankRoutes = require('./routes/questionBankRoutes');
+const achievementRoutes = require('./routes/achievementRoutes');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -70,6 +71,7 @@ app.use('/api/friends', friendsRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/flashcards', flashcardsRoutes);
 app.use('/api/question-bank', questionBankRoutes);
+app.use('/api/achievements', achievementRoutes);
 
 module.exports = app;
 
