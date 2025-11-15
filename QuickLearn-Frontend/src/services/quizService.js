@@ -501,6 +501,102 @@ export function copyToClipboard(text) {
   }
 }
 
+// Answer validation function (same as in TakeQuiz.vue)
+function isAnswerCorrect(userAnswer, correctAnswer, questionType) {
+  if (!userAnswer || !correctAnswer) return false
+  
+  // Default to identification if type is missing
+  const type = questionType || 'identification'
+
+  if (type === 'enumeration') {
+    if (!Array.isArray(userAnswer) || !Array.isArray(correctAnswer)) return false
+
+    const normalizedUser = userAnswer
+      .map((item) => item.toString().trim().toLowerCase())
+      .filter((item) => item)
+    const normalizedCorrect = correctAnswer
+      .map((item) => item.toString().trim().toLowerCase())
+      .filter((item) => item)
+
+    return normalizedCorrect.every((correctItem) => {
+      if (normalizedUser.includes(correctItem)) return true
+
+      const itemVariations = {
+        javascript: ['js', 'javascript', 'ecmascript'],
+        js: ['javascript', 'js', 'ecmascript'],
+        html: ['hypertext markup language', 'html'],
+        css: ['cascading style sheets', 'css'],
+        dom: ['document object model', 'dom'],
+        api: ['application programming interface', 'api'],
+      }
+
+      if (itemVariations[correctItem]) {
+        return itemVariations[correctItem].some((variation) => normalizedUser.includes(variation))
+      }
+
+      return false
+    })
+  } else {
+    // For other question types (multiple_choice, true_false, identification)
+    let cleanedUserAnswer = userAnswer.toString().trim()
+    
+    // For identification: remove common prefixes/suffixes (same as voice parser)
+    if (type === 'identification') {
+      cleanedUserAnswer = cleanedUserAnswer
+        .replace(/^(my answer is|the answer is|answer|i think|i believe)\s*/i, '')
+        .replace(/\s*(please|thanks|thank you)$/i, '')
+        .trim()
+    }
+    
+    const normalizedUser = cleanedUserAnswer.toLowerCase()
+    const normalizedCorrect = correctAnswer.toString().trim().toLowerCase()
+
+    // Direct match
+    if (normalizedUser === normalizedCorrect) return true
+
+    // Handle common variations
+    const variations = {
+      dom: ['document object model', 'dom'],
+      'document object model': ['dom', 'document object model'],
+      javascript: ['js', 'javascript', 'ecmascript'],
+      js: ['javascript', 'js', 'ecmascript'],
+      ecmascript: ['javascript', 'js', 'ecmascript'],
+      html: ['hypertext markup language', 'html'],
+      'hypertext markup language': ['html', 'hypertext markup language'],
+      css: ['cascading style sheets', 'css'],
+      'cascading style sheets': ['css', 'cascading style sheets'],
+      api: ['application programming interface', 'api'],
+      'application programming interface': ['api', 'application programming interface'],
+      url: ['uniform resource locator', 'url'],
+      'uniform resource locator': ['url', 'uniform resource locator'],
+      http: ['hypertext transfer protocol', 'http'],
+      'hypertext transfer protocol': ['http', 'hypertext transfer protocol'],
+      https: ['hypertext transfer protocol secure', 'https'],
+      'hypertext transfer protocol secure': ['https', 'hypertext transfer protocol secure'],
+      json: ['javascript object notation', 'json'],
+      'javascript object notation': ['json', 'javascript object notation'],
+      xml: ['extensible markup language', 'xml'],
+      'extensible markup language': ['xml', 'extensible markup language'],
+      sql: ['structured query language', 'sql'],
+      'structured query language': ['sql', 'structured query language'],
+      true: ['yes', 'correct', 'true', '1'],
+      false: ['no', 'incorrect', 'false', '0'],
+    }
+
+    // Check if user answer matches any variation of correct answer
+    if (variations[normalizedCorrect]) {
+      return variations[normalizedCorrect].includes(normalizedUser)
+    }
+
+    // Check if correct answer matches any variation of user answer
+    if (variations[normalizedUser]) {
+      return variations[normalizedUser].includes(normalizedCorrect)
+    }
+
+    return false
+  }
+}
+
 function generateResultsHTML(quiz, attempt) {
   const score = typeof attempt?.score === 'number' ? attempt.score : 0
   const takenAt = attempt?.takenAt ? new Date(attempt.takenAt).toLocaleString() : 'N/A'
@@ -755,7 +851,7 @@ function generateResultsHTML(quiz, attempt) {
         <div class="section-title">Question Review</div>
         ${quiz.questions.map((q, i) => {
           const ua = (attempt && Array.isArray(attempt.userAnswers)) ? (attempt.userAnswers[i] ?? 'Not answered') : 'Not answered'
-          const correct = ua === q.answer
+          const correct = isAnswerCorrect(ua === 'Not answered' ? null : ua, q.answer, q.type || 'identification')
           return `
           <div class="question ${correct ? 'correct' : 'incorrect'}">
             <div class="question-header">

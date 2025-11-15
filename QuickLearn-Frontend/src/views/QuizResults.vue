@@ -80,6 +80,102 @@ function backToMyQuizzes() {
   router.push({ name: 'my-quizzes' })
 }
 
+// Answer validation function (same as in TakeQuiz.vue)
+function isAnswerCorrect(userAnswer, correctAnswer, questionType) {
+  if (!userAnswer || !correctAnswer) return false
+  
+  // Default to identification if type is missing
+  const type = questionType || 'identification'
+
+  if (type === 'enumeration') {
+    if (!Array.isArray(userAnswer) || !Array.isArray(correctAnswer)) return false
+
+    const normalizedUser = userAnswer
+      .map((item) => item.toString().trim().toLowerCase())
+      .filter((item) => item)
+    const normalizedCorrect = correctAnswer
+      .map((item) => item.toString().trim().toLowerCase())
+      .filter((item) => item)
+
+    return normalizedCorrect.every((correctItem) => {
+      if (normalizedUser.includes(correctItem)) return true
+
+      const itemVariations = {
+        javascript: ['js', 'javascript', 'ecmascript'],
+        js: ['javascript', 'js', 'ecmascript'],
+        html: ['hypertext markup language', 'html'],
+        css: ['cascading style sheets', 'css'],
+        dom: ['document object model', 'dom'],
+        api: ['application programming interface', 'api'],
+      }
+
+      if (itemVariations[correctItem]) {
+        return itemVariations[correctItem].some((variation) => normalizedUser.includes(variation))
+      }
+
+      return false
+    })
+  } else {
+    // For other question types (multiple_choice, true_false, identification)
+    let cleanedUserAnswer = userAnswer.toString().trim()
+    
+    // For identification: remove common prefixes/suffixes (same as voice parser)
+    if (type === 'identification') {
+      cleanedUserAnswer = cleanedUserAnswer
+        .replace(/^(my answer is|the answer is|answer|i think|i believe)\s*/i, '')
+        .replace(/\s*(please|thanks|thank you)$/i, '')
+        .trim()
+    }
+    
+    const normalizedUser = cleanedUserAnswer.toLowerCase()
+    const normalizedCorrect = correctAnswer.toString().trim().toLowerCase()
+
+    // Direct match
+    if (normalizedUser === normalizedCorrect) return true
+
+    // Handle common variations
+    const variations = {
+      dom: ['document object model', 'dom'],
+      'document object model': ['dom', 'document object model'],
+      javascript: ['js', 'javascript', 'ecmascript'],
+      js: ['javascript', 'js', 'ecmascript'],
+      ecmascript: ['javascript', 'js', 'ecmascript'],
+      html: ['hypertext markup language', 'html'],
+      'hypertext markup language': ['html', 'hypertext markup language'],
+      css: ['cascading style sheets', 'css'],
+      'cascading style sheets': ['css', 'cascading style sheets'],
+      api: ['application programming interface', 'api'],
+      'application programming interface': ['api', 'application programming interface'],
+      url: ['uniform resource locator', 'url'],
+      'uniform resource locator': ['url', 'uniform resource locator'],
+      http: ['hypertext transfer protocol', 'http'],
+      'hypertext transfer protocol': ['http', 'hypertext transfer protocol'],
+      https: ['hypertext transfer protocol secure', 'https'],
+      'hypertext transfer protocol secure': ['https', 'hypertext transfer protocol secure'],
+      json: ['javascript object notation', 'json'],
+      'javascript object notation': ['json', 'javascript object notation'],
+      xml: ['extensible markup language', 'xml'],
+      'extensible markup language': ['xml', 'extensible markup language'],
+      sql: ['structured query language', 'sql'],
+      'structured query language': ['sql', 'structured query language'],
+      true: ['yes', 'correct', 'true', '1'],
+      false: ['no', 'incorrect', 'false', '0'],
+    }
+
+    // Check if user answer matches any variation of correct answer
+    if (variations[normalizedCorrect]) {
+      return variations[normalizedCorrect].includes(normalizedUser)
+    }
+
+    // Check if correct answer matches any variation of user answer
+    if (variations[normalizedUser]) {
+      return variations[normalizedUser].includes(normalizedCorrect)
+    }
+
+    return false
+  }
+}
+
 async function shareResults() {
   try {
     const link = generateResultsShareLink(route.params.quizId)
@@ -243,8 +339,8 @@ function getScoreLabel(score) {
             v-for="(q, i) in quiz?.questions"
             :key="i"
             :class="{
-              correct: (lastAttempt?.userAnswers?.[i] ?? null) === q.answer,
-              incorrect: (lastAttempt?.userAnswers?.[i] ?? null) !== q.answer
+              correct: isAnswerCorrect(lastAttempt?.userAnswers?.[i] ?? null, q.answer, q.type),
+              incorrect: !isAnswerCorrect(lastAttempt?.userAnswers?.[i] ?? null, q.answer, q.type)
             }"
           >
             <div class="question-header">
@@ -253,11 +349,11 @@ function getScoreLabel(score) {
               </div>
               <div class="question-status">
                 <div class="status-icon">
-                  <CheckCircle v-if="(lastAttempt?.userAnswers?.[i] ?? null) === q.answer" :size="20" />
+                  <CheckCircle v-if="isAnswerCorrect(lastAttempt?.userAnswers?.[i] ?? null, q.answer, q.type)" :size="20" />
                   <XCircle v-else :size="20" />
                 </div>
                 <span class="status-text">
-                  {{ (lastAttempt?.userAnswers?.[i] ?? null) === q.answer ? 'Correct' : 'Incorrect' }}
+                  {{ isAnswerCorrect(lastAttempt?.userAnswers?.[i] ?? null, q.answer, q.type) ? 'Correct' : 'Incorrect' }}
                 </span>
               </div>
             </div>

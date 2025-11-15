@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import cloudQuizService from '../services/cloudQuizService'
 import VoiceQuiz from '../components/VoiceQuiz.vue'
+import EnumerationInput from '../components/EnumerationInput.vue'
 import { DotLottieVue } from '@lottiefiles/dotlottie-vue'
 import { Clock, CheckCircle, ArrowRight, Play } from 'lucide-vue-next'
 
@@ -19,7 +20,6 @@ const storageKey = computed(() => {
 const quiz = ref(null)
 const currentQuestionIndex = ref(0)
 const answers = ref({})
-const enumerationAnswers = ref({}) // For enumeration questions
 // Removed inline results view; results are shown on dedicated route
 const timeElapsed = ref(0)
 const startTime = ref(null)
@@ -78,7 +78,17 @@ function isAnswerCorrect(userAnswer, correctAnswer, questionType) {
     })
   } else {
     // For other question types (multiple_choice, true_false, identification)
-    const normalizedUser = userAnswer.toString().trim().toLowerCase()
+    let cleanedUserAnswer = userAnswer.toString().trim()
+
+    // For identification: remove common prefixes/suffixes (same as voice parser)
+    if (questionType === 'identification') {
+      cleanedUserAnswer = cleanedUserAnswer
+        .replace(/^(my answer is|the answer is|answer|i think|i believe)\s*/i, '')
+        .replace(/\s*(please|thanks|thank you)$/i, '')
+        .trim()
+    }
+
+    const normalizedUser = cleanedUserAnswer.toLowerCase()
     const normalizedCorrect = correctAnswer.toString().trim().toLowerCase()
 
     // Direct match
@@ -144,15 +154,55 @@ const timeFormatted = computed(() => {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`
 })
 
+// Extract number from question text (e.g., "Name two scenarios" -> 2)
+function extractNumberFromQuestion(questionText) {
+  if (!questionText) return null
+
+  const text = questionText.toLowerCase()
+
+  // Number word to number mapping
+  const numberWords = {
+    'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+    'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+    'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14, 'fifteen': 15
+  }
+
+  // Try to find number words first
+  for (const [word, num] of Object.entries(numberWords)) {
+    const regex = new RegExp(`\\b${word}\\b`, 'i')
+    if (regex.test(text)) {
+      return num
+    }
+  }
+
+  // Try to find numeric patterns like "2", "3", etc.
+  const numericMatch = text.match(/\b(\d+)\b/)
+  if (numericMatch) {
+    const num = parseInt(numericMatch[1], 10)
+    if (num > 0 && num <= 15) {
+      return num
+    }
+  }
+
+  return null
+}
+
 const isCurrentQuestionAnswered = computed(() => {
   const currentAnswer = answers.value[currentQuestionIndex.value]
   if (!currentAnswer) return false
 
-  // For enumeration questions, check if there are any non-empty lines
+  // For enumeration questions, check if all required fields are filled
   if (currentQuestion.value?.type === 'enumeration') {
+    // First, try to extract number from question text
+    const textNumber = extractNumberFromQuestion(currentQuestion.value?.question)
+    const requiredCount = textNumber !== null
+      ? textNumber
+      : (Array.isArray(currentQuestion.value?.answer) ? currentQuestion.value.answer.length : 0)
+
     return (
       Array.isArray(currentAnswer) &&
-      currentAnswer.some((item) => item.trim() !== '')
+      currentAnswer.length === requiredCount &&
+      currentAnswer.every((item) => item.trim() !== '')
     )
   }
 
@@ -223,24 +273,6 @@ function selectAnswer(answer) {
   answers.value[currentQuestionIndex.value] = answer
   persistProgress()
   screenReaderStatus.value = `Answer recorded for question ${currentQuestionIndex.value + 1}.`
-}
-
-function updateEnumerationAnswer() {
-  const textarea = document.getElementById('enumeration-answer')
-  if (textarea) {
-    const lines = textarea.value.split('\n').filter((line) => line.trim() !== '')
-    answers.value[currentQuestionIndex.value] = lines
-    enumerationAnswers.value[currentQuestionIndex.value] = textarea.value
-    persistProgress()
-    screenReaderStatus.value = `Answer recorded for question ${currentQuestionIndex.value + 1}.`
-  }
-}
-
-function getEnumerationPreview() {
-  const currentAnswer = enumerationAnswers.value[currentQuestionIndex.value]
-  if (!currentAnswer) return ''
-  const lines = currentAnswer.split('\n').filter((line) => line.trim() !== '')
-  return lines.length > 0 ? `[${lines.join(', ')}]` : ''
 }
 
 function nextQuestion() {
@@ -383,7 +415,7 @@ function formatQuestionType(type) {
 
 <template>
   <div class="quiz-page">
-    <div class="sr-status" aria-live="polite">{{ screenReaderStatus }}</div>
+    <!-- <div class="sr-status" aria-live="polite">{{ screenReaderStatus }}</div> -->
 
     <!-- Overview Screen -->
     <div v-if="quizStage === 'overview'" class="quiz-overview">
@@ -658,27 +690,17 @@ function formatQuestionType(type) {
             </div>
 
             <!-- Enumeration (List multiple answers) Questions -->
-            <div v-else-if="currentQuestion?.type === 'enumeration'" class="enumeration-enhanced">
-              <div class="input-group">
-                <label for="enumeration-answer" class="input-label"
-                  >Your Answers (one per line):</label
-                >
-                <textarea
-                  id="enumeration-answer"
-                  v-model="enumerationAnswers[currentQuestionIndex]"
-                  class="text-area-large"
-                  placeholder="Enter each answer on a new line..."
-                  rows="5"
-                  @input="updateEnumerationAnswer"
-                ></textarea>
-                <div class="enumeration-preview" v-if="enumerationAnswers[currentQuestionIndex]">
-                  <small>Preview: {{ getEnumerationPreview() }}</small>
-                </div>
-                <div class="enumeration-hint">
-                  {{ (answers[currentQuestionIndex] || []).filter(item => item.trim()).length }} answers added
-                </div>
-              </div>
-            </div>
+            <EnumerationInput
+              v-else-if="currentQuestion?.type === 'enumeration'"
+              :question="currentQuestion"
+              :question-index="currentQuestionIndex"
+              :model-value="answers[currentQuestionIndex] || []"
+              @update:model-value="(value) => {
+                answers[currentQuestionIndex] = value
+                persistProgress()
+                screenReaderStatus.value = `Answer recorded for question ${currentQuestionIndex + 1}.`
+              }"
+            />
             </div>
 
             <!-- Navigation Actions -->

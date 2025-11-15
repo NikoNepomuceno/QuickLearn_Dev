@@ -137,7 +137,21 @@ async function submitAnswer(sessionUuid, userId, { questionId, answer }) {
     } else if (question.type === 'enumeration') {
         const userList = Array.isArray(answer) ? answer : [];
         const correctList = Array.isArray(question.correctAnswer) ? question.correctAnswer : [];
-        isCorrect = userList.length > 0 && userList.every(item => correctList.includes(item));
+        
+        if (userList.length === 0 || correctList.length === 0) {
+            isCorrect = false;
+        } else {
+            // Normalize both lists: trim and lowercase for case-insensitive comparison
+            const normalizedUser = userList
+                .map(item => String(item).trim().toLowerCase())
+                .filter(item => item.length > 0);
+            const normalizedCorrect = correctList
+                .map(item => String(item).trim().toLowerCase())
+                .filter(item => item.length > 0);
+            
+            // Check that ALL correct items are present in user's answer (order doesn't matter)
+            isCorrect = normalizedCorrect.every(correctItem => normalizedUser.includes(correctItem));
+        }
     } else {
         // identification - string compare (case-insensitive trimmed)
         const a = String(answer || '').trim().toLowerCase();
