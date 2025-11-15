@@ -1,18 +1,49 @@
 import { getCurrentUser } from '@/services/authService'
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+const API = import.meta.env.VITE_API_BASE || 'http://localhost:3000'
 
 async function authFetch(path, options = {}) {
 	const headers = options.headers || {}
 	if (!headers['Content-Type'] && !(options.body instanceof FormData)) headers['Content-Type'] = 'application/json'
-	return fetch(`${API}${path}`, {
-		credentials: 'include',
-		headers,
-		...options
-	}).then(async r => {
-		if (!r.ok) throw new Error(await r.text())
-		return r.json()
-	})
+	
+	try {
+		const response = await fetch(`${API}${path}`, {
+			credentials: 'include',
+			headers,
+			...options
+		})
+		
+		if (!response.ok) {
+			// Extract actual error message from response
+			let errorMessage = `Request failed with status ${response.status}`
+			try {
+				const errorData = await response.json()
+				errorMessage = errorData.error || errorData.message || errorMessage
+			} catch {
+				try {
+					const errorText = await response.text()
+					if (errorText) errorMessage = errorText
+				} catch {}
+			}
+			throw new Error(errorMessage)
+		}
+		
+		return await response.json()
+	} catch (error) {
+		// Check for network/CORS errors
+		if (error.message.includes('Failed to fetch') || 
+			error.message.includes('NetworkError') ||
+			error.name === 'TypeError' ||
+			error.message.includes('Network request failed')) {
+			console.error('Network error in leaderboard API:', {
+				apiBase: API,
+				path,
+				error: error.message
+			})
+			throw new Error('Unable to connect to server. Please check your connection and try again.')
+		}
+		throw error
+	}
 }
 
 export async function searchUsers(query) {

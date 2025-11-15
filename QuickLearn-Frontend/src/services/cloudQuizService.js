@@ -93,13 +93,34 @@ class CloudQuizService {
       })
 
       if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(errorText || `Upload failed with status ${response.status}`)
+        // Extract actual error message from response
+        let errorMessage = `Upload failed with status ${response.status}`
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorData.message || errorMessage
+        } catch {
+          try {
+            const errorText = await response.text()
+            if (errorText) errorMessage = errorText
+          } catch {}
+        }
+        throw new Error(errorMessage)
       }
 
       const data = await response.json()
       return data
     } catch (error) {
+      // Check for network/CORS errors
+      if (error.message.includes('Failed to fetch') || 
+          error.message.includes('NetworkError') ||
+          error.name === 'TypeError' ||
+          error.message.includes('Network request failed')) {
+        console.error('Network error during quiz creation:', {
+          apiBase: API_BASE,
+          error: error.message
+        })
+        throw new Error('Unable to connect to server. Please check your connection and try again.')
+      }
       console.error('Error creating quiz from file:', error)
       throw error
     }
@@ -116,12 +137,35 @@ class CloudQuizService {
       })
 
       if (!response.ok) {
-        throw new Error(`Failed to get quizzes: ${response.status}`)
+        // Extract actual error message from response
+        let errorMessage = `Failed to get quizzes: ${response.status}`
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorData.message || errorMessage
+        } catch {
+          try {
+            const errorText = await response.text()
+            if (errorText) errorMessage = errorText
+          } catch {}
+        }
+        throw new Error(errorMessage)
       }
 
       const data = await response.json()
       return data.quizzes || []
     } catch (error) {
+      // Check for network/CORS errors
+      if (error.message.includes('Failed to fetch') || 
+          error.message.includes('NetworkError') ||
+          error.name === 'TypeError' ||
+          error.message.includes('Network request failed')) {
+        console.error('Network error - possible CORS or connection issue:', {
+          apiBase: API_BASE,
+          error: error.message,
+          errorName: error.name
+        })
+        throw new Error('Unable to connect to server. Please check your connection and try again.')
+      }
       console.error('Error getting user quizzes:', error)
       throw error
     }
@@ -147,12 +191,34 @@ class CloudQuizService {
         if (response.status === 404) {
           return null
         }
-        throw new Error(`Failed to get quiz: ${response.status}`)
+        // Extract actual error message from response
+        let errorMessage = `Failed to get quiz: ${response.status}`
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorData.message || errorMessage
+        } catch {
+          try {
+            const errorText = await response.text()
+            if (errorText) errorMessage = errorText
+          } catch {}
+        }
+        throw new Error(errorMessage)
       }
 
       const data = await response.json()
       return data.quiz
     } catch (error) {
+      // Check for network/CORS errors
+      if (error.message.includes('Failed to fetch') || 
+          error.message.includes('NetworkError') ||
+          error.name === 'TypeError' ||
+          error.message.includes('Network request failed')) {
+        console.error('Network error getting quiz:', {
+          apiBase: API_BASE,
+          error: error.message
+        })
+        throw new Error('Unable to connect to server. Please check your connection and try again.')
+      }
       console.error('Error getting quiz by UUID:', error)
       throw error
     }
@@ -573,12 +639,34 @@ class CloudQuizService {
         if (response.status === 404) {
           return []
         }
-        throw new Error(`Failed to get summaries: ${response.status}`)
+        // Extract actual error message from response
+        let errorMessage = `Failed to get summaries: ${response.status}`
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorData.message || errorMessage
+        } catch {
+          try {
+            const errorText = await response.text()
+            if (errorText) errorMessage = errorText
+          } catch {}
+        }
+        throw new Error(errorMessage)
       }
 
       const data = await response.json()
       return data.summaries || data.notes || []
     } catch (error) {
+      // Check for network/CORS errors
+      if (error.message.includes('Failed to fetch') || 
+          error.message.includes('NetworkError') ||
+          error.name === 'TypeError' ||
+          error.message.includes('Network request failed')) {
+        console.error('Network error getting summaries:', {
+          apiBase: API_BASE,
+          error: error.message
+        })
+        throw new Error('Unable to connect to server. Please check your connection and try again.')
+      }
       console.error('Error getting user summaries:', error)
       throw error
     }
@@ -597,11 +685,33 @@ class CloudQuizService {
         if (response.status === 404) {
           return []
         }
-        throw new Error(`Failed to get flashcards: ${response.status}`)
+        // Extract actual error message from response
+        let errorMessage = `Failed to get flashcards: ${response.status}`
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorData.message || errorMessage
+        } catch {
+          try {
+            const errorText = await response.text()
+            if (errorText) errorMessage = errorText
+          } catch {}
+        }
+        throw new Error(errorMessage)
       }
       const data = await response.json()
       return data.flashcards || []
     } catch (error) {
+      // Check for network/CORS errors
+      if (error.message.includes('Failed to fetch') || 
+          error.message.includes('NetworkError') ||
+          error.name === 'TypeError' ||
+          error.message.includes('Network request failed')) {
+        console.error('Network error getting flashcards:', {
+          apiBase: API_BASE,
+          error: error.message
+        })
+        throw new Error('Unable to connect to server. Please check your connection and try again.')
+      }
       console.error('Error getting user flashcards:', error)
       throw error
     }
@@ -662,12 +772,35 @@ class CloudQuizService {
       })
 
       if (!response.ok) {
-        throw new Error(`Failed to get adaptive sessions: ${response.status}`)
+        // Extract actual error message from response
+        let errorMessage = `Failed to get adaptive sessions: ${response.status}`
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorData.message || errorMessage
+        } catch {
+          try {
+            const errorText = await response.text()
+            if (errorText) errorMessage = errorText
+          } catch {}
+        }
+        throw new Error(errorMessage)
       }
 
       const data = await response.json()
       return data.sessions || []
     } catch (error) {
+      // Check for network/CORS errors
+      if (error.message.includes('Failed to fetch') || 
+          error.message.includes('NetworkError') ||
+          error.name === 'TypeError' ||
+          error.message.includes('Network request failed')) {
+        console.error('Network error - possible CORS or connection issue:', {
+          apiBase: API_BASE,
+          error: error.message,
+          errorName: error.name
+        })
+        throw new Error('Unable to connect to server. Please check your connection and try again.')
+      }
       console.error('Error getting adaptive sessions:', error)
       throw error
     }

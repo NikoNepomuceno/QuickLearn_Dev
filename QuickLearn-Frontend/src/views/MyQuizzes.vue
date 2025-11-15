@@ -117,10 +117,33 @@ async function loadQuizzes() {
     }
 
     // Load both regular quizzes and adaptive sessions
-    const [regularQuizzes, sessions] = await Promise.all([
-      cloudQuizService.getUserQuizzes().catch(() => []),
-      cloudQuizService.getUserAdaptiveSessions().catch(() => [])
-    ])
+    // Handle errors separately to show actual error messages
+    let regularQuizzes = []
+    let sessions = []
+
+    try {
+      regularQuizzes = await cloudQuizService.getUserQuizzes()
+    } catch (err) {
+      console.error('Failed to load quizzes:', err)
+      const errorMsg = err.message || 'Unknown error'
+      error.value = `Failed to load quizzes: ${errorMsg}`
+      window.$toast?.error(error.value)
+      // Still set empty array so UI doesn't break, but error is shown
+      regularQuizzes = []
+    }
+
+    try {
+      sessions = await cloudQuizService.getUserAdaptiveSessions()
+    } catch (err) {
+      console.error('Failed to load adaptive sessions:', err)
+      // Only show error if we don't already have one for quizzes
+      if (!error.value) {
+        const errorMsg = err.message || 'Unknown error'
+        error.value = `Failed to load adaptive sessions: ${errorMsg}`
+        window.$toast?.error(error.value)
+      }
+      sessions = []
+    }
 
     quizzes.value = regularQuizzes
     adaptiveSessions.value = sessions
