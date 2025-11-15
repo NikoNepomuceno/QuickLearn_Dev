@@ -173,8 +173,8 @@ router.post('/advanced', authenticateToken, upload.single('file'), async (req, r
 // Get user's quizzes
 router.get('/', authenticateToken, async (req, res) => {
 	try {
-		const limit = Math.min(50, Number(req.query.limit) || 20);
-		const offset = Math.max(0, Number(req.query.offset) || 0);
+		const limit = Math.min(50, parseInt(req.query.limit, 10) || 20);
+		const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
 
 		const quizzes = await CloudStorageService.getUserQuizzes(req.user.id, limit, offset);
 

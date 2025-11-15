@@ -111,12 +111,14 @@ class File {
 
     static async findByUserId(userId, limit = 50, offset = 0) {
         const pool = await getPool();
+        const limitInt = parseInt(limit, 10) || 50;
+        const offsetInt = parseInt(offset, 10) || 0;
         const [rows] = await pool.execute(
             `SELECT * FROM files 
              WHERE user_id = ? 
              ORDER BY created_at DESC 
              LIMIT ? OFFSET ?`,
-            [userId, limit, offset]
+            [userId, limitInt, offsetInt]
         );
         
         return rows.map(row => new File(row));
