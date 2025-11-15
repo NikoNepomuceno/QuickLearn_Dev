@@ -111,8 +111,8 @@ class File {
 
     static async findByUserId(userId, limit = 50, offset = 0) {
         const pool = await getPool();
-        const limitInt = parseInt(limit, 10) || 50;
-        const offsetInt = parseInt(offset, 10) || 0;
+        const limitInt = Math.max(1, Math.floor(Number(limit) || 50));
+        const offsetInt = Math.max(0, Math.floor(Number(offset) || 0));
         const [rows] = await pool.execute(
             `SELECT * FROM files 
              WHERE user_id = ? 

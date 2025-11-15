@@ -128,9 +128,9 @@ class QuestionBank {
 
     static async findByUserId(userId, filters = {}, pagination = {}) {
         const pool = await getPool();
-        const page = parseInt(pagination.page, 10) || 1;
-        const limit = parseInt(pagination.limit, 10) || 20;
-        const offset = (page - 1) * limit;
+        const page = Math.max(1, Math.floor(Number(pagination.page) || 1));
+        const limit = Math.max(1, Math.floor(Number(pagination.limit) || 20));
+        const offset = Math.max(0, (page - 1) * limit);
         
         let query = 'SELECT * FROM question_bank WHERE user_id = ?';
         const params = [userId];

@@ -368,8 +368,8 @@ async function finishSession(sessionUuid, userId) {
 async function getUserSessions(userId, limit = 20, offset = 0) {
     const { getPool } = require('../config/db');
     const pool = await getPool();
-    const limitInt = parseInt(limit, 10) || 20;
-    const offsetInt = parseInt(offset, 10) || 0;
+    const limitInt = Math.max(1, Math.floor(Number(limit) || 20));
+    const offsetInt = Math.max(0, Math.floor(Number(offset) || 0));
     const [rows] = await pool.execute(
         `SELECT * FROM adaptive_sessions 
          WHERE user_id = ? 

@@ -88,8 +88,8 @@ class Quiz {
 
     static async findByUserId(userId, limit = 20, offset = 0) {
         const pool = await getPool();
-        const limitInt = parseInt(limit, 10) || 20;
-        const offsetInt = parseInt(offset, 10) || 0;
+        const limitInt = Math.max(1, Math.floor(Number(limit) || 20));
+        const offsetInt = Math.max(0, Math.floor(Number(offset) || 0));
         const [rows] = await pool.execute(
             `SELECT q.*, f.secure_url as file_url, f.original_filename as file_original_name
              FROM quizzes q 
