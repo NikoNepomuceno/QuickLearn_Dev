@@ -1,6 +1,15 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { X, Check, FileText, Eye, EyeOff } from 'lucide-vue-next'
+import * as pdfjsLib from 'pdfjs-dist'
+import mammoth from 'mammoth'
+
+// Set up PDF.js worker for Vite
+// Use CDN with correct .mjs extension (pdfjs-dist 5.x uses .mjs, not .js)
+if (typeof window !== 'undefined') {
+  // Use unpkg CDN with the correct path - version 5.4.394 uses .mjs extension
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`
+}
 
 const props = defineProps({
   visible: {
@@ -18,6 +27,10 @@ const props = defineProps({
   defaultPrompt: {
     type: String,
     default: ''
+  },
+  file: {
+    type: File,
+    default: null
   }
 })
 
@@ -25,11 +38,341 @@ const emit = defineEmits(['close', 'confirm'])
 
 const selectedPages = ref(new Set())
 const showPreview = ref({})
+const pagePreviews = ref({})
+const loadingPreviews = ref({})
+const fileType = ref('')
 
-// Watch for changes in pages prop to reset selections
-watch(() => props.pages, () => {
+// Detect file type from file name or file object
+function detectFileType() {
+  if (!props.file && !props.fileName) return 'unknown'
+  
+  const name = (props.file?.name || props.fileName || '').toLowerCase()
+  if (name.endsWith('.pdf')) return 'pdf'
+  if (name.endsWith('.docx')) return 'docx'
+  if (name.endsWith('.pptx')) return 'pptx'
+  if (name.endsWith('.txt')) return 'txt'
+  
+  // Fallback to MIME type if available
+  if (props.file?.type) {
+    if (props.file.type === 'application/pdf') return 'pdf'
+    if (props.file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') return 'docx'
+    if (props.file.type === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') return 'pptx'
+    if (props.file.type === 'text/plain') return 'txt'
+  }
+  
+  return 'unknown'
+}
+
+// Generate PDF preview for a specific page
+async function generatePdfPreview(pageIndex, pageNumber) {
+  if (!props.file) {
+    console.warn('No file available for PDF preview')
+    return null
+  }
+  
+  try {
+    loadingPreviews.value[pageIndex] = true
+    
+    // Read file as array buffer
+    const arrayBuffer = await props.file.arrayBuffer()
+    
+    // Load PDF document
+    const loadingTask = pdfjsLib.getDocument({ 
+      data: arrayBuffer,
+      verbosity: 0 // Suppress console warnings
+    })
+    const pdf = await loadingTask.promise
+    
+    // Validate page number
+    if (pageNumber < 1 || pageNumber > pdf.numPages) {
+      console.warn(`Page number ${pageNumber} is out of range (1-${pdf.numPages})`)
+      return null
+    }
+    
+    // Get the page
+    const page = await pdf.getPage(pageNumber)
+    
+    // Get default viewport to get page dimensions
+    const defaultViewport = page.getViewport({ scale: 1.0 })
+    const pageWidth = defaultViewport.width
+    const pageHeight = defaultViewport.height
+    
+    // Calculate scale to fit within preview container (accounting for padding)
+    // Preview container is approximately 200px wide (minmax(200px, 1fr)) with 8px margin
+    // Aspect ratio is 3/4, so height = width * 4/3
+    // Account for padding (12px on each side = 24px total)
+    const containerWidth = 200 - 24 // Approximate width minus padding
+    const containerHeight = (containerWidth * 4 / 3) - 24 // Height based on aspect ratio minus padding
+    
+    // Calculate scale to fit both width and height
+    const scaleX = containerWidth / pageWidth
+    const scaleY = containerHeight / pageHeight
+    const scale = Math.min(scaleX, scaleY, 2.0) // Cap at 2.0 for quality, but prioritize fitting
+    
+    // Create viewport with calculated scale
+    const viewport = page.getViewport({ scale })
+    
+    // Create canvas
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    canvas.height = viewport.height
+    canvas.width = viewport.width
+    
+    // Render page to canvas
+    const renderContext = {
+      canvasContext: ctx,
+      viewport: viewport
+    }
+    
+    await page.render(renderContext).promise
+    
+    // Convert to data URL
+    const previewImage = canvas.toDataURL('image/png')
+    
+    // Store preview with dimensions for scaling
+    pagePreviews.value[pageIndex] = {
+      type: 'image',
+      src: previewImage,
+      width: viewport.width,
+      height: viewport.height,
+      originalWidth: pageWidth,
+      originalHeight: pageHeight
+    }
+    
+    return previewImage
+  } catch (error) {
+    console.error(`Error generating PDF preview for page ${pageNumber}:`, error)
+    // Fallback to text preview on error
+    pagePreviews.value[pageIndex] = { 
+      type: 'text', 
+      content: props.pages[pageIndex] || 'Preview not available' 
+    }
+    return null
+  } finally {
+    loadingPreviews.value[pageIndex] = false
+  }
+}
+
+// Generate DOCX preview for a specific page
+async function generateDocxPreview(pageIndex) {
+  if (!props.file) return null
+  
+  try {
+    loadingPreviews.value[pageIndex] = true
+    
+    // Use the extracted page content and convert it to well-formatted HTML
+    // We format the text with proper structure detection (headings, lists, paragraphs)
+    const pageContent = props.pages[pageIndex] || ''
+    
+    // Convert text to HTML with better structure detection
+    const lines = pageContent.split('\n')
+    let html = ''
+    let inList = false
+    let listItems = []
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim()
+      
+      if (!line) {
+        if (inList && listItems.length > 0) {
+          html += `<ul>${listItems.join('')}</ul>`
+          listItems = []
+          inList = false
+        }
+        html += '<br>'
+        continue
+      }
+      
+      // Detect numbered list items (e.g., "1. ", "2. ", "- ", "• ")
+      const numberedListMatch = line.match(/^(\d+\.|[-•])\s+(.+)$/)
+      if (numberedListMatch) {
+        if (!inList) {
+          if (listItems.length > 0) {
+            html += `<ul>${listItems.join('')}</ul>`
+            listItems = []
+          }
+          inList = true
+        }
+        listItems.push(`<li>${numberedListMatch[2]}</li>`)
+        continue
+      }
+      
+      // Close list if we were in one
+      if (inList) {
+        html += `<ul>${listItems.join('')}</ul>`
+        listItems = []
+        inList = false
+      }
+      
+      // Detect headings (short lines, all caps, or lines ending with colon that are short)
+      const isShort = line.length < 60
+      const isAllCaps = line === line.toUpperCase() && line.match(/[A-Z]/)
+      const endsWithColon = line.endsWith(':')
+      const isHeading = (isShort && isAllCaps) || (isShort && endsWithColon && line.length < 40)
+      
+      if (isHeading) {
+        html += `<h3 style="font-weight: 600; margin: 12px 0 8px 0; color: #1f2937; font-size: 13px;">${line.replace(':', '')}</h3>`
+      } else {
+        // Detect bold patterns (text between ** or lines that look like labels)
+        const boldMatch = line.match(/^\*\*(.+?)\*\*(.*)$/)
+        if (boldMatch) {
+          html += `<p style="margin: 6px 0;"><strong>${boldMatch[1]}</strong>${boldMatch[2]}</p>`
+        } else {
+          // Regular paragraph
+          html += `<p style="margin: 4px 0; line-height: 1.5;">${line}</p>`
+        }
+      }
+    }
+    
+    // Close any remaining list
+    if (inList && listItems.length > 0) {
+      html += `<ul>${listItems.join('')}</ul>`
+    }
+    
+    pagePreviews.value[pageIndex] = { type: 'html', content: html }
+    return html
+  } catch (error) {
+    console.error('Error generating DOCX preview:', error)
+    // Fallback to simple text formatting
+    const pageContent = props.pages[pageIndex] || ''
+    const simpleHtml = pageContent
+      .split('\n')
+      .map(line => {
+        const trimmed = line.trim()
+        return trimmed ? `<p style="margin: 4px 0;">${trimmed}</p>` : '<br>'
+      })
+      .join('')
+    pagePreviews.value[pageIndex] = { type: 'html', content: simpleHtml }
+    return simpleHtml
+  } finally {
+    loadingPreviews.value[pageIndex] = false
+  }
+}
+
+// Generate TXT preview
+async function generateTxtPreview(pageIndex) {
+  if (!props.file) return null
+  
+  try {
+    loadingPreviews.value[pageIndex] = true
+    
+    // Use the extracted page content
+    const pageContent = props.pages[pageIndex] || ''
+    const previewText = pageContent.length > 500 
+      ? pageContent.substring(0, 500) + '…'
+      : pageContent
+    
+    pagePreviews.value[pageIndex] = { type: 'text', content: previewText }
+    return previewText
+  } catch (error) {
+    console.error('Error generating TXT preview:', error)
+    return null
+  } finally {
+    loadingPreviews.value[pageIndex] = false
+  }
+}
+
+// Calculate scale for HTML preview to fit content
+function getHtmlPreviewStyle(pageIndex) {
+  const preview = pagePreviews.value[pageIndex]
+  if (!preview || preview.type !== 'html') return {}
+  
+  // Estimate content height based on line count and character count
+  const pageContent = props.pages[pageIndex] || ''
+  const lineCount = pageContent.split('\n').filter(l => l.trim()).length
+  const estimatedHeight = lineCount * 14 + 40 // Rough estimate: 14px per line + padding
+  
+  // Container height is approximately 200px * 4/3 = 267px (aspect ratio 3/4) minus padding
+  const containerHeight = 267 - 16 // Approximate container height minus padding
+  
+  // Calculate scale if content is taller than container
+  if (estimatedHeight > containerHeight) {
+    const scale = containerHeight / estimatedHeight
+    return {
+      transform: `scale(${Math.max(scale, 0.4)})`, // Minimum scale of 0.4
+      transformOrigin: 'top left',
+      width: `${100 / Math.max(scale, 0.4)}%`,
+      height: `${100 / Math.max(scale, 0.4)}%`
+    }
+  }
+  
+  return {}
+}
+
+// Calculate scale for text preview to fit content
+function getTextPreviewStyle(pageIndex) {
+  const pageContent = props.pages[pageIndex] || ''
+  const lineCount = pageContent.split('\n').filter(l => l.trim()).length
+  const estimatedHeight = lineCount * 14 + 24 // Rough estimate
+  
+  // Container height is approximately 267px minus padding
+  const containerHeight = 267 - 24
+  
+  // Calculate scale if content is taller than container
+  if (estimatedHeight > containerHeight) {
+    const scale = containerHeight / estimatedHeight
+    return {
+      transform: `scale(${Math.max(scale, 0.4)})`,
+      transformOrigin: 'top left',
+      width: `${100 / Math.max(scale, 0.4)}%`,
+      height: `${100 / Math.max(scale, 0.4)}%`
+    }
+  }
+  
+  return {}
+}
+
+// Generate preview for a page based on file type
+async function generatePreview(pageIndex) {
+  const type = fileType.value
+  
+  if (type === 'pdf') {
+    // For PDF, generate preview for the actual page number (1-indexed)
+    return await generatePdfPreview(pageIndex, pageIndex + 1)
+  } else if (type === 'docx') {
+    return await generateDocxPreview(pageIndex)
+  } else if (type === 'txt') {
+    return await generateTxtPreview(pageIndex)
+  } else if (type === 'pptx') {
+    // PPTX fallback - show text content
+    pagePreviews.value[pageIndex] = { type: 'text', content: props.pages[pageIndex] || 'Preview not available' }
+    return pagePreviews.value[pageIndex]
+  }
+  
+  return null
+}
+
+// Watch for modal visibility and file/pages to generate previews
+watch([() => props.visible, () => props.file, () => props.pages], async ([visible, file, pages]) => {
+  if (!visible) {
+    // Clear previews when modal is hidden
+    pagePreviews.value = {}
+    loadingPreviews.value = {}
+    return
+  }
+  
   selectedPages.value.clear()
   showPreview.value = {}
+  
+  // Detect file type
+  const detectedType = detectFileType()
+  fileType.value = detectedType
+  
+  // Generate previews for all pages when modal is visible
+  if (file && pages && pages.length > 0) {
+    // Generate previews in parallel for better performance
+    const previewPromises = pages.map((_, i) => {
+      return generatePreview(i).catch(error => {
+        console.error(`Error generating preview for page ${i}:`, error)
+        // Fallback to text preview on error
+        pagePreviews.value[i] = { type: 'text', content: pages[i] || 'Preview not available' }
+        loadingPreviews.value[i] = false
+        return null
+      })
+    })
+    
+    await Promise.all(previewPromises)
+  }
 }, { immediate: true })
 
 const allPagesSelected = computed(() => {
@@ -154,7 +497,44 @@ function getPagePreview(content, maxLength = 200) {
             >
               <div class="page-preview-container">
                 <div class="page-preview-content">
-                  <div class="page-preview-text">
+                  <!-- Loading state -->
+                  <div v-if="loadingPreviews[index]" class="preview-loading">
+                    <div class="loading-spinner"></div>
+                    <span>Loading preview...</span>
+                  </div>
+                  
+                  <!-- PDF Preview (Image) -->
+                  <img
+                    v-else-if="fileType === 'pdf' && pagePreviews[index]?.type === 'image'"
+                    :src="pagePreviews[index].src"
+                    alt="Page preview"
+                    class="preview-image"
+                    @error="(e) => { console.error('Image load error:', e); pagePreviews[index] = null; }"
+                  />
+                  
+                  <!-- DOCX Preview (HTML) -->
+                  <div
+                    v-else-if="fileType === 'docx' && pagePreviews[index]?.type === 'html'"
+                    class="preview-html-wrapper"
+                  >
+                    <div
+                      class="preview-html"
+                      v-html="pagePreviews[index].content"
+                      :style="getHtmlPreviewStyle(index)"
+                    ></div>
+                  </div>
+                  
+                  <!-- TXT/PPTX Preview (Text) -->
+                  <div
+                    v-else-if="(fileType === 'txt' || fileType === 'pptx') && pagePreviews[index]?.type === 'text'"
+                    class="page-preview-text"
+                    :style="getTextPreviewStyle(index)"
+                  >
+                    {{ pagePreviews[index].content }}
+                  </div>
+                  
+                  <!-- Fallback to text preview -->
+                  <div v-else class="page-preview-text">
                     {{ getPagePreview(page, 150) }}
                   </div>
                 </div>
@@ -282,6 +662,13 @@ function getPagePreview(content, maxLength = 200) {
   flex: 1;
   overflow-y: auto;
   padding: 24px;
+  /* Hide scrollbar */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.modal-body::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
 }
 
 
@@ -342,6 +729,13 @@ function getPagePreview(content, maxLength = 200) {
   max-height: 500px;
   overflow-y: auto;
   padding: 8px;
+  /* Hide scrollbar */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.pages-grid::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
 }
 
 .page-preview-card {
@@ -383,22 +777,135 @@ function getPagePreview(content, maxLength = 200) {
   border-radius: 6px;
   overflow: hidden;
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .page-preview-text {
   padding: 12px;
-  font-size: 11px;
-  line-height: 1.5;
+  font-size: 10px;
+  line-height: 1.4;
   color: #374151;
+  width: 100%;
   height: 100%;
   overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 10;
-  line-clamp: 10;
-  -webkit-box-orient: vertical;
   word-wrap: break-word;
   white-space: pre-wrap;
+  transform-origin: top left;
+}
+
+.preview-image {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+}
+
+.preview-html {
+  padding: 8px;
+  font-size: 10px;
+  line-height: 1.4;
+  color: #374151;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  word-wrap: break-word;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  transform-origin: top left;
+  /* Hide scrollbar if overflow changes to auto */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.preview-html::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+.preview-html-wrapper {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+.preview-html-content {
+  width: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  transform-origin: top left;
+}
+
+.preview-html :deep(p) {
+  margin: 4px 0;
+  line-height: 1.5;
+  color: #374151;
+}
+
+.preview-html :deep(ul),
+.preview-html :deep(ol) {
+  margin: 8px 0;
+  padding-left: 20px;
+  list-style-position: outside;
+}
+
+.preview-html :deep(li) {
+  margin: 4px 0;
+  line-height: 1.5;
+  color: #374151;
+}
+
+.preview-html :deep(h1),
+.preview-html :deep(h2),
+.preview-html :deep(h3) {
+  margin: 12px 0 8px 0;
+  font-weight: 600;
+  color: #1f2937;
+  line-height: 1.3;
+}
+
+.preview-html :deep(h3) {
+  font-size: 13px;
+}
+
+.preview-html :deep(strong),
+.preview-html :deep(b) {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.preview-html :deep(br) {
+  line-height: 1.2;
+}
+
+.preview-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 12px;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid #e6e8ec;
+  border-top-color: #667eea;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .page-number-overlay {

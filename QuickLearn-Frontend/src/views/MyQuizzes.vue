@@ -30,7 +30,7 @@ const error = ref(null)
 const showDeleteModal = ref(false)
 const quizToDelete = ref(null)
 const activeTab = ref('all')
-const tabKeys = ['all', 'quicklearn', 'adaptive']
+const tabKeys = ['all', 'quicklearn', 'custom', 'adaptive']
 const openDropdownId = ref(null)
 
 const deleteMessage = computed(() => {
@@ -56,14 +56,29 @@ function handleClickOutside(event) {
   }
 }
 
+// Separate quizzes into QuickLearn and Custom
+const quickLearnQuizzes = computed(() => {
+  return quizzes.value.filter(quiz => !quiz.metadata?.isCustomQuiz)
+})
+
+const customQuizzes = computed(() => {
+  return quizzes.value.filter(quiz => quiz.metadata?.isCustomQuiz === true)
+})
+
 const filteredQuizzes = computed(() => {
-  if (activeTab.value === 'adaptive') return []
-  if (activeTab.value === 'quicklearn') return quizzes.value
-  return quizzes.value // 'all' shows regular quizzes first
+  if (activeTab.value === 'adaptive' || activeTab.value === 'custom') return []
+  if (activeTab.value === 'quicklearn') return quickLearnQuizzes.value
+  return quickLearnQuizzes.value // 'all' shows QuickLearn quizzes first
+})
+
+const filteredCustomQuizzes = computed(() => {
+  if (activeTab.value === 'quicklearn' || activeTab.value === 'adaptive') return []
+  if (activeTab.value === 'custom') return customQuizzes.value
+  return customQuizzes.value // 'all' shows custom quizzes
 })
 
 const filteredAdaptiveSessions = computed(() => {
-  if (activeTab.value === 'quicklearn') return []
+  if (activeTab.value === 'quicklearn' || activeTab.value === 'custom') return []
   if (activeTab.value === 'adaptive') return adaptiveSessions.value
   return adaptiveSessions.value // 'all' shows adaptive sessions
 })
@@ -278,7 +293,7 @@ function viewResults(quiz) {
           role="tab"
           :aria-selected="activeTab === 'all'"
           :tabindex="activeTab === 'all' ? 0 : -1"
-          aria-controls="my-quizzes-panel-quicklearn my-quizzes-panel-adaptive"
+          aria-controls="my-quizzes-panel-quicklearn my-quizzes-panel-custom my-quizzes-panel-adaptive"
           @click="activeTab = 'all'"
           @keydown="handleTabKeydown($event, 'all')"
         >
@@ -297,6 +312,20 @@ function viewResults(quiz) {
           @keydown="handleTabKeydown($event, 'quicklearn')"
         >
           QuickLearn
+        </button>
+        <button
+          id="my-quizzes-tab-custom"
+          class="tab"
+          :class="{ 'tab--active': activeTab === 'custom' }"
+          type="button"
+          role="tab"
+          :aria-selected="activeTab === 'custom'"
+          :tabindex="activeTab === 'custom' ? 0 : -1"
+          aria-controls="my-quizzes-panel-custom"
+          @click="activeTab = 'custom'"
+          @keydown="handleTabKeydown($event, 'custom')"
+        >
+          Custom Quizzes
         </button>
         <button
           id="my-quizzes-tab-adaptive"
@@ -353,7 +382,7 @@ function viewResults(quiz) {
           id="my-quizzes-panel-quicklearn"
           class="library-section"
           role="tabpanel"
-          :hidden="activeTab === 'adaptive'"
+          :hidden="activeTab === 'adaptive' || activeTab === 'custom'"
           aria-labelledby="my-quizzes-tab-quicklearn my-quizzes-tab-all"
           tabindex="0"
         >
@@ -446,11 +475,108 @@ function viewResults(quiz) {
         </section>
 
         <section
+          v-if="filteredCustomQuizzes.length"
+          id="my-quizzes-panel-custom"
+          class="library-section"
+          role="tabpanel"
+          :hidden="activeTab === 'quicklearn' || activeTab === 'adaptive'"
+          aria-labelledby="my-quizzes-tab-custom my-quizzes-tab-all"
+          tabindex="0"
+        >
+          <header class="library-section__header">
+            <h2>Custom Quizzes</h2>
+            <span class="library-section__count">{{ filteredCustomQuizzes.length }} total</span>
+          </header>
+          <div class="library-grid">
+            <BaseCard
+              v-for="quiz in filteredCustomQuizzes"
+              :key="quiz.id"
+              padding="lg"
+            >
+              <div class="quiz-card">
+                <div class="quiz-card__header">
+                  <div class="quiz-card__meta">
+                    <FileText :size="20" />
+                    <div>
+                      <h3>{{ quiz.title || 'Untitled quiz' }}</h3>
+                      <p class="quiz-card__subtitle">
+                        {{ formatUpdatedAt(quiz.updatedAt || quiz.createdAt) }}
+                      </p>
+                    </div>
+                  </div>
+                  <div class="dropdown-wrapper">
+                    <button 
+                      class="dropdown-trigger"
+                      :aria-label="'More actions for ' + (quiz.title || 'Untitled quiz')"
+                      @click="toggleDropdown(quiz.id)"
+                    >
+                      <MoreVertical :size="20" />
+                    </button>
+                    <div 
+                      v-if="isDropdownOpen(quiz.id)" 
+                      class="dropdown-menu"
+                      @click.stop
+                    >
+                      <button class="dropdown-item" @click="shareQuiz(quiz); closeDropdown()">
+                        <Share2 :size="16" />
+                        Share
+                      </button>
+                      <button class="dropdown-item" @click="downloadQuiz(quiz); closeDropdown()">
+                        <Download :size="16" />
+                        Download PDF
+                      </button>
+                      <button class="dropdown-item dropdown-item--danger" @click="showDeleteConfirmation(quiz); closeDropdown()">
+                        <Trash2 :size="16" />
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="quiz-card__stats">
+                  <div class="stat-chip">
+                    <BarChart3 :size="16" />
+                    {{ cloudQuizService.getQuizSummary(quiz).attemptsCount }} attempts
+                  </div>
+                  <div
+                    v-if="cloudQuizService.getQuizSummary(quiz).averageScore !== null"
+                    class="stat-chip"
+                  >
+                    <Share2 :size="16" />
+                    Avg. score {{ cloudQuizService.getQuizSummary(quiz).averageScore }}%
+                  </div>
+                  <div class="stat-chip">
+                    <Download :size="16" />
+                    {{ quiz.questionCount || quiz.questions?.length || 0 }} questions
+                  </div>
+                </div>
+
+                <div class="quiz-card__actions">
+                  <BaseButton variant="primary" size="sm" @click="openQuiz(quiz)">
+                    <Play :size="16" />
+                    Take quiz
+                  </BaseButton>
+                  <BaseButton 
+                    v-if="cloudQuizService.getQuizSummary(quiz).attemptsCount > 0"
+                    variant="secondary" 
+                    size="sm" 
+                    @click="viewResults(quiz)"
+                  >
+                    <BarChart3 :size="16" />
+                    View Results
+                  </BaseButton>
+                </div>
+              </div>
+            </BaseCard>
+          </div>
+        </section>
+
+        <section
           v-if="filteredAdaptiveSessions.length"
           id="my-quizzes-panel-adaptive"
           class="library-section"
           role="tabpanel"
-          :hidden="activeTab === 'quicklearn'"
+          :hidden="activeTab === 'quicklearn' || activeTab === 'custom'"
           aria-labelledby="my-quizzes-tab-adaptive my-quizzes-tab-all"
           tabindex="0"
         >

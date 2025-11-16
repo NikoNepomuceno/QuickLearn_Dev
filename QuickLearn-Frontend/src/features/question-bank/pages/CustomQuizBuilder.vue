@@ -54,7 +54,7 @@ function moveQuestionDown(index) {
 function removeQuestion(index) {
   const question = orderedQuestions.value[index]
   orderedQuestions.value.splice(index, 1)
-  store.toggleQuestionSelection(question.id || question.uuid)
+  store.toggleQuestionSelection(question.uuid || question.id)
 }
 
 function addMoreQuestions() {
@@ -67,7 +67,11 @@ async function handleCreateQuiz() {
   isCreating.value = true
 
   try {
-    const questionIds = orderedQuestions.value.map(q => q.id || q.uuid)
+    // Prefer UUID over ID for consistency (UUIDs are guaranteed unique identifiers)
+    const questionIds = orderedQuestions.value.map(q => q.uuid || q.id)
+    
+    console.log('[CustomQuizBuilder] Creating quiz with question IDs:', questionIds)
+    console.log('[CustomQuizBuilder] Questions:', orderedQuestions.value.map(q => ({ id: q.id, uuid: q.uuid })))
     
     const result = await store.createCustomQuiz({
       title: quizTitle.value.trim(),
@@ -167,7 +171,7 @@ function getQuestionStem(question) {
             <div v-else class="questions-list">
               <div
                 v-for="(question, index) in orderedQuestions"
-                :key="question.id || question.uuid"
+                :key="question.uuid || question.id"
                 class="question-item"
               >
                 <div class="question-item__number">{{ index + 1 }}</div>

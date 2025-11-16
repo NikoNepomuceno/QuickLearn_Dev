@@ -9,12 +9,13 @@ import BeatLoader from '@/components/BeatLoader.vue'
 import QuestionCard from '../components/QuestionCard.vue'
 import QuestionFilters from '../components/QuestionFilters.vue'
 import SelectedQuestionsPanel from '../components/SelectedQuestionsPanel.vue'
-import { Database, AlertCircle, RefreshCw, ArrowLeft } from 'lucide-vue-next'
+import { Database, AlertCircle, RefreshCw, ArrowLeft, Trash2 } from 'lucide-vue-next'
 
 const router = useRouter()
 const store = useQuestionBankStore()
 
 const showExtractModal = ref(false)
+const showClearConfirm = ref(false)
 
 const hasQuestions = computed(() => {
   return store.questions.length > 0
@@ -82,6 +83,23 @@ function handleClearSelection() {
 function handlePageChange(page) {
   store.setPage(page)
 }
+
+async function handleClearAll() {
+  showClearConfirm.value = true
+}
+
+async function confirmClearAll() {
+  try {
+    const result = await store.clearAllQuestions()
+    showClearConfirm.value = false
+    window.$toast?.success(result.message || 'Question bank cleared successfully!')
+    // Refresh questions list (will show empty state)
+    await store.fetchQuestions()
+  } catch (error) {
+    showClearConfirm.value = false
+    window.$toast?.error(error.message || 'Failed to clear question bank')
+  }
+}
 </script>
 
 <template>
@@ -101,16 +119,28 @@ function handlePageChange(page) {
           <ArrowLeft :size="16" />
           Back to Upload
         </BaseButton>
-        <BaseButton
-          v-if="!hasQuestions && !store.isLoading"
-          variant="primary"
-          size="sm"
-          @click="handleExtractQuestions"
-          :disabled="store.isExtracting"
-        >
-          <RefreshCw :size="16" :class="{ 'spinning': store.isExtracting }" />
-          {{ store.isExtracting ? 'Extracting...' : 'Extract Questions' }}
-        </BaseButton>
+        <div class="question-bank__header-actions">
+          <BaseButton
+            v-if="hasQuestions && !store.isLoading"
+            variant="outline"
+            size="sm"
+            @click="handleClearAll"
+            :disabled="store.isClearing"
+          >
+            <Trash2 :size="16" />
+            {{ store.isClearing ? 'Clearing...' : 'Clear All' }}
+          </BaseButton>
+          <BaseButton
+            v-if="!hasQuestions && !store.isLoading"
+            variant="primary"
+            size="sm"
+            @click="handleExtractQuestions"
+            :disabled="store.isExtracting"
+          >
+            <RefreshCw :size="16" :class="{ 'spinning': store.isExtracting }" />
+            {{ store.isExtracting ? 'Extracting...' : 'Extract Questions' }}
+          </BaseButton>
+        </div>
       </div>
 
       <!-- Main Content -->
@@ -171,9 +201,9 @@ function handlePageChange(page) {
             <div class="questions-grid">
               <QuestionCard
                 v-for="question in store.questions"
-                :key="question.id || question.uuid"
+                :key="question.uuid || question.id"
                 :question="question"
-                :selected="store.isQuestionSelected(question.id || question.uuid)"
+                :selected="store.isQuestionSelected(question.uuid || question.id)"
                 @toggle-selection="handleToggleSelection"
               />
             </div>
@@ -220,6 +250,36 @@ function handlePageChange(page) {
         <AlertCircle :size="20" />
         <span>{{ store.error }}</span>
       </div>
+
+      <!-- Clear Confirmation Dialog -->
+      <div v-if="showClearConfirm" class="modal-overlay" @click.self="showClearConfirm = false">
+        <BaseCard padding="lg" class="confirmation-dialog">
+          <h3 class="confirmation-dialog__title">Clear Question Bank</h3>
+          <p class="confirmation-dialog__message">
+            Are you sure you want to clear all questions from your question bank? This action cannot be undone.
+          </p>
+          <div class="confirmation-dialog__actions">
+            <BaseButton
+              variant="outline"
+              size="sm"
+              @click="showClearConfirm = false"
+              :disabled="store.isClearing"
+            >
+              Cancel
+            </BaseButton>
+            <BaseButton
+              variant="primary"
+              size="sm"
+              @click="confirmClearAll"
+              :disabled="store.isClearing"
+            >
+              <Trash2 v-if="!store.isClearing" :size="16" />
+              <BeatLoader v-else :loading="true" size="12px" color="#fff" />
+              {{ store.isClearing ? 'Clearing...' : 'Clear All' }}
+            </BaseButton>
+          </div>
+        </BaseCard>
+      </div>
     </div>
   </AppShell>
 </template>
@@ -236,6 +296,12 @@ function handlePageChange(page) {
   justify-content: space-between;
   align-items: center;
   gap: 16px;
+}
+
+.question-bank__header-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
 }
 
 .question-bank__grid {
@@ -352,6 +418,45 @@ function handlePageChange(page) {
   to {
     transform: rotate(360deg);
   }
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.confirmation-dialog {
+  max-width: 480px;
+  width: 90%;
+  margin: 20px;
+}
+
+.confirmation-dialog__title {
+  margin: 0 0 16px;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.confirmation-dialog__message {
+  margin: 0 0 24px;
+  color: var(--color-text-muted);
+  line-height: 1.6;
+}
+
+.confirmation-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
 }
 
 /* Responsive */

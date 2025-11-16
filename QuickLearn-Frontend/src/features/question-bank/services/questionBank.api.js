@@ -98,6 +98,34 @@ export const questionBankApi = {
   },
 
   /**
+   * Clear all questions from the question bank
+   * @returns {Promise<{deleted: number, message: string}>}
+   */
+  async clearAllQuestions() {
+    if (USE_MOCK) {
+      return questionBankMock.clearAllQuestions()
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/api/question-bank`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+        credentials: 'include'
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(errorText || `Failed to clear question bank: ${response.status}`)
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Error clearing question bank:', error)
+      throw error
+    }
+  },
+
+  /**
    * Create custom quiz from selected questions
    * @param {Object} quizData - Quiz data
    * @returns {Promise<{quiz: Object}>}

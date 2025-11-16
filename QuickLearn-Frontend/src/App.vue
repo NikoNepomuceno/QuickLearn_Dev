@@ -1,9 +1,12 @@
 <script setup>
-// import { SpeedInsights } from "@vercel/speed-insights/next"
+import { onMounted, onUnmounted } from 'vue'
 import Swal from 'sweetalert2'
 import GlobalLoader from './components/GlobalLoader.vue'
+import AchievementToastContainer from './components/AchievementToastContainer.vue'
+import { useAchievementToast } from './composables/useAchievementToast'
+import { achievementSocket } from './services/achievementSocket'
+import { soundService } from './services/soundService'
 
-// Configure a Toast instance with dynamic dark mode support
 function getToastConfig() {
   const isDark = document.body.classList.contains('dark')
   return {
@@ -64,11 +67,141 @@ function toggleTheme() {
     localStorage.setItem('theme', isDark ? 'dark' : 'light')
   } catch {}
 }
+
+// Achievement Toast System
+const { showAchievementToast } = useAchievementToast()
+
+// Test function for achievement toasts (exposed on window for console testing)
+if (typeof window !== 'undefined') {
+  window.$testAchievement = {
+    // Test a common achievement
+    common: () => {
+      showAchievementToast({
+        id: 'test-common',
+        code: 'test_common',
+        name: 'First Steps',
+        description: 'You completed your first quiz!',
+        icon: 'star',
+        rarity: 'common',
+        points: 10,
+        lottieUrl: null
+      })
+    },
+    // Test a rare achievement
+    rare: () => {
+      showAchievementToast({
+        id: 'test-rare',
+        code: 'test_rare',
+        name: 'Speed Demon',
+        description: 'Completed a quiz in under 2 minutes!',
+        icon: 'bolt',
+        rarity: 'rare',
+        points: 50,
+        lottieUrl: null
+      })
+    },
+    // Test an epic achievement
+    epic: () => {
+      showAchievementToast({
+        id: 'test-epic',
+        code: 'test_epic',
+        name: 'Perfect Score',
+        description: 'Achieved 100% on a quiz!',
+        icon: 'trophy',
+        rarity: 'epic',
+        points: 100,
+        lottieUrl: null
+      })
+    },
+    // Test a legendary achievement
+    legendary: () => {
+      showAchievementToast({
+        id: 'test-legendary',
+        code: 'test_legendary',
+        name: 'Master Scholar',
+        description: 'Earned 1000 total points!',
+        icon: 'crown',
+        rarity: 'legendary',
+        points: 500,
+        lottieUrl: null
+      })
+    },
+    // Test all rarities in sequence
+    all: () => {
+      const achievements = [
+        {
+          id: 'test-common',
+          code: 'test_common',
+          name: 'First Steps',
+          description: 'You completed your first quiz!',
+          icon: 'star',
+          rarity: 'common',
+          points: 10
+        },
+        {
+          id: 'test-rare',
+          code: 'test_rare',
+          name: 'Speed Demon',
+          description: 'Completed a quiz in under 2 minutes!',
+          icon: 'bolt',
+          rarity: 'rare',
+          points: 50
+        },
+        {
+          id: 'test-epic',
+          code: 'test_epic',
+          name: 'Perfect Score',
+          description: 'Achieved 100% on a quiz!',
+          icon: 'trophy',
+          rarity: 'epic',
+          points: 100
+        },
+        {
+          id: 'test-legendary',
+          code: 'test_legendary',
+          name: 'Master Scholar',
+          description: 'Earned 1000 total points!',
+          icon: 'crown',
+          rarity: 'legendary',
+          points: 500
+        }
+      ]
+      
+      achievements.forEach((achievement, index) => {
+        setTimeout(() => {
+          showAchievementToast(achievement)
+        }, index * 2000) // Show each 2 seconds apart
+      })
+    }
+  }
+}
+
+// Initialize sound service and socket connection
+onMounted(() => {
+  try {
+    // Initialize sound service (loads sounds in background)
+    soundService.init()
+
+    // Set up achievement socket connection
+    achievementSocket.connect((achievement) => {
+      showAchievementToast(achievement)
+    })
+  } catch (error) {
+    console.error('Error initializing achievement system:', error)
+  }
+})
+
+// Cleanup on unmount
+onUnmounted(() => {
+  achievementSocket.disconnect()
+  soundService.destroy()
+})
 </script>
 
 <template>
   <router-view />
   <GlobalLoader />
+  <AchievementToastContainer />
 </template>
 
 <style scoped></style>

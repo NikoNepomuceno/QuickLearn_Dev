@@ -57,13 +57,9 @@ class QuestionBankService {
 
             // Process each question
             for (const question of quiz.questions) {
-                // Check if question already exists (avoid duplicates)
-                const exists = await QuestionBank.existsByQuestionData(userId, question);
-                if (exists) {
-                    skipped++;
-                    continue;
-                }
-
+                // Note: We skip duplicate check when clearing question bank first
+                // This ensures all questions from the latest quiz are extracted
+                
                 // Categorize question using AI
                 const categorization = await this.categorizeQuestion(question);
 
@@ -202,6 +198,9 @@ class QuestionBankService {
         try {
             const { title, description, questionIds } = quizData;
 
+            console.log(`[createCustomQuiz] User ${userId} creating quiz with ${questionIds?.length || 0} questions`);
+            console.log(`[createCustomQuiz] Question IDs:`, questionIds);
+
             if (!title || !title.trim()) {
                 throw new Error('Quiz title is required');
             }
@@ -212,23 +211,81 @@ class QuestionBankService {
 
             // Fetch questions from question bank
             const questions = [];
+            const notFoundIds = [];
+            
+            // Debug: Check what question IDs exist for this user
+            const userQuestions = await QuestionBank.findByUserId(userId, {}, { page: 1, limit: 1000 });
+            const existingIds = userQuestions.questions.map(q => q.id);
+            const existingUuids = userQuestions.questions.map(q => q.uuid);
+            console.log(`[createCustomQuiz] User ${userId} has ${userQuestions.questions.length} questions in bank`);
+            console.log(`[createCustomQuiz] Existing IDs: ${existingIds.slice(0, 10).join(', ')}... (showing first 10)`);
+            console.log(`[createCustomQuiz] Existing UUIDs: ${existingUuids.slice(0, 5).join(', ')}... (showing first 5)`);
+            console.log(`[createCustomQuiz] Requested UUIDs: ${questionIds.join(', ')}`);
+            
+            // Check if any requested UUIDs match existing ones
+            const requestedUuids = questionIds.filter(id => typeof id === 'string' && (id.length === 36 || id.length === 32));
+            const matchingUuids = requestedUuids.filter(reqUuid => {
+                const normalized = reqUuid.trim();
+                return existingUuids.some(existing => existing === normalized || existing.toLowerCase() === normalized.toLowerCase());
+            });
+            console.log(`[createCustomQuiz] Matching UUIDs found: ${matchingUuids.length} of ${requestedUuids.length}`);
+            
             for (const questionId of questionIds) {
-                // Try to find by UUID first, then by ID
-                let question = await QuestionBank.findByUuid(questionId);
+                let question = null;
+                
+                // Try to find by UUID first (if it looks like a UUID)
+                // UUID format: 36 characters with hyphens (e.g., "550e8400-e29b-41d4-a716-446655440000")
+                const isUuidFormat = typeof questionId === 'string' && 
+                                     (questionId.length === 36 || questionId.length === 32) && 
+                                     (questionId.includes('-') || /^[0-9a-f]{32}$/i.test(questionId));
+                
+                if (isUuidFormat) {
+                    // Trim and normalize UUID (remove whitespace, ensure proper format)
+                    const normalizedUuid = String(questionId).trim();
+                    question = await QuestionBank.findByUuid(normalizedUuid);
+                    if (!question && normalizedUuid.length === 32) {
+                        // Try with hyphens if it's a 32-char hex string
+                        const withHyphens = `${normalizedUuid.slice(0,8)}-${normalizedUuid.slice(8,12)}-${normalizedUuid.slice(12,16)}-${normalizedUuid.slice(16,20)}-${normalizedUuid.slice(20)}`;
+                        question = await QuestionBank.findByUuid(withHyphens);
+                    }
+                }
+                
+                // If not found by UUID, try by numeric ID
                 if (!question) {
-                    const id = parseInt(questionId);
-                    if (!isNaN(id)) {
+                    const id = typeof questionId === 'number' ? questionId : parseInt(questionId);
+                    if (!isNaN(id) && id > 0) {
                         question = await QuestionBank.findById(id);
                     }
                 }
 
-                if (question && question.userId === userId) {
-                    questions.push(question.questionData);
+                if (question) {
+                    // Check if question belongs to user
+                    // Normalize both to numbers for comparison (database returns BIGINT, userId might be number or string)
+                    const questionUserId = Number(question.userId);
+                    const requestUserId = Number(userId);
+                    
+                    if (!isNaN(questionUserId) && !isNaN(requestUserId) && questionUserId === requestUserId) {
+                        questions.push(question.questionData);
+                        console.log(`[createCustomQuiz] Found question ${questionId} -> ID: ${question.id}, UUID: ${question.uuid}`);
+                    } else {
+                        console.warn(`Question ${questionId} belongs to different user (${question.userId} [${typeof question.userId}] vs ${userId} [${typeof userId}])`);
+                        notFoundIds.push(questionId);
+                    }
+                } else {
+                    console.warn(`Question not found: ${questionId} (type: ${typeof questionId}, isUUID: ${isUuidFormat})`);
+                    notFoundIds.push(questionId);
                 }
             }
 
             if (questions.length === 0) {
-                throw new Error('No valid questions found');
+                const errorMsg = `No valid questions found. Requested: ${questionIds.length}, Found: ${questions.length}, Not found: ${notFoundIds.join(', ')}`;
+                console.error(errorMsg);
+                throw new Error(errorMsg);
+            }
+            
+            // Log if some questions were not found
+            if (notFoundIds.length > 0) {
+                console.warn(`Some questions were not found or don't belong to user: ${notFoundIds.join(', ')}`);
             }
 
             // Create quiz using Quiz model
@@ -263,6 +320,21 @@ class QuestionBankService {
             return await QuestionBank.getStats(userId);
         } catch (error) {
             console.error('Error getting stats:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Clear all questions from user's question bank
+     * @param {number} userId - User ID
+     * @returns {Promise<{deleted: number}>}
+     */
+    async clearAllQuestions(userId) {
+        try {
+            const deletedCount = await QuestionBank.deleteAllByUserId(userId);
+            return { deleted: deletedCount };
+        } catch (error) {
+            console.error('Error clearing all questions:', error);
             throw error;
         }
     }

@@ -14,6 +14,7 @@ export const useQuestionBankStore = defineStore('questionBank', {
     },
     isLoading: false,
     isExtracting: false,
+    isClearing: false,
     error: null,
     stats: null,
     pagination: {
@@ -36,9 +37,12 @@ export const useQuestionBankStore = defineStore('questionBank', {
      * Get selected questions
      */
     selectedQuestions(state) {
-      return state.questions.filter(q => 
-        state.selectedQuestionIds.has(q.id) || state.selectedQuestionIds.has(q.uuid)
-      )
+      return state.questions.filter(q => {
+        // Check both UUID and ID since selection might use either
+        const uuid = q.uuid || q.id
+        const id = q.id || q.uuid
+        return state.selectedQuestionIds.has(uuid) || state.selectedQuestionIds.has(id)
+      })
     },
 
     /**
@@ -132,7 +136,8 @@ export const useQuestionBankStore = defineStore('questionBank', {
      */
     selectAll() {
       this.questions.forEach(q => {
-        this.selectedQuestionIds.add(q.id || q.uuid)
+        // Prefer UUID over ID for consistency
+        this.selectedQuestionIds.add(q.uuid || q.id)
       })
     },
 
@@ -230,6 +235,37 @@ export const useQuestionBankStore = defineStore('questionBank', {
     },
 
     /**
+     * Clear all questions from the question bank
+     */
+    async clearAllQuestions() {
+      this.isClearing = true
+      this.error = null
+
+      try {
+        const response = await questionBankApi.clearAllQuestions()
+        
+        // Reset store state after successful clearing
+        this.questions = []
+        this.selectedQuestionIds.clear()
+        this.pagination = {
+          page: 1,
+          limit: 20,
+          total: 0,
+          totalPages: 0
+        }
+        this.stats = null
+
+        return response
+      } catch (error) {
+        this.error = error.message
+        console.error('Error clearing question bank:', error)
+        throw error
+      } finally {
+        this.isClearing = false
+      }
+    },
+
+    /**
      * Reset store state
      */
     reset() {
@@ -244,6 +280,7 @@ export const useQuestionBankStore = defineStore('questionBank', {
       }
       this.isLoading = false
       this.isExtracting = false
+      this.isClearing = false
       this.error = null
       this.stats = null
       this.pagination = {

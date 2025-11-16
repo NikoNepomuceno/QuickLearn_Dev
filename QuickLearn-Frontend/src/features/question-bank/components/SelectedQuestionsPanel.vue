@@ -51,7 +51,7 @@ function handleRemoveQuestion(questionId) {
       <div class="selected-panel__list">
         <div
           v-for="question in selectedQuestions.slice(0, 5)"
-          :key="question.id || question.uuid"
+          :key="question.uuid || question.id"
           class="selected-item"
         >
           <span class="selected-item__stem">
@@ -59,7 +59,7 @@ function handleRemoveQuestion(questionId) {
           </span>
           <button
             class="selected-item__remove"
-            @click.stop="handleRemoveQuestion(question.id || question.uuid)"
+            @click.stop="handleRemoveQuestion(question.uuid || question.id)"
             aria-label="Remove question"
           >
             <X :size="14" />

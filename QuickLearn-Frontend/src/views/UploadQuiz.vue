@@ -932,6 +932,7 @@ function handleGenerationChoiceSelect(option) {
       :visible="showPageSelectionModal"
       :file-name="fileName"
       :pages="filePages"
+      :file="selectedFile"
       @close="handlePageSelectionCancel"
       @confirm="handlePageSelectionConfirm"
     />

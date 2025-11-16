@@ -300,7 +300,6 @@ function smoothScrollTo(event, sectionId) {
               <li><span class="check">✓</span> Faster processing</li>
               <li><span class="check">✓</span> Page selection & flashcards</li>
               <li><span class="check">✓</span> Progress tracking</li>
-              <li><span class="check">✓</span> Brand-free exports</li>
             </ul>
             <button class="pricing-btn primary" @click="selectPlan('pro')">Choose Pro</button>
           </div>

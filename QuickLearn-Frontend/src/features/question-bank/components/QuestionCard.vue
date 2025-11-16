@@ -44,7 +44,8 @@ const truncatedStem = computed(() => {
 })
 
 function handleClick() {
-  emit('toggle-selection', props.question.id || props.question.uuid)
+  // Prefer UUID over ID for consistency
+  emit('toggle-selection', props.question.uuid || props.question.id)
 }
 </script>
 

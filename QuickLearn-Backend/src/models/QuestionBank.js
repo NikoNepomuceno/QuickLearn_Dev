@@ -113,10 +113,19 @@ class QuestionBank {
 
     static async findByUuid(uuid) {
         const pool = await getPool();
-        const [rows] = await pool.execute(
+        // Try exact match first
+        let [rows] = await pool.execute(
             'SELECT * FROM question_bank WHERE uuid = ?',
             [uuid]
         );
+        
+        // If not found, try case-insensitive match (MySQL default is case-insensitive for CHAR, but be explicit)
+        if (rows.length === 0) {
+            [rows] = await pool.execute(
+                'SELECT * FROM question_bank WHERE LOWER(uuid) = LOWER(?)',
+                [uuid]
+            );
+        }
         
         if (rows.length === 0) return null;
         
@@ -348,6 +357,21 @@ class QuestionBank {
         );
         
         return result.affectedRows > 0;
+    }
+
+    /**
+     * Delete all questions for a user
+     * @param {number} userId - User ID
+     * @returns {Promise<number>} Number of deleted rows
+     */
+    static async deleteAllByUserId(userId) {
+        const pool = await getPool();
+        const [result] = await pool.execute(
+            'DELETE FROM question_bank WHERE user_id = ?',
+            [userId]
+        );
+        
+        return result.affectedRows;
     }
 
     static async existsByQuestionData(userId, questionData) {

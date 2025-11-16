@@ -175,6 +175,19 @@ export const questionBankMock = {
   },
 
   /**
+   * Clear all questions (mock)
+   */
+  async clearAllQuestions() {
+    await new Promise(resolve => setTimeout(resolve, 500))
+    const deletedCount = mockQuestions.length
+    mockQuestions.length = 0 // Clear the array
+    return {
+      deleted: deletedCount,
+      message: `Successfully cleared ${deletedCount} questions from question bank.`
+    }
+  },
+
+  /**
    * Create custom quiz
    */
   async createCustomQuiz(quizData) {

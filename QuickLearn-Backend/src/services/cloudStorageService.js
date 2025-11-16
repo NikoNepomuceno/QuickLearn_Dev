@@ -3,6 +3,7 @@ const QuizAttempt = require('../models/QuizAttempt');
 const File = require('../models/File');
 const { parseUploadedFile } = require('../utils/parseFile');
 const { generateAIPoweredQuiz, generateAdvancedQuiz, generateAIPoweredSummary, generateAIPoweredFlashcards } = require('./quizService');
+const questionBankService = require('./questionBankService');
 
 // ----- Scoring helpers -----
 function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
@@ -211,6 +212,21 @@ class CloudStorageService {
             };
 
             const quiz = await Quiz.create(quizData);
+            
+            // Clear question bank and extract questions from this new quiz only
+            // This ensures question bank only contains questions from the latest quiz
+            try {
+                // First, clear all existing questions
+                await questionBankService.clearAllQuestions(userId);
+                console.log(`[Auto-extract] Cleared existing question bank for user ${userId}`);
+                
+                // Then, extract questions from the newly created quiz
+                const extractionResult = await questionBankService.extractQuestionsFromQuiz(quiz, userId);
+                console.log(`[Auto-extract] Extracted ${extractionResult.extracted} questions from newly created quiz ${quiz.id}`);
+            } catch (extractionError) {
+                console.error('Error auto-extracting questions to question bank:', extractionError);
+                // Continue - quiz creation was successful even if extraction fails
+            }
             
             return {
                 quiz: quiz,

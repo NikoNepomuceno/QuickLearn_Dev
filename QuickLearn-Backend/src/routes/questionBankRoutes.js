@@ -8,24 +8,11 @@ const router = express.Router();
  * GET /api/question-bank
  * Get user's questions with optional filters and pagination
  * Query params: topic, category, difficulty, type, search, page, limit
- * Triggers extraction if no questions exist (on-demand)
+ * Note: Questions are automatically extracted when a new quiz is created
  */
 router.get('/', authenticateToken, async (req, res) => {
     try {
         const userId = req.user.id;
-        
-        // Check if user has any questions
-        const count = await require('../models/QuestionBank').countByUserId(userId);
-        
-        // If no questions, trigger extraction on-demand
-        if (count === 0) {
-            try {
-                await questionBankService.extractAllQuestions(userId);
-            } catch (extractError) {
-                console.error('Error during on-demand extraction:', extractError);
-                // Continue even if extraction fails - return empty result
-            }
-        }
         
         // Parse filters from query params
         const filters = {
@@ -74,6 +61,26 @@ router.post('/extract', authenticateToken, async (req, res) => {
     } catch (error) {
         console.error('Error extracting questions:', error);
         return res.status(500).json({ error: error.message || 'Failed to extract questions' });
+    }
+});
+
+/**
+ * DELETE /api/question-bank
+ * Clear all questions from user's question bank
+ */
+router.delete('/', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        
+        const result = await questionBankService.clearAllQuestions(userId);
+        
+        return res.json({
+            deleted: result.deleted,
+            message: `Successfully cleared ${result.deleted} questions from question bank.`
+        });
+    } catch (error) {
+        console.error('Error clearing question bank:', error);
+        return res.status(500).json({ error: error.message || 'Failed to clear question bank' });
     }
 });
 

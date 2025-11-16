@@ -101,32 +101,6 @@
             />
           </div>
         </section>
-
-        <aside class="side-panel">
-          <section class="card highlight-card">
-            <h4>Next milestone</h4>
-            <p>{{ milestone.description }}</p>
-            <div class="progress">
-              <div class="progress__bar" role="presentation">
-                <span class="progress__fill" :style="{ width: milestone.progress + '%' }" />
-              </div>
-              <div class="progress__meta">
-                <span>{{ milestone.progress }}% to goal</span>
-                <span>{{ milestone.reward }}</span>
-              </div>
-            </div>
-          </section>
-
-          <section class="card">
-            <h4>Quick wins</h4>
-            <ul class="card-list">
-              <li v-for="tip in quickWins" :key="tip.title">
-                <span class="card-list__title">{{ tip.title }}</span>
-                <span class="card-list__meta">{{ tip.meta }}</span>
-              </li>
-            </ul>
-          </section>
-        </aside>
       </div>
       </div>
     </Transition>
@@ -159,25 +133,13 @@ const hasSeenAnimation = () => {
 const showAnimation = ref(!hasSeenAnimation())
 let animationTimeout = null
 
-const milestone = {
-  description: 'Complete two more AI lessons to unlock the Expert badge.',
-  progress: 72,
-  reward: 'Expert badge'
-}
-
-const quickWins = [
-  { title: 'Finish a micro-lesson', meta: 'Add 180 XP in 10 minutes' },
-  { title: 'Host a study session', meta: 'Invite two friends to collaborate' },
-  { title: 'Review yesterday\'s recap', meta: 'Extend your streak to 7 days' }
-]
-
 let pollHandle
 
 onMounted(async () => {
   // Start fetching data in parallel
   fetchRequestsCount()
   pollHandle = window.setInterval(fetchRequestsCount, 30000)
-  
+
   // Hide animation after it plays (3 seconds) and mark as shown
   if (showAnimation.value) {
     animationTimeout = setTimeout(() => {
@@ -230,7 +192,7 @@ function clearBadge() {
 
 .content-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-columns: 1fr;
   gap: 24px;
   align-items: start;
 }
@@ -323,106 +285,6 @@ function clearBadge() {
   min-height: 320px;
 }
 
-.side-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.card {
-  background: #ffffff;
-  border: 1px solid rgba(226, 232, 240, 0.9);
-  border-radius: 20px;
-  padding: 24px;
-  box-shadow:
-    0 18px 40px rgba(15, 23, 42, 0.08),
-    0 8px 18px rgba(15, 23, 42, 0.06);
-  display: grid;
-  gap: 16px;
-}
-
-.card h4 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 700;
-  color: #111827;
-  letter-spacing: -0.01em;
-  text-transform: capitalize;
-}
-
-.card p {
-  margin: 0;
-  color: #475569;
-  line-height: 1.6;
-}
-
-.highlight-card {
-  background: linear-gradient(145deg, rgba(59, 130, 246, 0.12), rgba(79, 70, 229, 0.2));
-  border-color: rgba(59, 130, 246, 0.32);
-  box-shadow:
-    0 24px 60px rgba(79, 70, 229, 0.16),
-    0 12px 26px rgba(59, 130, 246, 0.18);
-}
-
-.progress {
-  display: grid;
-  gap: 12px;
-}
-
-.progress__bar {
-  position: relative;
-  width: 100%;
-  height: 10px;
-  background: rgba(255, 255, 255, 0.5);
-  border-radius: 999px;
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.6);
-}
-
-.progress__fill {
-  position: absolute;
-  inset: 0 auto 0 0;
-  background: linear-gradient(135deg, var(--primary-light), var(--primary-main));
-  border-radius: 999px;
-  transition: width 0.3s ease;
-}
-
-.progress__meta {
-  display: flex;
-  justify-content: space-between;
-  font-size: 13px;
-  font-weight: 600;
-  color: #1e3a8a;
-  gap: 8px;
-}
-
-.progress__meta span {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.card-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 14px;
-}
-
-.card-list__title {
-  display: block;
-  font-weight: 600;
-  color: #1f2937;
-}
-
-.card-list__meta {
-  display: block;
-  font-size: 13px;
-  color: #475569;
-  margin-top: 4px;
-}
-
 .badge {
   position: absolute;
   top: -6px;
@@ -457,10 +319,6 @@ function clearBadge() {
 @media (max-width: 1200px) {
   .content-grid {
     grid-template-columns: 1fr;
-  }
-
-  .side-panel {
-    order: -1;
   }
 }
 
@@ -520,38 +378,6 @@ function clearBadge() {
     min-height: 280px;
   }
 
-  .card {
-    padding: 20px;
-    border-radius: 16px;
-    gap: 14px;
-  }
-
-  .card h4 {
-    font-size: 15px;
-  }
-
-  .card p {
-    font-size: 14px;
-  }
-
-  .progress__meta {
-    font-size: 12px;
-    flex-wrap: wrap;
-    gap: 4px;
-  }
-
-  .card-list {
-    gap: 12px;
-  }
-
-  .card-list__title {
-    font-size: 14px;
-  }
-
-  .card-list__meta {
-    font-size: 12px;
-  }
-
   .badge {
     font-size: 10px;
     min-width: 18px;
@@ -609,50 +435,6 @@ function clearBadge() {
     border-radius: 12px;
     min-height: 240px;
   }
-
-  .card {
-    padding: 16px;
-    border-radius: 12px;
-    gap: 12px;
-  }
-
-  .card h4 {
-    font-size: 14px;
-  }
-
-  .card p {
-    font-size: 13px;
-    line-height: 1.5;
-  }
-
-  .progress {
-    gap: 10px;
-  }
-
-  .progress__bar {
-    height: 8px;
-  }
-
-  .progress__meta {
-    font-size: 11px;
-  }
-
-  .card-list {
-    gap: 10px;
-  }
-
-  .card-list__title {
-    font-size: 13px;
-  }
-
-  .card-list__meta {
-    font-size: 11px;
-    margin-top: 2px;
-  }
-
-  .side-panel {
-    gap: 12px;
-  }
 }
 
 /* Extra small mobile */
@@ -677,33 +459,18 @@ function clearBadge() {
   .panel-body {
     padding: 12px;
   }
-
-  .card {
-    padding: 14px;
-  }
 }
 
-/* Dark mode */
-/* body.dark .leaderboards-page {
-  background:
-    radial-gradient(1000px 600px at 10% -20%, rgba(102, 126, 234, 0.16), transparent 60%),
-    radial-gradient(900px 500px at 120% 10%, rgba(118, 75, 162, 0.14), transparent 60%);
-} */
-
-body.dark .main-panel__headline h3,
-body.dark .card h4 {
+body.dark .main-panel__headline h3 {
   color: #f8fafc;
 }
 
 body.dark .main-panel__headline p,
-body.dark .tab-helper,
-body.dark .card p,
-body.dark .card-list__meta {
+body.dark .tab-helper {
   color: #cbd5f5;
 }
 
-body.dark .content-grid .main-panel,
-body.dark .side-panel .card {
+body.dark .content-grid .main-panel {
   background: #0f172a;
   border-color: rgba(30, 41, 59, 0.8);
   box-shadow:
