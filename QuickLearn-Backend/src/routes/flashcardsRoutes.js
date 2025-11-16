@@ -28,8 +28,10 @@ const upload = multer({
 // List user flashcards
 router.get('/', authenticateToken, async (req, res) => {
 	try {
-		const limit = Math.min(50, Number(req.query.limit) || 20);
-		const offset = Math.max(0, Number(req.query.offset) || 0);
+		const limitRaw = Number(req.query.limit);
+		const offsetRaw = Number(req.query.offset);
+		const limit = isNaN(limitRaw) ? 20 : Math.min(50, Math.max(1, limitRaw));
+		const offset = isNaN(offsetRaw) ? 0 : Math.max(0, Math.floor(offsetRaw));
 		const items = await CloudStorageService.getUserFlashcards(req.user.id, limit, offset);
 		return res.json({ flashcards: items, pagination: { limit, offset, hasMore: items.length === limit } });
 	} catch (err) {

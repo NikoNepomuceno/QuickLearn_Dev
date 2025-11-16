@@ -158,8 +158,10 @@ router.post('/sessions/:uuid/finish', authenticateToken, async (req, res) => {
 // Get user's adaptive sessions
 router.get('/sessions', authenticateToken, async (req, res) => {
     try {
-        const limit = Math.min(50, parseInt(req.query.limit, 10) || 20);
-        const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
+        const limitRaw = parseInt(req.query.limit, 10);
+        const offsetRaw = parseInt(req.query.offset, 10);
+        const limit = isNaN(limitRaw) ? 20 : Math.min(50, Math.max(1, limitRaw));
+        const offset = isNaN(offsetRaw) ? 0 : Math.max(0, offsetRaw);
         const sessions = await adaptiveService.getUserSessions(req.user.id, limit, offset);
         return res.json({ sessions, pagination: { limit, offset, hasMore: sessions.length === limit } });
     } catch (err) {

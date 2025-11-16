@@ -28,9 +28,11 @@ router.get('/', authenticateToken, async (req, res) => {
         };
         
         // Parse pagination
+        const pageRaw = parseInt(req.query.page, 10);
+        const limitRaw = parseInt(req.query.limit, 10);
         const pagination = {
-            page: parseInt(req.query.page) || 1,
-            limit: Math.min(parseInt(req.query.limit) || 20, 100) // Max 100 per page
+            page: isNaN(pageRaw) ? 1 : Math.max(1, pageRaw),
+            limit: isNaN(limitRaw) ? 20 : Math.min(Math.max(1, limitRaw), 100) // Max 100 per page
         };
         
         const result = await questionBankService.getUserQuestions(userId, filters, pagination);

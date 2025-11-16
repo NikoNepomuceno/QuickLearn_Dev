@@ -17,7 +17,8 @@ async function getFriends(userId, pool) {
 router.get('/', authenticateToken, async (req, res) => {
 	try {
 		const userId = Number(req.user.id);
-		const limit = Math.min(50, Number(req.query.limit) || 50);
+		const limitRaw = Number(req.query.limit);
+		const limit = isNaN(limitRaw) ? 50 : Math.min(50, Math.max(1, limitRaw));
 		const pool = await getPool();
 		// Get only accepted friends - this ensures we only show current user + their friends
 		const friendIds = await getFriends(userId, pool);
