@@ -83,7 +83,7 @@ export const useQuestionBankStore = defineStore('questionBank', {
      * Fetch questions from the question bank
      * Triggers extraction if no questions exist (on-demand)
      */
-    async fetchQuestions(resetFilters = false) {
+    async fetchQuestions(_resetFilters = false) {
       this.isLoading = true
       this.error = null
 
@@ -191,7 +191,12 @@ export const useQuestionBankStore = defineStore('questionBank', {
       this.error = null
 
       try {
-        const questionIds = Array.from(this.selectedQuestionIds)
+        // Use questionIds from quizData if provided (respects order from builder),
+        // otherwise fall back to selectedQuestionIds
+        const questionIds = quizData.questionIds && quizData.questionIds.length > 0
+          ? quizData.questionIds
+          : Array.from(this.selectedQuestionIds)
+        
         const response = await questionBankApi.createCustomQuiz({
           ...quizData,
           questionIds
