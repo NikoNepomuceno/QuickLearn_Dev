@@ -4,11 +4,11 @@ const crypto = require('crypto');
 const { register, verifyEmail, resendOtp, login, logout, forgotPassword, resetPassword } = require('../services/authService');
 const { generateState, buildGoogleAuthUrl, exchangeCodeForTokens, fetchGoogleProfile, loginOrCreateFromGoogle } = require('../services/oauthService');
 const { getCookieOptions } = require('../middleware/auth');
-const { loginLimiter } = require('../middleware/rateLimiter');
+const { loginLimiter, authLimiter } = require('../middleware/rateLimiter');
 
 const router = express.Router();
 
-router.post('/register', loginLimiter, async (req, res) => {
+router.post('/register', authLimiter, async (req, res) => {
 	try {
 		const { username, email, password, confirmPassword } = req.body || {};
 		const result = await register({ username, email, password, confirmPassword, ip: req.ip, userAgent: req.headers['user-agent'] });
@@ -18,7 +18,7 @@ router.post('/register', loginLimiter, async (req, res) => {
 	}
 });
 
-router.post('/verify-email', loginLimiter, async (req, res) => {
+router.post('/verify-email', authLimiter, async (req, res) => {
 	try {
 		const { email, otp } = req.body || {};
 		const result = await verifyEmail({ email, otp });
@@ -28,7 +28,7 @@ router.post('/verify-email', loginLimiter, async (req, res) => {
 	}
 });
 
-router.post('/resend-otp', loginLimiter, async (req, res) => {
+router.post('/resend-otp', authLimiter, async (req, res) => {
 	try {
 		const { email } = req.body || {};
 		const result = await resendOtp({ email });
@@ -72,7 +72,7 @@ router.post('/login', loginLimiter, async (req, res) => {
 });
 
 
-router.post('/forgot-password', loginLimiter, async (req, res) => {
+router.post('/forgot-password', authLimiter, async (req, res) => {
 	try {
 		const { email } = req.body || {};
 		const result = await forgotPassword({ email });

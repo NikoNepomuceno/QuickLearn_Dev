@@ -120,6 +120,8 @@ function setupLeaderboardRealtime(io) {
 			return socket.disconnect(true);
 		}
 		socket.join(`leaderboard:${viewerId}`);
+		// Also join user room for achievement notifications
+		socket.join(`user:${viewerId}`);
 
 		socket.on('leaderboard:subscribe', async () => {
 			try {
