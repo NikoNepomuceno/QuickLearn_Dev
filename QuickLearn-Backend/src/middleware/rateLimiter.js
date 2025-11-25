@@ -1,4 +1,5 @@
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = require('express-rate-limit');
 
 // Stricter limiter for login attempts (security-sensitive)
 const loginLimiter = rateLimit({
@@ -10,8 +11,10 @@ const loginLimiter = rateLimit({
 	skipSuccessfulRequests: false, // Count all requests
 	keyGenerator: (req) => {
 		// Use IP + identifier if available for more granular tracking
+		// Use ipKeyGenerator helper to properly handle IPv6 addresses
+		const ip = ipKeyGenerator(req);
 		const identifier = req.body?.identifier || '';
-		return identifier ? `${req.ip}:${identifier.toLowerCase()}` : req.ip;
+		return identifier ? `${ip}:${identifier.toLowerCase()}` : ip;
 	}
 });
 

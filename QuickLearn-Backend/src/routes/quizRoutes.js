@@ -26,30 +26,69 @@ const upload = multer({
     }
 });
 
-// Parse file and return page information
-router.post('/parse-file', authenticateToken, upload.single('file'), async (req, res) => {
+const MAX_FILES_PER_UPLOAD = 3;
+
+const uploadMultiple = upload.fields([
+    { name: 'files', maxCount: MAX_FILES_PER_UPLOAD },
+    { name: 'file', maxCount: MAX_FILES_PER_UPLOAD }
+]);
+
+function collectUploadedFiles(req) {
+    const files = [];
+    if (req.files) {
+        for (const key of Object.keys(req.files)) {
+            const value = req.files[key];
+            if (Array.isArray(value)) {
+                files.push(...value);
+            }
+        }
+    }
+    if (!files.length && req.file) {
+        files.push(req.file);
+    }
+    return files;
+}
+
+// Parse file(s) and return page information
+router.post('/parse-file', authenticateToken, uploadMultiple, async (req, res) => {
 	try {
-		if (!req.file) {
-			return res.status(400).json({ error: 'No file uploaded. Field name should be "file".' });
+		const files = collectUploadedFiles(req);
+		if (!files.length) {
+			return res.status(400).json({ error: 'No file uploaded. Field name should be "files".' });
+		}
+		if (files.length > MAX_FILES_PER_UPLOAD) {
+			return res.status(400).json({ error: `You can upload up to ${MAX_FILES_PER_UPLOAD} files per request.` });
 		}
 
-		// Parse the file to extract pages
 		const { parseUploadedFile } = require('../utils/parseFile');
-		const parseResult = await parseUploadedFile(req.file);
-		
-		console.log('File parsing result:', {
-			fileName: req.file.originalname,
-			pageCount: parseResult.pageCount,
-			pagesLength: parseResult.pages?.length,
-			totalTextLength: parseResult.text.length
-		});
-		
+		const aggregatedPages = [];
+		const pageGroups = [];
+		let totalTextLength = 0;
+
+		for (const file of files) {
+			const parseResult = await parseUploadedFile(file);
+			const pages = parseResult.pages || [parseResult.text];
+			const startIndex = aggregatedPages.length;
+			aggregatedPages.push(...pages);
+			pageGroups.push({
+				fileName: file.originalname,
+				startIndex,
+				endIndex: aggregatedPages.length - 1,
+				pageCount: pages.length
+			});
+			totalTextLength += parseResult.text?.length || 0;
+		}
+
 		return res.json({
-			fileName: req.file.originalname,
-			fileSize: req.file.size,
-			pages: parseResult.pages,
-			pageCount: parseResult.pageCount,
-			totalTextLength: parseResult.text.length
+			files: files.map((file) => ({
+				name: file.originalname,
+				size: file.size,
+				type: file.mimetype
+			})),
+			pages: aggregatedPages,
+			pageGroups,
+			pageCount: aggregatedPages.length,
+			totalTextLength
 		});
 	} catch (err) {
 		console.error('Error parsing file:', err);
@@ -60,10 +99,14 @@ router.post('/parse-file', authenticateToken, upload.single('file'), async (req,
 });
 
 // Create quiz with file upload to cloud storage
-router.post('/from-file', authenticateToken, upload.single('file'), async (req, res) => {
+router.post('/from-file', authenticateToken, uploadMultiple, async (req, res) => {
 	try {
-		if (!req.file) {
-			return res.status(400).json({ error: 'No file uploaded. Field name should be "file".' });
+		const files = collectUploadedFiles(req);
+		if (!files.length) {
+			return res.status(400).json({ error: 'No file uploaded. Field name should be "files".' });
+		}
+		if (files.length > MAX_FILES_PER_UPLOAD) {
+			return res.status(400).json({ error: `You can upload up to ${MAX_FILES_PER_UPLOAD} files per request.` });
 		}
 
 		// Parse query parameters for AI options
@@ -72,6 +115,11 @@ router.post('/from-file', authenticateToken, upload.single('file'), async (req, 
 		const difficulty = req.query.difficulty || 'medium';
 		let questionTypes = req.query.types ? req.query.types.split(',') : ['multiple_choice'];
 		const focusAreas = req.query.focus ? req.query.focus.split(',') : [];
+		const timedModeEnabled = req.query.timed === 'true';
+		const timerSecondsRaw = Number(req.query.timerSeconds);
+		const questionTimerSeconds = timedModeEnabled
+			? Math.min(300, Math.max(10, Number.isNaN(timerSecondsRaw) ? 30 : Math.round(timerSecondsRaw)))
+			: null;
 
 		// Normalize 'mixed' sentinel; actual expansion handled by service layer
 		if (questionTypes.length === 1 && questionTypes[0] === 'mixed') {
@@ -96,12 +144,13 @@ router.post('/from-file', authenticateToken, upload.single('file'), async (req, 
 			focusAreas,
 			isAdvanced: false,
 			customInstructions: req.body.customInstructions || '',
-			selectedPages: selectedPages
+			selectedPages: selectedPages,
+			timedModeEnabled,
+			questionTimerSeconds
 		};
 
 		const result = await CloudStorageService.createQuizWithFile(
-			req.file.buffer,
-			req.file.originalname,
+			files,
 			req.user.id,
 			quizOptions
 		);
@@ -119,10 +168,14 @@ router.post('/from-file', authenticateToken, upload.single('file'), async (req, 
 });
 
 // Advanced quiz generation endpoint with cloud storage
-router.post('/advanced', authenticateToken, upload.single('file'), async (req, res) => {
+router.post('/advanced', authenticateToken, uploadMultiple, async (req, res) => {
 	try {
-		if (!req.file) {
-			return res.status(400).json({ error: 'No file uploaded. Field name should be "file".' });
+		const files = collectUploadedFiles(req);
+		if (!files.length) {
+			return res.status(400).json({ error: 'No file uploaded. Field name should be "files".' });
+		}
+		if (files.length > MAX_FILES_PER_UPLOAD) {
+			return res.status(400).json({ error: `You can upload up to ${MAX_FILES_PER_UPLOAD} files per request.` });
 		}
 
 		// Parse advanced options
@@ -152,8 +205,7 @@ router.post('/advanced', authenticateToken, upload.single('file'), async (req, r
 		};
 
 		const result = await CloudStorageService.createQuizWithFile(
-			req.file.buffer,
-			req.file.originalname,
+			files,
 			req.user.id,
 			quizOptions
 		);
@@ -319,10 +371,14 @@ router.get('/:uuid/file', authenticateToken, async (req, res) => {
 });
 
 // Generate summary from file
-router.post('/summary', authenticateToken, upload.single('file'), async (req, res) => {
+router.post('/summary', authenticateToken, uploadMultiple, async (req, res) => {
 	try {
-		if (!req.file) {
-			return res.status(400).json({ error: 'No file uploaded. Field name should be "file".' });
+		const files = collectUploadedFiles(req);
+		if (!files.length) {
+			return res.status(400).json({ error: 'No file uploaded. Field name should be "files".' });
+		}
+		if (files.length > MAX_FILES_PER_UPLOAD) {
+			return res.status(400).json({ error: `You can upload up to ${MAX_FILES_PER_UPLOAD} files per request.` });
 		}
 
 		// Parse selectedPages from JSON string if it exists
@@ -343,8 +399,7 @@ router.post('/summary', authenticateToken, upload.single('file'), async (req, re
 		};
 
 		const result = await CloudStorageService.createSummaryWithFile(
-			req.file.buffer,
-			req.file.originalname,
+			files,
 			req.user.id,
 			summaryOptions
 		);

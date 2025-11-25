@@ -4,6 +4,15 @@ import { API_BASE } from '../../../config/api.config'
 
 const USE_MOCK = import.meta.env.VITE_MOCK_ADAPTIVE === 'true'
 
+function toFileArray(fileInput) {
+  if (!fileInput) return []
+  if (Array.isArray(fileInput)) return fileInput
+  if (typeof FileList !== 'undefined' && fileInput instanceof FileList) {
+    return Array.from(fileInput)
+  }
+  return [fileInput]
+}
+
 /**
  * Get authorization headers
  */
@@ -24,14 +33,18 @@ export const adaptiveApi = {
    * @param {Object} options - Session options
    * @returns {Promise<{sessionId: string, question: Object}>}
    */
-  async createSession(file, options = {}) {
+  async createSession(fileInput, options = {}) {
     if (USE_MOCK) {
-      return adaptiveMock.createSession(file, options)
+      return adaptiveMock.createSession(fileInput, options)
     }
 
     try {
+      const files = toFileArray(fileInput)
+      if (!files.length) {
+        throw new Error('Please select at least one file to start an adaptive session.')
+      }
       const formData = new FormData()
-      formData.append('file', file)
+      files.forEach((f) => formData.append('files', f))
 
       if (options.selectedPages && options.selectedPages.length > 0) {
         formData.append('selectedPages', JSON.stringify(options.selectedPages))

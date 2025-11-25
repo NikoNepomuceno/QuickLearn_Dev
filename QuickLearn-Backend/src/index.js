@@ -7,6 +7,8 @@ const { setupLeaderboardRealtime } = require('./realtime/leaderboard');
 const PORT = process.env.PORT || 3000;
 
 const server = http.createServer(app);
+// Set server timeout to 3 minutes (180 seconds) to accommodate AI quiz generation, especially for mixed questions
+server.timeout = 180000; // 3 minutes
 
 // Initialize Socket.IO with CORS aligned to API CORS
 const allowedOrigin = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';

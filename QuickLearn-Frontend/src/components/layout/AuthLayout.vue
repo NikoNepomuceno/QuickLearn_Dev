@@ -36,19 +36,19 @@ const emit = defineEmits(['back'])
           <span>{{ backLabel }}</span>
         </button>
 
-      <div v-if="$slots.avatar" class="auth-layout__avatar">
-        <slot name="avatar" />
+        <div v-if="$slots.avatar" class="auth-layout__avatar">
+          <slot name="avatar" />
+        </div>
       </div>
-    </div>
 
-    <div v-if="title || subtitle" class="auth-layout__header">
-      <h1 v-if="title" class="auth-layout__title">{{ title }}</h1>
-      <p v-if="subtitle" class="auth-layout__subtitle">{{ subtitle }}</p>
-    </div>
+      <div v-if="title || subtitle" class="auth-layout__header">
+        <h1 v-if="title" class="auth-layout__title">{{ title }}</h1>
+        <p v-if="subtitle" class="auth-layout__subtitle">{{ subtitle }}</p>
+      </div>
 
-    <div class="auth-layout__content">
-      <slot />
-    </div>
+      <div class="auth-layout__content">
+        <slot />
+      </div>
 
       <footer v-if="$slots.footer" class="auth-layout__footer">
         <slot name="footer" />

@@ -17,9 +17,9 @@ const props = defineProps({
 const emit = defineEmits(['toggle-selection'])
 
 const difficultyColors = {
-  easy: { bg: 'rgba(16, 185, 129, 0.1)', text: '#10b981', icon: TrendingDown },
-  medium: { bg: 'rgba(245, 158, 11, 0.1)', text: '#f59e0b', icon: Minus },
-  hard: { bg: 'rgba(239, 68, 68, 0.1)', text: '#ef4444', icon: TrendingUp }
+  easy: { bg: 'var(--color-difficulty-easy-bg)', text: 'var(--color-difficulty-easy)', icon: TrendingDown },
+  medium: { bg: 'var(--color-difficulty-medium-bg)', text: 'var(--color-difficulty-medium)', icon: Minus },
+  hard: { bg: 'var(--color-difficulty-hard-bg)', text: 'var(--color-difficulty-hard)', icon: TrendingUp }
 }
 
 const typeLabels = {
@@ -121,8 +121,8 @@ function handleClick() {
 
 .question-card--selected {
   border-color: var(--color-primary);
-  background: rgba(102, 126, 234, 0.05);
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  background: var(--color-surface-emphasis);
+  box-shadow: var(--focus-ring-shadow);
 }
 
 .question-card__header {
@@ -167,21 +167,21 @@ function handleClick() {
 }
 
 .question-badge--topic {
-  background: rgba(102, 126, 234, 0.1);
+  background: var(--color-surface-emphasis);
   color: var(--color-primary);
-  border-color: rgba(102, 126, 234, 0.2);
+  border-color: var(--color-primary-soft);
 }
 
 .question-badge--category {
-  background: rgba(16, 185, 129, 0.1);
-  color: #10b981;
-  border-color: rgba(16, 185, 129, 0.2);
+  background: var(--color-difficulty-easy-bg);
+  color: var(--color-difficulty-easy);
+  border-color: var(--color-success);
 }
 
 .question-badge--type {
-  background: rgba(139, 92, 246, 0.1);
-  color: #8b5cf6;
-  border-color: rgba(139, 92, 246, 0.2);
+  background: var(--color-surface-emphasis);
+  color: var(--color-accent);
+  border-color: var(--color-accent);
 }
 
 .question-card__body {
@@ -231,7 +231,7 @@ body.dark .question-card:hover {
 }
 
 body.dark .question-card--selected {
-  background: rgba(102, 126, 234, 0.15);
+  background: var(--color-surface-emphasis);
 }
 
 body.dark .question-badge {

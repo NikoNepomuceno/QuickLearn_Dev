@@ -57,9 +57,38 @@ async function generateQuestionFromText(text, difficulty) {
     return mapAiQuestionToAdaptive(q);
 }
 
+async function combineUploadedFiles(files) {
+    const textSections = [];
+    const pages = [];
+
+    for (const file of files) {
+        const parseResult = await parseUploadedFile(file);
+        const text = parseResult.text || '';
+        const filePages = parseResult.pages || [text];
+
+        textSections.push(`### Source: ${file.originalname || 'Document'}\n\n${text}`);
+        pages.push(...filePages);
+    }
+
+    const combinedText = textSections.join('\n\n').trim();
+    if (!combinedText) {
+        throw new Error('Unable to extract text from the uploaded files.');
+    }
+
+    return {
+        text: combinedText,
+        pages,
+        pageCount: pages.length
+    };
+}
+
 async function createSessionFromFile(file, userId, options = {}) {
-    const parseResult = await parseUploadedFile(file);
-    const content = selectContentFromPagesOrText(parseResult, options.selectedPages);
+    const files = Array.isArray(file) ? file : [file].filter(Boolean);
+    if (!files.length) {
+        throw new Error('No files uploaded.');
+    }
+    const combined = await combineUploadedFiles(files);
+    const content = selectContentFromPagesOrText({ text: combined.text }, options.selectedPages);
 
     // Create session row
     const session = await AdaptiveSession.create({

@@ -25,6 +25,28 @@ const upload = multer({
 	}
 });
 
+const MAX_FILES_PER_UPLOAD = 3;
+const uploadMultiple = upload.fields([
+	{ name: 'files', maxCount: MAX_FILES_PER_UPLOAD },
+	{ name: 'file', maxCount: MAX_FILES_PER_UPLOAD }
+]);
+
+function collectUploadedFiles(req) {
+	const files = [];
+	if (req.files) {
+		for (const key of Object.keys(req.files)) {
+			const value = req.files[key];
+			if (Array.isArray(value)) {
+				files.push(...value);
+			}
+		}
+	}
+	if (!files.length && req.file) {
+		files.push(req.file);
+	}
+	return files;
+}
+
 // List user flashcards
 router.get('/', authenticateToken, async (req, res) => {
 	try {
@@ -40,11 +62,15 @@ router.get('/', authenticateToken, async (req, res) => {
 	}
 });
 
-// Create flashcards from file
-router.post('/', authenticateToken, upload.single('file'), async (req, res) => {
+// Create flashcards from up to 3 files
+router.post('/', authenticateToken, uploadMultiple, async (req, res) => {
 	try {
-		if (!req.file) {
-			return res.status(400).json({ error: 'No file uploaded. Field name should be "file".' });
+		const files = collectUploadedFiles(req);
+		if (!files.length) {
+			return res.status(400).json({ error: 'No file uploaded. Field name should be "files".' });
+		}
+		if (files.length > MAX_FILES_PER_UPLOAD) {
+			return res.status(400).json({ error: `You can upload up to ${MAX_FILES_PER_UPLOAD} files per request.` });
 		}
 
 		// Parse selectedPages from JSON string if it exists
@@ -64,8 +90,7 @@ router.post('/', authenticateToken, upload.single('file'), async (req, res) => {
 		};
 
 		const result = await CloudStorageService.createFlashcardsWithFile(
-			req.file.buffer,
-			req.file.originalname,
+			files,
 			req.user.id,
 			options
 		);

@@ -5,13 +5,57 @@ const AdaptiveQuestion = require('../models/AdaptiveQuestion');
 const adaptiveService = require('../services/adaptiveService');
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = [
+            'application/pdf',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'text/plain',
+            'application/msword'
+        ];
+        if (allowedTypes.includes(file.mimetype) ||
+            file.originalname.match(/\.(pdf|docx|pptx|txt|doc)$/i)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Invalid file type. Only PDF, DOCX, PPTX, DOC, and TXT files are allowed.'));
+        }
+    }
+});
+
+const MAX_FILES_PER_UPLOAD = 3;
+const uploadMultiple = upload.fields([
+    { name: 'files', maxCount: MAX_FILES_PER_UPLOAD },
+    { name: 'file', maxCount: MAX_FILES_PER_UPLOAD }
+]);
+
+function collectUploadedFiles(req) {
+    const files = [];
+    if (req.files) {
+        for (const key of Object.keys(req.files)) {
+            const value = req.files[key];
+            if (Array.isArray(value)) {
+                files.push(...value);
+            }
+        }
+    }
+    if (!files.length && req.file) {
+        files.push(req.file);
+    }
+    return files;
+}
 
 // Create adaptive session
-router.post('/sessions', authenticateToken, upload.single('file'), async (req, res) => {
+router.post('/sessions', authenticateToken, uploadMultiple, async (req, res) => {
     try {
-        if (!req.file) {
-            return res.status(400).json({ error: 'No file uploaded. Field name should be "file".' });
+        const files = collectUploadedFiles(req);
+        if (!files.length) {
+            return res.status(400).json({ error: 'No file uploaded. Field name should be "files".' });
+        }
+        if (files.length > MAX_FILES_PER_UPLOAD) {
+            return res.status(400).json({ error: `You can upload up to ${MAX_FILES_PER_UPLOAD} files per request.` });
         }
 
         let selectedPages = [];
@@ -21,7 +65,7 @@ router.post('/sessions', authenticateToken, upload.single('file'), async (req, r
 
         const maxQuestions = Math.min(50, Number(req.body.maxQuestions) || 20);
 
-        const { session, question } = await adaptiveService.createSessionFromFile(req.file, req.user.id, {
+        const { session, question } = await adaptiveService.createSessionFromFile(files, req.user.id, {
             selectedPages,
             maxQuestions
         });

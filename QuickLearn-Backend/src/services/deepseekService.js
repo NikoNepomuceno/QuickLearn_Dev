@@ -140,7 +140,7 @@ STRICT OUTPUT RULES:
             this.client = new OpenAI({
                 baseURL: 'https://api.deepseek.com',
                 apiKey: process.env.DEEPSEEK_API_KEY,
-                timeout: 60000, // 60 seconds timeout
+                timeout: 120000, // 120 seconds (2 minutes) timeout - increased for mixed questions
                 maxRetries: 3
             });
             this.initialized = true;

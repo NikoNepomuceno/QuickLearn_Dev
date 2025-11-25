@@ -69,6 +69,18 @@ function isAnswerCorrectBackend(userAnswer, correctAnswer, questionType) {
     }
 }
 
+const QUESTION_TYPE_MULTIPLIERS = {
+    identification: Number(process.env.POINTS_MULT_IDENTIFICATION || 1.25),
+    enumeration: Number(process.env.POINTS_MULT_ENUMERATION || 1.4),
+    multiple_choice: Number(process.env.POINTS_MULT_MULTIPLE_CHOICE || 1),
+    true_false: Number(process.env.POINTS_MULT_TRUE_FALSE || 0.9)
+};
+
+function getTypeMultiplier(type) {
+    if (!type) return 1;
+    return QUESTION_TYPE_MULTIPLIERS[type] ?? 1;
+}
+
 function computeSpeedPoints({ questions, userAnswers, questionTimesMs, totalTimeSeconds }) {
     const qCount = Array.isArray(questions) ? questions.length : 0;
     if (qCount === 0) return { pointsEarned: 0, usedTimes: [] };
@@ -97,46 +109,147 @@ function computeSpeedPoints({ questions, userAnswers, questionTimesMs, totalTime
         const t = clamp(Number(times[i]) || 0, FULL_MS, MIN_MS);
         const weight = 1 - ((t - FULL_MS) / (MIN_MS - FULL_MS)); // 1 at FULL_MS, 0 at MIN_MS
         const pts = MIN + weight * (MAX - MIN);
-        total += Math.round(pts);
+        const multiplier = getTypeMultiplier(q?.type);
+        total += Math.round(pts * multiplier);
     }
     return { pointsEarned: total, usedTimes: times };
 }
 
 class CloudStorageService {
+    static normalizeUploadArgs(fileOrFiles, secondArg, thirdArg, fourthArg) {
+        if (Array.isArray(fileOrFiles)) {
+            return {
+                files: fileOrFiles,
+                userId: secondArg,
+                options: thirdArg || {}
+            };
+        }
+
+        return {
+            files: [{
+                buffer: fileOrFiles,
+                originalname: secondArg,
+                mimetype: this.getMimeTypeFromFilename(secondArg)
+            }],
+            userId: thirdArg,
+            options: fourthArg || {}
+        };
+    }
+
+    static getContentFromSelection(defaultText, selectedPages) {
+        if (Array.isArray(selectedPages) && selectedPages.length > 0) {
+            const selected = selectedPages
+                .map((page) => page?.content)
+                .filter(Boolean);
+            if (selected.length > 0) {
+                return selected.join('\n\n');
+            }
+        }
+        return defaultText;
+    }
+
+    static async prepareFilesForGeneration(files, userId) {
+        if (!Array.isArray(files) || files.length === 0) {
+            throw new Error('No files uploaded. Please attach at least one file.');
+        }
+        if (files.length > 3) {
+            throw new Error('You can upload up to 3 files per request.');
+        }
+
+        const uploadedFiles = [];
+        const textSections = [];
+        const pages = [];
+        let totalTextLength = 0;
+
+        try {
+            for (const file of files) {
+                const originalName = file.originalname || file.name || `Document ${uploadedFiles.length + 1}`;
+                const buffer = file.buffer;
+
+                if (!buffer) {
+                    throw new Error(`Uploaded file "${originalName}" is empty or unreadable.`);
+                }
+
+                const { file: storedFile, cloudinaryResult } = await File.uploadAndSave(
+                    buffer,
+                    originalName,
+                    userId,
+                    {
+                        quality: 'auto:good',
+                        flags: 'attachment'
+                    }
+                );
+
+                const parseResult = await parseUploadedFile({
+                    originalname: originalName,
+                    mimetype: file.mimetype || this.getMimeTypeFromFilename(originalName),
+                    buffer
+                });
+
+                const text = parseResult.text || '';
+                const parsedPages = parseResult.pages || [text];
+
+                textSections.push(`### Source: ${originalName}\n\n${text}`);
+                pages.push(...parsedPages);
+                totalTextLength += text.length;
+
+                uploadedFiles.push({
+                    id: storedFile.id,
+                    originalName,
+                    bytes: storedFile.bytes,
+                    format: storedFile.format,
+                    url: cloudinaryResult.secure_url || cloudinaryResult.url,
+                    cloudinaryPublicId: cloudinaryResult.public_id
+                });
+            }
+
+            const combinedText = textSections.join('\n\n').trim();
+            if (!combinedText) {
+                throw new Error('Unable to extract text from the uploaded files.');
+            }
+
+            return {
+                uploadedFiles,
+                combinedText,
+                pages,
+                pageCount: pages.length,
+                totalTextLength
+            };
+        } catch (error) {
+            await Promise.all(
+                uploadedFiles.map(async (fileMeta) => {
+                    try {
+                        await File.delete(fileMeta.id, userId);
+                    } catch (cleanupErr) {
+                        console.error('Error cleaning up uploaded file:', cleanupErr);
+                    }
+                })
+            );
+            throw error;
+        }
+    }
+
     /**
      * Create a quiz with file upload to Cloudinary
      */
     static async createQuizWithFile(fileBuffer, originalFilename, userId, quizOptions = {}) {
+        const { files, userId: resolvedUserId, options } = this.normalizeUploadArgs(
+            fileBuffer,
+            originalFilename,
+            userId,
+            quizOptions
+        );
+
         try {
-            // Step 1: Upload file to Cloudinary and save metadata
-            const { file, cloudinaryResult } = await File.uploadAndSave(
-                fileBuffer,
-                originalFilename,
-                userId,
-                {
-                    // Compression options
-                    quality: 'auto:good',
-                    flags: 'attachment'
-                }
-            );
+            const prepared = await this.prepareFilesForGeneration(files, resolvedUserId);
+            const {
+                uploadedFiles,
+                combinedText,
+                pages,
+                pageCount,
+                totalTextLength
+            } = prepared;
 
-            // Step 2: Extract text and pages from the uploaded file
-            const mockFile = {
-                originalname: originalFilename,
-                mimetype: this.getMimeTypeFromFilename(originalFilename),
-                buffer: fileBuffer
-            };
-            
-            const parseResult = await parseUploadedFile(mockFile);
-            const textContent = parseResult.text;
-            const pages = parseResult.pages || [textContent];
-            const pageCount = parseResult.pageCount || 1;
-            
-            if (!textContent || !textContent.trim()) {
-                throw new Error('Unable to extract text from the uploaded file.');
-            }
-
-            // Step 3: Generate quiz using AI
             const {
                 numQuestions = 5,
                 difficulty = 'medium',
@@ -146,29 +259,9 @@ class CloudStorageService {
                 includeReasoning = true,
                 customInstructions = '',
                 selectedPages = []
-            } = quizOptions;
+            } = options;
 
-            // Use selected pages if provided, otherwise use full text
-            let contentToUse = textContent;
-            console.log('Selected pages received:', {
-                selectedPages: selectedPages,
-                type: typeof selectedPages,
-                isArray: Array.isArray(selectedPages),
-                length: selectedPages?.length
-            });
-            
-            if (selectedPages && Array.isArray(selectedPages) && selectedPages.length > 0) {
-                // Filter pages based on selected page indices
-                const selectedPageContents = selectedPages.map(page => page.content).filter(Boolean);
-                console.log('Selected page contents:', selectedPageContents.length);
-                if (selectedPageContents.length > 0) {
-                    contentToUse = selectedPageContents.join('\n\n');
-                    console.log('Using selected pages content, length:', contentToUse.length);
-                }
-            } else {
-                console.log('Using full text content, length:', contentToUse.length);
-            }
-
+            const contentToUse = this.getContentFromSelection(combinedText, selectedPages);
             let generatedQuiz;
             if (isAdvanced) {
                 generatedQuiz = await generateAdvancedQuiz(contentToUse, {
@@ -189,25 +282,28 @@ class CloudStorageService {
 
             // Step 4: Save quiz to database
             const quizData = {
-                userId: userId,
+                userId: resolvedUserId,
                 title: generatedQuiz.title,
                 description: generatedQuiz.description,
                 questions: generatedQuiz.questions,
-                sourceFileId: file.id,
-                sourceFileName: originalFilename,
-                sourceFileType: file.format,
-                sourceFileSize: file.bytes,
-                textLength: textContent.length,
+                sourceFileId: uploadedFiles[0]?.id || null,
+                sourceFileName: uploadedFiles[0]?.originalName || null,
+                sourceFileType: uploadedFiles[0]?.format || null,
+                sourceFileSize: uploadedFiles[0]?.bytes || null,
+                textLength: totalTextLength,
                 difficulty: difficulty,
                 generatedWithAi: true,
                 processingTime: new Date(),
                 metadata: {
                     generatedWithAI: true,
-                    textLength: textContent.length,
+                    textLength: totalTextLength,
                     processingTime: new Date().toISOString(),
-                    cloudinaryPublicId: cloudinaryResult.public_id,
-                    cloudinaryUrl: cloudinaryResult.secure_url,
-                    options: quizOptions
+                    cloudinaryPublicId: uploadedFiles[0]?.cloudinaryPublicId || null,
+                    cloudinaryUrl: uploadedFiles[0]?.url || null,
+                    options: options,
+                    pages,
+                    pageCount,
+                    sourceFiles: uploadedFiles
                 }
             };
 
@@ -217,11 +313,11 @@ class CloudStorageService {
             // This ensures question bank only contains questions from the latest quiz
             try {
                 // First, clear all existing questions
-                await questionBankService.clearAllQuestions(userId);
-                console.log(`[Auto-extract] Cleared existing question bank for user ${userId}`);
+                await questionBankService.clearAllQuestions(resolvedUserId);
+                console.log(`[Auto-extract] Cleared existing question bank for user ${resolvedUserId}`);
                 
                 // Then, extract questions from the newly created quiz
-                const extractionResult = await questionBankService.extractQuestionsFromQuiz(quiz, userId);
+                const extractionResult = await questionBankService.extractQuestionsFromQuiz(quiz, resolvedUserId);
                 console.log(`[Auto-extract] Extracted ${extractionResult.extracted} questions from newly created quiz ${quiz.id}`);
             } catch (extractionError) {
                 console.error('Error auto-extracting questions to question bank:', extractionError);
@@ -230,15 +326,16 @@ class CloudStorageService {
             
             return {
                 quiz: quiz,
-                file: file,
+                file: uploadedFiles[0] || null,
                 metadata: {
                     generatedWithAI: true,
-                    textLength: textContent.length,
+                    textLength: totalTextLength,
                     processingTime: new Date().toISOString(),
                     fileUploaded: true,
-                    cloudinaryUrl: cloudinaryResult.secure_url,
+                    cloudinaryUrl: uploadedFiles[0]?.url || null,
                     pages: pages,
-                    pageCount: pageCount
+                    pageCount: pageCount,
+                    sourceFiles: uploadedFiles
                 }
             };
 
@@ -418,9 +515,24 @@ class CloudStorageService {
                 return false;
             }
 
-            // Delete associated file if exists
+            // Delete associated files if they exist
+            const meta = quiz.metadata || {};
             if (quiz.sourceFileId) {
                 await File.delete(quiz.sourceFileId, Number(userId));
+            }
+            if (Array.isArray(meta.sourceFiles)) {
+                for (const fileMeta of meta.sourceFiles) {
+                    if (fileMeta.id && fileMeta.id !== quiz.sourceFileId) {
+                        await File.delete(fileMeta.id, Number(userId));
+                    }
+                }
+            }
+            if (Array.isArray(meta.sourceFiles)) {
+                for (const fileMeta of meta.sourceFiles) {
+                    if (fileMeta.id && fileMeta.id !== quiz.sourceFileId) {
+                        await File.delete(fileMeta.id, Number(userId));
+                    }
+                }
             }
 
             // Delete quiz (attempts will be cascade deleted)
@@ -669,95 +781,62 @@ class CloudStorageService {
      * Create a summary with file upload to Cloudinary
      */
     static async createSummaryWithFile(fileBuffer, originalFilename, userId, summaryOptions = {}) {
+        const { files, userId: resolvedUserId, options } = this.normalizeUploadArgs(
+            fileBuffer,
+            originalFilename,
+            userId,
+            summaryOptions
+        );
         try {
-            console.log('Starting createSummaryWithFile with options:', summaryOptions);
-            
-            // Step 1: Upload file to Cloudinary and save metadata
-            console.log('Uploading file to Cloudinary...');
-            const { file, cloudinaryResult } = await File.uploadAndSave(
-                fileBuffer,
-                originalFilename,
-                userId,
-                {
-                    // Compression options
-                    quality: 'auto:good',
-                    flags: 'attachment'
-                }
-            );
-            console.log('File uploaded successfully to Cloudinary');
+            console.log('Starting createSummaryWithFile with options:', options);
 
-            // Step 2: Extract text and pages from the uploaded file
-            const mockFile = {
-                originalname: originalFilename,
-                mimetype: this.getMimeTypeFromFilename(originalFilename),
-                buffer: fileBuffer
-            };
-            
-            const parseResult = await parseUploadedFile(mockFile);
-            const textContent = parseResult.text;
-            const pages = parseResult.pages || [textContent];
-            const pageCount = parseResult.pageCount || 1;
-            
-            if (!textContent || !textContent.trim()) {
-                throw new Error('Unable to extract text from the uploaded file.');
-            }
+            const prepared = await this.prepareFilesForGeneration(files, resolvedUserId);
+            const {
+                uploadedFiles,
+                combinedText,
+                pages,
+                pageCount,
+                totalTextLength
+            } = prepared;
 
-            // Step 3: Generate summary using AI
             const {
                 customInstructions = '',
                 focusAreas = [],
                 selectedPages = []
-            } = summaryOptions;
+            } = options;
 
-            // Use selected pages if provided, otherwise use full text
-            let contentToUse = textContent;
-            console.log('Selected pages for summary:', {
-                selectedPages: selectedPages,
-                type: typeof selectedPages,
-                isArray: Array.isArray(selectedPages),
-                length: selectedPages?.length
-            });
-            
-            if (selectedPages && Array.isArray(selectedPages) && selectedPages.length > 0) {
-                // Filter pages based on selected page indices
-                const selectedPageContents = selectedPages.map(page => page.content).filter(Boolean);
-                console.log('Selected page contents for summary:', selectedPageContents.length);
-                if (selectedPageContents.length > 0) {
-                    contentToUse = selectedPageContents.join('\n\n');
-                    console.log('Using selected pages content for summary, length:', contentToUse.length);
-                }
-            } else {
-                console.log('Using full text content for summary, length:', contentToUse.length);
-            }
+            const contentToUse = this.getContentFromSelection(combinedText, selectedPages);
 
             const generatedSummary = await generateAIPoweredSummary(contentToUse, {
                 customInstructions,
                 focusAreas
             });
 
-            // Step 4: Save summary to database (we'll use Quiz model for now, but with a different type)
             const summaryData = {
-                userId: userId,
+                userId: resolvedUserId,
                 title: generatedSummary.title,
                 description: generatedSummary.description,
                 questions: [], // Empty for summaries
-                sourceFileId: file.id,
-                sourceFileName: originalFilename,
-                sourceFileType: file.format,
-                sourceFileSize: file.bytes,
-                textLength: textContent.length,
+                sourceFileId: uploadedFiles[0]?.id || null,
+                sourceFileName: uploadedFiles[0]?.originalName || null,
+                sourceFileType: uploadedFiles[0]?.format || null,
+                sourceFileSize: uploadedFiles[0]?.bytes || null,
+                textLength: totalTextLength,
                 difficulty: 'medium', // Default for summaries
                 generatedWithAi: true,
                 processingTime: new Date(),
                 metadata: {
                     generatedWithAI: true,
-                    textLength: textContent.length,
+                    textLength: totalTextLength,
                     processingTime: new Date().toISOString(),
-                    cloudinaryPublicId: cloudinaryResult.public_id,
-                    cloudinaryUrl: cloudinaryResult.secure_url,
-                    options: summaryOptions,
+                    cloudinaryPublicId: uploadedFiles[0]?.cloudinaryPublicId || null,
+                    cloudinaryUrl: uploadedFiles[0]?.url || null,
+                    options: options,
                     type: 'summary', // Mark as summary type
-                    summaryContent: generatedSummary
+                    summaryContent: generatedSummary,
+                    pages,
+                    pageCount,
+                    sourceFiles: uploadedFiles
                 }
             };
 
@@ -775,15 +854,16 @@ class CloudStorageService {
                     createdAt: summary.createdAt,
                     metadata: summary.metadata
                 },
-                file: file,
+                file: uploadedFiles[0] || null,
                 metadata: {
                     generatedWithAI: true,
-                    textLength: textContent.length,
+                    textLength: totalTextLength,
                     processingTime: new Date().toISOString(),
                     fileUploaded: true,
-                    cloudinaryUrl: cloudinaryResult.secure_url,
+                    cloudinaryUrl: uploadedFiles[0]?.url || null,
                     pages: pages,
                     pageCount: pageCount,
+                    sourceFiles: uploadedFiles,
                     type: 'summary'
                 }
             };
@@ -798,56 +878,39 @@ class CloudStorageService {
      * Create flashcards with file upload to Cloudinary
      */
     static async createFlashcardsWithFile(fileBuffer, originalFilename, userId, options = {}) {
+        const { files, userId: resolvedUserId, options: normalizedOptions } = this.normalizeUploadArgs(
+            fileBuffer,
+            originalFilename,
+            userId,
+            options
+        );
         try {
-            // Upload file
-            const { file, cloudinaryResult } = await File.uploadAndSave(
-                fileBuffer,
-                originalFilename,
-                userId,
-                {
-                    quality: 'auto:good',
-                    flags: 'attachment'
-                }
-            );
+            const prepared = await this.prepareFilesForGeneration(files, resolvedUserId);
+            const {
+                uploadedFiles,
+                combinedText,
+                pages,
+                pageCount,
+                totalTextLength
+            } = prepared;
 
-            // Extract text and pages
-            const mockFile = {
-                originalname: originalFilename,
-                mimetype: this.getMimeTypeFromFilename(originalFilename),
-                buffer: fileBuffer
-            };
-            const parseResult = await parseUploadedFile(mockFile);
-            const textContent = parseResult.text;
-            const pages = parseResult.pages || [textContent];
-            const pageCount = parseResult.pageCount || 1;
-            if (!textContent || !textContent.trim()) {
-                throw new Error('Unable to extract text from the uploaded file.');
-            }
-
-            // Use selected pages if provided
-            const { customInstructions = '', selectedPages = [] } = options;
-            let contentToUse = textContent;
-            if (Array.isArray(selectedPages) && selectedPages.length > 0) {
-                const selectedPageContents = selectedPages.map(p => p.content).filter(Boolean);
-                if (selectedPageContents.length > 0) {
-                    contentToUse = selectedPageContents.join('\n\n');
-                }
-            }
+            const { customInstructions = '', selectedPages = [] } = normalizedOptions;
+            const contentToUse = this.getContentFromSelection(combinedText, selectedPages);
 
             // Generate flashcards
             const generated = await generateAIPoweredFlashcards(contentToUse, { customInstructions });
 
             // Persist in quizzes table with metadata.type='flashcards'
             const quizData = {
-                userId: userId,
+                userId: resolvedUserId,
                 title: generated.title || 'Flashcards',
                 description: 'Flashcards generated from uploaded content',
                 questions: [], // none
-                sourceFileId: file.id,
-                sourceFileName: originalFilename,
-                sourceFileType: file.format,
-                sourceFileSize: file.bytes,
-                textLength: textContent.length,
+                sourceFileId: uploadedFiles[0]?.id || null,
+                sourceFileName: uploadedFiles[0]?.originalName || null,
+                sourceFileType: uploadedFiles[0]?.format || null,
+                sourceFileSize: uploadedFiles[0]?.bytes || null,
+                textLength: totalTextLength,
                 difficulty: 'medium',
                 generatedWithAi: true,
                 processingTime: new Date(),
@@ -858,13 +921,14 @@ class CloudStorageService {
                         cards: Array.isArray(generated.cards) ? generated.cards : []
                     },
                     generatedWithAI: true,
-                    textLength: textContent.length,
+                    textLength: totalTextLength,
                     processingTime: new Date().toISOString(),
-                    cloudinaryPublicId: cloudinaryResult.public_id,
-                    cloudinaryUrl: cloudinaryResult.secure_url,
-                    options: options,
+                    cloudinaryPublicId: uploadedFiles[0]?.cloudinaryPublicId || null,
+                    cloudinaryUrl: uploadedFiles[0]?.url || null,
+                    options: normalizedOptions,
                     pages,
-                    pageCount
+                    pageCount,
+                    sourceFiles: uploadedFiles
                 }
             };
 

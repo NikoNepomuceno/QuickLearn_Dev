@@ -18,13 +18,23 @@ import { adaptiveApi } from '../features/adaptive'
 import { DotLottieVue } from '@lottiefiles/dotlottie-vue'
 
 const router = useRouter()
-const selectedFile = ref(null)
+const MAX_FILES = 3
+const ALLOWED_TYPES = [
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/plain',
+  'application/msword'
+]
+const selectedFiles = ref([])
 const isLoading = ref(false)
 const loadingMessage = ref('')
 const errorMessage = ref('')
 const quiz = ref(null)
 const count = ref(10)
 const selectedTypes = ref(['multiple_choice'])
+const isTimedModeEnabled = ref(false)
+const questionTimerSeconds = ref(30)
 const isDragOver = ref(false)
 const showAnswers = ref({})
 const progressPercent = ref(0)
@@ -70,49 +80,81 @@ onMounted(() => {
   } catch {}
 })
 
-const fileSize = computed(() => {
-  if (!selectedFile.value) return null
-  const size = selectedFile.value.size
+function formatBytes(size) {
+  if (!size && size !== 0) return '0 B'
   if (size < 1024) return `${size} B`
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
   return `${(size / (1024 * 1024)).toFixed(1)} MB`
+}
+
+const primaryFile = computed(() => selectedFiles.value[0] || null)
+
+const fileSummary = computed(() => {
+  if (!selectedFiles.value.length) {
+    return { name: 'No files selected', sizeLabel: null }
+  }
+  if (selectedFiles.value.length === 1) {
+    const file = selectedFiles.value[0]
+    return { name: file.name, sizeLabel: formatBytes(file.size) }
+  }
+  const totalSize = selectedFiles.value.reduce((sum, file) => sum + (file.size || 0), 0)
+  return {
+    name: `${selectedFiles.value.length} files selected`,
+    sizeLabel: formatBytes(totalSize)
+  }
 })
 
-const fileName = computed(() => {
-  return selectedFile.value?.name || 'No file selected'
-})
+const fileSize = computed(() => fileSummary.value.sizeLabel)
+
+const fileName = computed(() => fileSummary.value.name)
+
+function isAllowedFile(file) {
+  return ALLOWED_TYPES.includes(file.type) || file.name.match(/\.(pdf|docx|pptx|txt|doc)$/i)
+}
+
+async function handleNewFiles(fileList) {
+  if (!fileList) return
+  const incoming = Array.from(fileList).filter(Boolean)
+  if (!incoming.length) return
+
+  const availableSlots = MAX_FILES - selectedFiles.value.length
+  if (availableSlots <= 0) {
+    window.$toast?.info(`You can upload up to ${MAX_FILES} files per generation.`)
+    return
+  }
+
+  const filesToProcess = incoming.slice(0, availableSlots)
+  if (incoming.length > availableSlots) {
+    window.$toast?.info(`Only the first ${availableSlots} file(s) were added.`)
+  }
+
+  const validFiles = []
+  for (const file of filesToProcess) {
+    if (isAllowedFile(file)) {
+      validFiles.push(file)
+    } else {
+      window.$toast?.error(`"${file.name}" is not a supported file type.`)
+      errorMessage.value = 'Please upload only PDF, DOCX, PPTX, DOC, or TXT files.'
+    }
+  }
+
+  if (!validFiles.length) {
+    return
+  }
+
+  selectedFiles.value = [...selectedFiles.value, ...validFiles]
+  errorMessage.value = ''
+  await handleFileUpload()
+}
 
 async function onFileChange(event) {
-  const files = event.target.files
-  const file = files && files[0] ? files[0] : null
-  errorMessage.value = ''
-  
-  if (file) {
-    // Validate file type
-    const allowedTypes = [
-      'application/pdf',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      'text/plain',
-      'application/msword'
-    ]
-    
-    if (allowedTypes.includes(file.type) || file.name.match(/\.(pdf|docx|pptx|txt|doc)$/i)) {
-      selectedFile.value = file
-      await handleFileUpload()
-    } else {
-      window.$toast?.error('Uploaded file is invalid')
-      errorMessage.value = 'Please upload a PDF, DOCX, PPTX, DOC, or TXT file.'
-      // Reset file input
-      event.target.value = ''
-    }
-  } else {
-    selectedFile.value = null
-  }
+  await handleNewFiles(event.target.files)
+  event.target.value = ''
 }
 
 function triggerFileInput() {
-  if (selectedFile.value) {
+  if (selectedFiles.value.length >= MAX_FILES) {
+    window.$toast?.info(`You can upload up to ${MAX_FILES} files per generation.`)
     return
   }
   const fileInput = document.getElementById('file-input')
@@ -126,22 +168,7 @@ async function onDrop(event) {
   isDragOver.value = false
   const files = event.dataTransfer.files
   if (files && files.length > 0) {
-    const file = files[0]
-    const allowedTypes = [
-      'application/pdf',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      'text/plain',
-      'application/msword'
-    ]
-    if (allowedTypes.includes(file.type) || file.name.match(/\.(pdf|docx|pptx|txt|doc)$/i)) {
-      selectedFile.value = file
-      errorMessage.value = ''
-      await handleFileUpload()
-    } else {
-      window.$toast?.error('Uploaded file is invalid')
-      errorMessage.value = 'Please upload a PDF, DOCX, PPTX, DOC, or TXT file.'
-    }
+    await handleNewFiles(files)
   }
 }
 
@@ -155,9 +182,7 @@ function onDragLeave(event) {
   isDragOver.value = false
 }
 
-function removeFile() {
-  selectedFile.value = null
-  errorMessage.value = ''
+function resetUploadArtifacts() {
   filePages.value = []
   filePageCount.value = 0
   quiz.value = null
@@ -167,8 +192,20 @@ function removeFile() {
   showShareSuccess.value = false
 }
 
+async function removeFile(index) {
+  selectedFiles.value = selectedFiles.value.filter((_, i) => i !== index)
+  errorMessage.value = ''
+  resetUploadArtifacts()
+  if (selectedFiles.value.length) {
+    await handleFileUpload()
+  }
+}
+
 async function handleFileUpload() {
-  if (!selectedFile.value) return
+  if (!selectedFiles.value.length) {
+    resetUploadArtifacts()
+    return
+  }
 
   // Check if user is authenticated
   if (!(await cloudQuizService.isAuthenticated())) {
@@ -183,7 +220,8 @@ async function handleFileUpload() {
 
   try {
     // Parse the file to get page information
-    const parseResult = await cloudQuizService.parseFile(selectedFile.value)
+    resetUploadArtifacts()
+    const parseResult = await cloudQuizService.parseFile(selectedFiles.value)
     filePages.value = parseResult.pages || []
     filePageCount.value = parseResult.pageCount || 1
 
@@ -212,7 +250,7 @@ async function handleFileUpload() {
 // }
 
 // function openConfig() {
-//   if (!selectedFile.value) {
+//   if (!selectedFiles.value.length) {
 //     const message = 'Please choose a .txt, .pdf, or .docx file.'
 //     errorMessage.value = message
 //     window.$toast?.error(message)
@@ -226,8 +264,8 @@ async function uploadFile(options = {}) {
   quiz.value = null
   showAnswers.value = {}
 
-  if (!selectedFile.value) {
-    const message = 'Please choose a .txt, .pdf, or .docx file.'
+  if (!selectedFiles.value.length) {
+    const message = 'Please choose at least one PDF, DOCX, PPTX, DOC, or TXT file.'
     errorMessage.value = message
     window.$toast?.error(message)
     return
@@ -256,9 +294,14 @@ async function uploadFile(options = {}) {
       customInstructions: options.customInstructions || '',
       selectedPages: options.selectedPages || [],
       quizMode: pageSelectionData.quizMode || 'quicklearn',
+      timedModeEnabled: options.timedModeEnabled || false,
+      questionTimerSeconds:
+        options.timedModeEnabled && options.questionTimerSeconds
+          ? Number(options.questionTimerSeconds)
+          : null,
     }
 
-    const result = await cloudQuizService.createQuizFromFile(selectedFile.value, quizOptions)
+    const result = await cloudQuizService.createQuizFromFile(selectedFiles.value, quizOptions)
     quiz.value = result.quiz || null
 
     // Show confirmation modal after successful quiz generation
@@ -357,13 +400,23 @@ function handleConfigConfirm(payload) {
     typesParam = arr.join(',')
   }
 
+  isTimedModeEnabled.value = !!payload?.timedModeEnabled
+  if (typeof payload?.questionTimerSeconds === 'number' && !Number.isNaN(payload.questionTimerSeconds)) {
+    questionTimerSeconds.value = payload.questionTimerSeconds
+  }
+
   // Include page selection data if available
   const pageSelectionData = window.pageSelectionData || {}
   const finalPayload = {
     ...payload,
     type: typesParam,
     selectedPages: pageSelectionData.selectedPages || [],
-    customInstructions: pageSelectionData.customPrompt || payload.customInstructions || ''
+    customInstructions: pageSelectionData.customPrompt || payload.customInstructions || '',
+    timedModeEnabled: !!payload?.timedModeEnabled,
+    questionTimerSeconds:
+      payload?.timedModeEnabled && typeof payload?.questionTimerSeconds === 'number'
+        ? payload.questionTimerSeconds
+        : null,
   }
 
   // Clear the stored page selection data
@@ -454,8 +507,8 @@ function handlePageSelectionConfirm(payload) {
 
 // Start an adaptive quiz session
 async function startAdaptiveSession() {
-  if (!selectedFile.value) {
-    const message = 'Please choose a file first.'
+  if (!selectedFiles.value.length) {
+    const message = 'Please choose at least one file first.'
     errorMessage.value = message
     window.$toast?.error(message)
     return
@@ -480,7 +533,7 @@ async function startAdaptiveSession() {
       maxQuestions: 20 // Default max questions for adaptive mode
     }
 
-    const result = await adaptiveApi.createSession(selectedFile.value, options)
+    const result = await adaptiveApi.createSession(selectedFiles.value, options)
 
     // Clear the stored page selection data
     delete window.pageSelectionData
@@ -503,8 +556,8 @@ async function generateSummary() {
   quiz.value = null
   showAnswers.value = {}
 
-  if (!selectedFile.value) {
-    const message = 'Please choose a .txt, .pdf, or .docx file.'
+  if (!selectedFiles.value.length) {
+    const message = 'Please choose at least one PDF, DOCX, PPTX, DOC, or TXT file.'
     errorMessage.value = message
     window.$toast?.error(message)
     return
@@ -529,7 +582,7 @@ async function generateSummary() {
       selectedPages: pageSelectionData.selectedPages || []
     }
 
-    const result = await cloudQuizService.createSummaryFromFile(selectedFile.value, summaryOptions)
+    const result = await cloudQuizService.createSummaryFromFile(selectedFiles.value, summaryOptions)
 
     // Store the generated summary
     generatedSummary.value = result.summary
@@ -555,8 +608,8 @@ async function generateFlashcards() {
   quiz.value = null
   showAnswers.value = {}
 
-  if (!selectedFile.value) {
-    const message = 'Please choose a .txt, .pdf, or .docx file.'
+  if (!selectedFiles.value.length) {
+    const message = 'Please choose at least one PDF, DOCX, PPTX, DOC, or TXT file.'
     errorMessage.value = message
     window.$toast?.error(message)
     return
@@ -581,7 +634,7 @@ async function generateFlashcards() {
       selectedPages: pageSelectionData.selectedPages || []
     }
 
-    const result = await cloudQuizService.createFlashcardsFromFile(selectedFile.value, options)
+    const result = await cloudQuizService.createFlashcardsFromFile(selectedFiles.value, options)
     // Expect { flashcards: { id, title, cards: [...] } }
     const fc = result.flashcards
     if (!fc?.id) {
@@ -712,14 +765,14 @@ function handleGenerationChoiceSelect(option) {
             class="dropzone"
             :class="{
               'dropzone--dragging': isDragOver,
-              'dropzone--ready': selectedFile
+              'dropzone--ready': selectedFiles.length
             }"
             @drop.prevent="onDrop"
             @dragover.prevent="onDragOver"
             @dragleave.prevent="onDragLeave"
             @click="triggerFileInput"
           >
-            <div v-if="!selectedFile" class="dropzone__content">
+            <div v-if="!selectedFiles.length" class="dropzone__content">
               <Upload :size="56" class="dropzone__icon" />
               <p class="dropzone__title">Drag & drop your file here</p>
               <p class="dropzone__subtitle">
@@ -741,27 +794,48 @@ function handleGenerationChoiceSelect(option) {
                 <span class="chip">PPTX</span>
                 <span class="chip">TXT</span>
               </div>
-              <p class="dropzone__hint">Maximum file size: 10MB</p>
+              <p class="dropzone__hint">Up to {{ MAX_FILES }} files • 10MB each</p>
             </div>
 
             <div v-else class="dropzone__selected">
-              <div class="dropzone__file">
-                <FileText :size="18" />
-                <div>
-                  <p class="dropzone__file-name">{{ fileName }}</p>
-                  <p class="dropzone__file-meta">{{ fileSize }}</p>
+              <div class="dropzone__selected-list">
+                <div
+                  v-for="(file, index) in selectedFiles"
+                  :key="`${file.name}-${file.lastModified}-${index}`"
+                  class="dropzone__file"
+                >
+                  <FileText :size="18" />
+                  <div>
+                    <p class="dropzone__file-name">{{ file.name }}</p>
+                    <p class="dropzone__file-meta">{{ formatBytes(file.size) }}</p>
+                  </div>
+                  <BaseButton
+                    variant="ghost"
+                    size="icon"
+                    class="dropzone__remove"
+                    type="button"
+                    @click.stop="removeFile(index)"
+                    aria-label="Remove file"
+                  >
+                    <X :size="14" />
+                  </BaseButton>
                 </div>
               </div>
-              <BaseButton
-                variant="outline"
-                size="sm"
-                class="dropzone__remove"
-                type="button"
-                @click.stop="removeFile"
-              >
-                <X :size="16" />
-                Remove file
-              </BaseButton>
+              <div class="dropzone__selected-footer">
+                <div class="dropzone__summary">
+                  <span>{{ fileName }}</span>
+                  <span v-if="fileSize">• {{ fileSize }}</span>
+                </div>
+                <BaseButton
+                  v-if="selectedFiles.length < MAX_FILES"
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  @click.stop="triggerFileInput"
+                >
+                  Add another file
+                </BaseButton>
+              </div>
             </div>
           </div>
 
@@ -932,7 +1006,7 @@ function handleGenerationChoiceSelect(option) {
       :visible="showPageSelectionModal"
       :file-name="fileName"
       :pages="filePages"
-      :file="selectedFile"
+      :file="primaryFile"
       @close="handlePageSelectionCancel"
       @confirm="handlePageSelectionConfirm"
     />
@@ -941,6 +1015,8 @@ function handleGenerationChoiceSelect(option) {
       :visible="showConfigModal"
       :file-name="fileName"
       :default-count="count"
+      :default-timed="isTimedModeEnabled"
+      :default-timer-seconds="questionTimerSeconds"
       @close="handleConfigCancel"
       @confirm="handleConfigConfirm"
     />
@@ -1174,10 +1250,14 @@ function handleGenerationChoiceSelect(option) {
 }
 
 .dropzone__selected {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: grid;
   gap: var(--space-4);
+  width: 100%;
+}
+
+.dropzone__selected-list {
+  display: grid;
+  gap: var(--space-2);
   width: 100%;
 }
 
@@ -1186,6 +1266,14 @@ function handleGenerationChoiceSelect(option) {
   align-items: center;
   gap: var(--space-3);
   color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface);
+}
+
+.dropzone__file > div {
+  text-align: left;
 }
 
 .dropzone__file-name {
@@ -1201,6 +1289,25 @@ function handleGenerationChoiceSelect(option) {
 
 .dropzone__remove {
   margin-left: auto;
+  color: var(--color-text-muted);
+}
+
+.dropzone__selected-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.dropzone__summary {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-medium);
+  display: flex;
+  gap: var(--space-1);
+  align-items: center;
 }
 
 .section-header {

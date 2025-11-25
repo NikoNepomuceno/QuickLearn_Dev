@@ -1,6 +1,15 @@
 import { authService } from './authService'
 import { API_BASE } from '../config/api.config'
 
+function toFileArray(fileInput) {
+  if (!fileInput) return []
+  if (Array.isArray(fileInput)) return fileInput
+  if (typeof FileList !== 'undefined' && fileInput instanceof FileList) {
+    return Array.from(fileInput)
+  }
+  return [fileInput]
+}
+
 class CloudQuizService {
   /**
    * Get authorization headers for API requests
@@ -16,10 +25,14 @@ class CloudQuizService {
   /**
    * Parse file and get page information
    */
-  async parseFile(file) {
+  async parseFile(fileInput) {
     try {
+      const files = toFileArray(fileInput)
+      if (!files.length) {
+        throw new Error('Please select at least one file to upload.')
+      }
       const formData = new FormData()
-      formData.append('file', file)
+      files.forEach((f) => formData.append('files', f))
 
       const headers = {}
       const token = authService.getToken()
@@ -50,10 +63,14 @@ class CloudQuizService {
   /**
    * Upload file and create quiz
    */
-  async createQuizFromFile(file, options = {}) {
+  async createQuizFromFile(fileInput, options = {}) {
     try {
+      const files = toFileArray(fileInput)
+      if (!files.length) {
+        throw new Error('Please select at least one file to upload.')
+      }
       const formData = new FormData()
-      formData.append('file', file)
+      files.forEach((f) => formData.append('files', f))
 
       // Add selected pages and custom instructions to form data
       if (options.selectedPages && options.selectedPages.length > 0) {
@@ -74,6 +91,13 @@ class CloudQuizService {
         queryParams.append('types', typesValue)
       }
       if (options.focus) queryParams.append('focus', options.focus)
+      if (options.timedModeEnabled) {
+        queryParams.append('timed', 'true')
+        if (options.questionTimerSeconds) {
+          const seconds = Math.max(10, Math.min(300, Math.round(Number(options.questionTimerSeconds))))
+          queryParams.append('timerSeconds', String(seconds))
+        }
+      }
 
       const endpoint = options.isAdvanced ? '/api/quiz/advanced' : '/api/quiz/from-file'
       const url = `${API_BASE}${endpoint}${queryParams.toString() ? '?' + queryParams.toString() : ''}`
@@ -476,10 +500,14 @@ class CloudQuizService {
   /**
    * Create summary from file
    */
-  async createSummaryFromFile(file, options = {}) {
+  async createSummaryFromFile(fileInput, options = {}) {
     try {
+      const files = toFileArray(fileInput)
+      if (!files.length) {
+        throw new Error('Please select at least one file to upload.')
+      }
       const formData = new FormData()
-      formData.append('file', file)
+      files.forEach((f) => formData.append('files', f))
 
       if (options.selectedPages && options.selectedPages.length > 0) {
         formData.append('selectedPages', JSON.stringify(options.selectedPages))
@@ -520,10 +548,14 @@ class CloudQuizService {
   /**
    * Create flashcards from file
    */
-  async createFlashcardsFromFile(file, options = {}) {
+  async createFlashcardsFromFile(fileInput, options = {}) {
     try {
+      const files = toFileArray(fileInput)
+      if (!files.length) {
+        throw new Error('Please select at least one file to upload.')
+      }
       const formData = new FormData()
-      formData.append('file', file)
+      files.forEach((f) => formData.append('files', f))
 
       if (options.selectedPages && options.selectedPages.length > 0) {
         formData.append('selectedPages', JSON.stringify(options.selectedPages))

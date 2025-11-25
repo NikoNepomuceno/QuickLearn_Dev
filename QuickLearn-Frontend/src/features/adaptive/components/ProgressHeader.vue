@@ -29,18 +29,18 @@ const props = defineProps({
 const difficultyConfig = {
   easy: {
     label: 'Easy',
-    color: '#10b981',
-    gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+    color: 'var(--color-difficulty-easy)',
+    gradient: 'var(--gradient-success)'
   },
   medium: {
     label: 'Medium',
-    color: '#f59e0b',
-    gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+    color: 'var(--color-difficulty-medium)',
+    gradient: 'var(--gradient-warning)'
   },
   hard: {
     label: 'Hard',
-    color: '#ef4444',
-    gradient: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
+    color: 'var(--color-difficulty-hard)',
+    gradient: 'var(--gradient-danger)'
   }
 }
 
@@ -100,12 +100,12 @@ const accuracy = computed(() => {
 
 <style scoped>
 .progress-header {
-  background: white;
-  border: 1px solid #e6e8ec;
-  border-radius: 12px;
-  padding: 20px;
-  margin-bottom: 24px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  margin-bottom: var(--space-6);
+  box-shadow: var(--shadow-sm);
 }
 
 .header-content {
@@ -122,59 +122,59 @@ const accuracy = computed(() => {
 .stat-card {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  background: #f8faff;
-  border: 1px solid #e6e8ec;
-  border-radius: 8px;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
 }
 
 .stat-icon {
-  color: #667eea;
+  color: var(--color-primary);
   flex-shrink: 0;
 }
 
 .stat-content {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-1);
 }
 
 .stat-value {
-  font-size: 16px;
-  font-weight: 700;
-  color: #1f2937;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
 }
 
 .stat-label {
-  font-size: 11px;
-  color: #6b7280;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
 .difficulty-badge {
-  padding: 8px 16px;
-  border-radius: 999px;
-  color: white;
-  font-weight: 700;
-  font-size: 13px;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  color: var(--color-text-on-primary);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-sm);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-sm);
 }
 
 .streak-indicator {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  border-radius: 8px;
-  color: #dc2626;
-  font-size: 13px;
-  font-weight: 600;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-difficulty-hard-bg);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-md);
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
 }
 
 .streak-icon {
@@ -184,16 +184,16 @@ const accuracy = computed(() => {
 .progress-bar-container {
   width: 100%;
   height: 8px;
-  background: #e6e8ec;
-  border-radius: 999px;
+  background: var(--color-border);
+  border-radius: var(--radius-pill);
   overflow: hidden;
 }
 
 .progress-bar {
   height: 100%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  transition: width 0.3s ease;
-  border-radius: 999px;
+  background: var(--gradient-primary);
+  transition: width var(--transition-slow);
+  border-radius: var(--radius-pill);
 }
 
 @media (max-width: 768px) {
@@ -230,31 +230,31 @@ const accuracy = computed(() => {
 
 /* Dark mode */
 body.dark .progress-header {
-  background: #0f172a;
-  border-color: #1f2a44;
+  background: var(--color-surface);
+  border-color: var(--color-border);
 }
 
 body.dark .stat-card {
-  background: #1f2a44;
-  border-color: #334155;
+  background: var(--color-surface-subtle);
+  border-color: var(--color-border);
 }
 
 body.dark .stat-value {
-  color: #e5e7eb;
+  color: var(--color-text);
 }
 
 body.dark .stat-label {
-  color: #9ca3af;
+  color: var(--color-text-muted);
 }
 
 body.dark .progress-bar-container {
-  background: #1f2a44;
+  background: var(--color-border);
 }
 
 body.dark .streak-indicator {
-  background: #1f172a;
-  border-color: #991b1b;
-  color: #fca5a5;
+  background: var(--color-difficulty-hard-bg);
+  border-color: var(--color-danger);
+  color: var(--color-danger);
 }
 </style>
 

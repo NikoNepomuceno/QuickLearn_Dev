@@ -2,3 +2,4 @@
 coverage/
 __tests__/
 *.log
+node_modules/

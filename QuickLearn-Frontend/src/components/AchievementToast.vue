@@ -234,14 +234,14 @@ function handleLottieError() {
   right: -6px;
   width: 24px;
   height: 24px;
-  background: linear-gradient(135deg, #10b981, #059669);
+  background: var(--gradient-success);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--color-text-on-primary);
   box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
-  border: 2px solid white;
+  border: 2px solid var(--color-text-on-primary);
   animation: pulse-badge 2s infinite;
   z-index: 2;
 }

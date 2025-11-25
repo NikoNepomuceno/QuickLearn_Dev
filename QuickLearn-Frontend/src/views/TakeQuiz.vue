@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import cloudQuizService from '../services/cloudQuizService'
 import VoiceQuiz from '../components/VoiceQuiz.vue'
@@ -25,7 +25,22 @@ const timeElapsed = ref(0)
 const startTime = ref(null)
 const questionTimesMs = ref([]) // per-question timings in milliseconds
 const questionStartedAt = ref(null) // timestamp when current question started
+const FAST_CHOICE_THRESHOLD_MS = 3000
+const FAST_TEXT_THRESHOLD_MS = 5000
+const MAX_RETAKE_POINTS = 2
+const firstAnswerElapsedMs = ref({})
+const retakePointAwardedForQuestion = ref({})
+const retakePointsEarned = ref(0)
+const retakePointsSpent = ref(0)
+const retakeModalVisible = ref(false)
+const retakeModalDismissed = ref(false)
+const retakeReturnIndex = ref(null)
+const activeRetakeQuestionIndex = ref(null)
 let timer = null
+let perQuestionTimer = null
+const questionTimeRemaining = ref(null)
+const MIN_QUESTION_TIMER = 10
+const MAX_QUESTION_TIMER = 300
 
 // Quiz stage management: 'overview', 'countdown', 'active'
 const quizStage = ref('overview')
@@ -44,6 +59,73 @@ const progress = computed(() => {
     ? ((currentQuestionIndex.value + 1) / totalQuestions.value) * 100
     : 0
 })
+
+function clampQuestionSecondsValue(value) {
+  const num = Number(value)
+  if (!Number.isFinite(num)) return 0
+  return Math.min(MAX_QUESTION_TIMER, Math.max(MIN_QUESTION_TIMER, Math.round(num)))
+}
+
+const timedSettings = computed(() => {
+  const metadata = quiz.value?.metadata || {}
+  const options = metadata.options || {}
+  const legacy = metadata.timedSettings || metadata.timedMode || {}
+  const enabledRaw =
+    options.timedModeEnabled ??
+    legacy.timedModeEnabled ??
+    metadata.timedModeEnabled ??
+    metadata.timedQuiz
+  const enabled = Boolean(enabledRaw)
+  const secondsRaw =
+    options.questionTimerSeconds ??
+    legacy.questionTimerSeconds ??
+    metadata.questionTimerSeconds
+  const seconds = enabled ? clampQuestionSecondsValue(secondsRaw ?? 0) : null
+  return {
+    enabled,
+    seconds,
+  }
+})
+
+const isTimedQuiz = computed(() => Boolean(timedSettings.value.enabled && timedSettings.value.seconds))
+const questionTimerLimit = computed(() => (isTimedQuiz.value ? timedSettings.value.seconds || 0 : 0))
+const questionCountdownForUi = computed(() => {
+  if (!isTimedQuiz.value) return 0
+  if (typeof questionTimeRemaining.value === 'number' && questionTimeRemaining.value >= 0) {
+    return questionTimeRemaining.value
+  }
+  return questionTimerLimit.value
+})
+const perQuestionTimerFormatted = computed(() => {
+  if (!isTimedQuiz.value) return ''
+  const remaining = Math.max(0, questionCountdownForUi.value || 0)
+  const minutes = Math.floor(remaining / 60)
+  const seconds = remaining % 60
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`
+})
+const retakePointsAvailable = computed(() =>
+  Math.max(0, Math.min(MAX_RETAKE_POINTS, retakePointsEarned.value) - retakePointsSpent.value)
+)
+const retakeCandidateIndices = computed(() => {
+  const questions = quiz.value?.questions || []
+  if (!questions.length) return []
+  return questions.reduce((acc, question, index) => {
+    const answer = answers.value?.[index]
+    const answered = hasMeaningfulAnswer(answer, question.type)
+    const correct = answered && isAnswerCorrect(answer, question.answer, question.type)
+    if (!answered || !correct) {
+      acc.push(index)
+    }
+    return acc
+  }, [])
+})
+const retakeEligibleCount = computed(() => retakeCandidateIndices.value.length)
+const shouldOfferRetakeBeforeSubmit = computed(
+  () => retakePointsAvailable.value > 0 && retakeEligibleCount.value > 0
+)
+const isOnLastQuestion = computed(
+  () => totalQuestions.value > 0 && currentQuestionIndex.value === totalQuestions.value - 1
+)
 
 function isAnswerCorrect(userAnswer, correctAnswer, questionType) {
   if (!userAnswer || !correctAnswer) return false
@@ -246,6 +328,9 @@ onBeforeUnmount(() => {
   if (countdownTimeout) {
     clearTimeout(countdownTimeout)
   }
+  if (perQuestionTimer) {
+    clearInterval(perQuestionTimer)
+  }
   if (typeof window !== 'undefined') {
     window.removeEventListener('resize', updateWindowWidth)
   }
@@ -269,14 +354,229 @@ function accumulateTimeForCurrent() {
   questionStartedAt.value = now
 }
 
-function selectAnswer(answer) {
-  answers.value[currentQuestionIndex.value] = answer
+function clearPerQuestionTimer() {
+  if (perQuestionTimer) {
+    clearInterval(perQuestionTimer)
+    perQuestionTimer = null
+  }
+}
+
+function restartPerQuestionTimer() {
+  clearPerQuestionTimer()
+  if (!isTimedQuiz.value || quizStage.value !== 'active') {
+    questionTimeRemaining.value = null
+    return
+  }
+  const limit = questionTimerLimit.value
+  if (!limit) {
+    questionTimeRemaining.value = null
+    return
+  }
+  questionTimeRemaining.value = limit
+  perQuestionTimer = setInterval(() => {
+    if (!isTimedQuiz.value) {
+      clearPerQuestionTimer()
+      questionTimeRemaining.value = null
+      return
+    }
+    if (typeof questionTimeRemaining.value !== 'number') {
+      questionTimeRemaining.value = questionTimerLimit.value || limit
+    } else if (questionTimeRemaining.value > 0) {
+      questionTimeRemaining.value = questionTimeRemaining.value - 1
+    }
+    if (questionTimeRemaining.value === 0) {
+      handleQuestionTimeout()
+    }
+  }, 1000)
+}
+
+function handleQuestionTimeout() {
+  if (!isTimedQuiz.value) return
+  clearPerQuestionTimer()
+  questionTimeRemaining.value = 0
+  accumulateTimeForCurrent()
+  const wasAnswered = isCurrentQuestionAnswered.value
+  if (!wasAnswered) {
+    // Record a blank answer so results show the question was skipped
+    answers.value[currentQuestionIndex.value] = ''
+    persistProgress()
+    window.$toast?.info?.(`Time is up for question ${currentQuestionIndex.value + 1}.`)
+  }
+
+  if (currentQuestionIndex.value < totalQuestions.value - 1) {
+    currentQuestionIndex.value++
+    persistProgress()
+    const statusMessage = wasAnswered
+      ? `Timer elapsed. Moving to question ${currentQuestionIndex.value + 1}.`
+      : `Time expired. Moving to question ${currentQuestionIndex.value + 1}.`
+    screenReaderStatus.value = statusMessage
+  } else {
+    attemptFinishQuiz({ auto: true })
+  }
+}
+
+watch(
+  () => quizStage.value,
+  (stage) => {
+    if (stage === 'active') {
+      restartPerQuestionTimer()
+    } else {
+      clearPerQuestionTimer()
+      questionTimeRemaining.value = null
+    }
+  },
+)
+
+watch(
+  () => currentQuestionIndex.value,
+  (newIndex, oldIndex) => {
+    if (quizStage.value === 'active' && isTimedQuiz.value) {
+      restartPerQuestionTimer()
+    }
+  },
+)
+
+watch(
+  () => isTimedQuiz.value,
+  (enabled) => {
+    if (enabled && quizStage.value === 'active') {
+      restartPerQuestionTimer()
+    } else if (!enabled) {
+      clearPerQuestionTimer()
+      questionTimeRemaining.value = null
+      resetDeferredRetakeState()
+    }
+  },
+)
+
+watch(
+  () => ({
+    shouldOffer: shouldOfferRetakeBeforeSubmit.value,
+    canPrompt:
+      quizStage.value === 'active' &&
+      isOnLastQuestion.value &&
+      isCurrentQuestionAnswered.value
+  }),
+  ({ shouldOffer, canPrompt }) => {
+    if (shouldOffer && canPrompt && !retakeModalVisible.value && !retakeModalDismissed.value) {
+      retakeModalVisible.value = true
+    }
+  }
+)
+
+function hasMeaningfulAnswer(answer, questionType) {
+  if (answer == null) return false
+  if (questionType === 'enumeration') {
+    return Array.isArray(answer) && answer.some((item) => (item ?? '').toString().trim() !== '')
+  }
+  if (Array.isArray(answer)) {
+    return answer.length > 0 && answer.some((item) => (item ?? '').toString().trim() !== '')
+  }
+  if (typeof answer === 'string') {
+    return answer.trim() !== ''
+  }
+  return true
+}
+
+function resetDeferredRetakeState() {
+  retakePointsEarned.value = 0
+  retakePointsSpent.value = 0
+  retakePointAwardedForQuestion.value = {}
+  firstAnswerElapsedMs.value = {}
+  retakeModalVisible.value = false
+  retakeModalDismissed.value = false
+  retakeReturnIndex.value = null
+  activeRetakeQuestionIndex.value = null
+}
+
+function getRetakeThresholdMs(questionType) {
+  const normalized = (questionType || '')
+    .toString()
+    .toLowerCase()
+    .replace(/[\s/-]+/g, '_')
+  if (['multiple_choice', 'true_false'].includes(normalized)) {
+    return FAST_CHOICE_THRESHOLD_MS
+  }
+  if (normalized === 'enumeration' || normalized === 'identification') {
+    return FAST_TEXT_THRESHOLD_MS
+  }
+  return null
+}
+
+function maybeAwardRetakePoint({ index, question, elapsedMsOverride }) {
+  if (!question) return false
+  if (!isTimedQuiz.value) return false
+
+  const threshold = getRetakeThresholdMs(question.type)
+  if (threshold == null) return false
+  if (retakePointAwardedForQuestion.value?.[index]) return false
+
+  const answer = answers.value?.[index]
+  if (!hasMeaningfulAnswer(answer, question.type)) return false
+  if (!isAnswerCorrect(answer, question.answer, question.type)) return false
+
+  const elapsedMs =
+    typeof elapsedMsOverride === 'number'
+      ? elapsedMsOverride
+      : firstAnswerElapsedMs.value?.[index]
+
+  if (typeof elapsedMs !== 'number' || elapsedMs > threshold) return false
+  if (retakePointsEarned.value >= MAX_RETAKE_POINTS) return false
+
+  retakePointsEarned.value = Math.min(MAX_RETAKE_POINTS, retakePointsEarned.value + 1)
+  retakePointAwardedForQuestion.value = {
+    ...retakePointAwardedForQuestion.value,
+    [index]: true
+  }
+  retakeModalDismissed.value = false
+  screenReaderStatus.value = `Retake point earned. ${retakePointsAvailable.value} available.`
+  window.$toast?.success?.('Retake point earned! Use it after the quiz to try again.')
+  return true
+}
+
+function recordAnswerForCurrent(answer) {
+  const index = currentQuestionIndex.value
+  answers.value[index] = answer
   persistProgress()
-  screenReaderStatus.value = `Answer recorded for question ${currentQuestionIndex.value + 1}.`
+  screenReaderStatus.value = `Answer recorded for question ${index + 1}.`
+
+  const question = quiz.value?.questions?.[index]
+  if (!question) return
+
+  const alreadyTracked = Object.prototype.hasOwnProperty.call(firstAnswerElapsedMs.value, index)
+  let elapsedMs = firstAnswerElapsedMs.value?.[index]
+  if (!alreadyTracked && hasMeaningfulAnswer(answer, question.type) && typeof questionStartedAt.value === 'number') {
+    elapsedMs = Date.now() - questionStartedAt.value
+    firstAnswerElapsedMs.value = {
+      ...firstAnswerElapsedMs.value,
+      [index]: elapsedMs
+    }
+  }
+
+  maybeAwardRetakePoint({
+    answer,
+    index,
+    question,
+    elapsedMsOverride: elapsedMs
+  })
+
+  if (activeRetakeQuestionIndex.value === index) {
+    activeRetakeQuestionIndex.value = null
+    if (typeof retakeReturnIndex.value === 'number') {
+      currentQuestionIndex.value = retakeReturnIndex.value
+      persistProgress()
+    }
+    retakeReturnIndex.value = null
+  }
+}
+
+function selectAnswer(answer) {
+  recordAnswerForCurrent(answer)
 }
 
 function nextQuestion() {
   if (currentQuestionIndex.value < totalQuestions.value - 1) {
+    clearPerQuestionTimer()
     accumulateTimeForCurrent()
     currentQuestionIndex.value++
     persistProgress()
@@ -284,7 +584,70 @@ function nextQuestion() {
   }
 }
 
+function handleSubmitClick() {
+  attemptFinishQuiz()
+}
+
+function attemptFinishQuiz({ auto = false } = {}) {
+  if (retakeModalVisible.value) return false
+  if (shouldOfferRetakeBeforeSubmit.value && !retakeModalDismissed.value) {
+    retakeModalVisible.value = true
+    if (auto) {
+      screenReaderStatus.value = 'Retake opportunity available before finishing the quiz.'
+    }
+    return false
+  }
+  submitQuiz()
+  return true
+}
+
+function pickRandomRetakeCandidateIndex() {
+  const candidates = retakeCandidateIndices.value
+  if (!candidates.length) return null
+  const randomIndex = Math.floor(Math.random() * candidates.length)
+  return candidates[randomIndex]
+}
+
+function resetAnswerForQuestion(index) {
+  const question = quiz.value?.questions?.[index]
+  if (!question) return
+  answers.value[index] = question.type === 'enumeration' ? [] : ''
+  const { [index]: _omit, ...rest } = firstAnswerElapsedMs.value
+  firstAnswerElapsedMs.value = rest
+}
+
+function startDeferredRetake() {
+  const targetIndex = pickRandomRetakeCandidateIndex()
+  if (targetIndex == null) {
+    skipRetakesAndSubmit()
+    return
+  }
+
+  retakePointsSpent.value = Math.min(retakePointsEarned.value, retakePointsSpent.value + 1)
+  retakeModalVisible.value = false
+  accumulateTimeForCurrent()
+  resetAnswerForQuestion(targetIndex)
+
+  retakeReturnIndex.value = totalQuestions.value > 0 ? totalQuestions.value - 1 : null
+  activeRetakeQuestionIndex.value = targetIndex
+  currentQuestionIndex.value = targetIndex
+  persistProgress()
+  questionStartedAt.value = Date.now()
+  restartPerQuestionTimer()
+
+  screenReaderStatus.value = `Retake started for question ${targetIndex + 1}.`
+  window.$toast?.info?.(`Retry question ${targetIndex + 1}.`)
+}
+
+function skipRetakesAndSubmit() {
+  retakeModalDismissed.value = true
+  retakeModalVisible.value = false
+  submitQuiz()
+}
+
 async function submitQuiz() {
+  clearPerQuestionTimer()
+  questionTimeRemaining.value = null
   accumulateTimeForCurrent()
   if (timer) {
     clearInterval(timer)
@@ -313,6 +676,7 @@ async function submitQuiz() {
 // restartQuiz removed; navigation goes to results page instead
 
 function startQuiz() {
+  resetDeferredRetakeState()
   quizStage.value = 'countdown'
   // Start quiz after animation plays (4 seconds)
   countdownTimeout = setTimeout(() => {
@@ -344,7 +708,7 @@ function handleVoiceAnswer(answer) {
     } else {
 
       console.log('Last question reached, submitting quiz')
-      submitQuiz()
+      attemptFinishQuiz({ auto: true })
     }
   }, 1500)
 }
@@ -359,6 +723,10 @@ function handleVoiceStatusChange(status) {
   } else if (status === 'inactive') {
     isVoiceEnabled.value = false
   }
+}
+
+function handleEnumerationAnswerUpdate(value) {
+  recordAnswerForCurrent(value)
 }
 
 function updateWindowWidth() {
@@ -400,6 +768,7 @@ function clearProgress() {
   try {
     localStorage.removeItem(storageKey.value)
   } catch {}
+  resetDeferredRetakeState()
 }
 
 function formatQuestionType(type) {
@@ -416,6 +785,60 @@ function formatQuestionType(type) {
 <template>
   <div class="quiz-page">
     <!-- <div class="sr-status" aria-live="polite">{{ screenReaderStatus }}</div> -->
+
+    <Transition name="fade">
+      <div
+        v-if="retakeModalVisible"
+        class="retake-modal-overlay"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="retake-modal-title"
+      >
+        <div class="retake-modal">
+          <div class="retake-modal-icon">
+            <svg
+              width="32"
+              height="32"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+            >
+              <path d="M21 12a9 9 0 1 1-9-9" />
+              <polyline points="21 3 21 12 12 12" />
+            </svg>
+          </div>
+          <h3 id="retake-modal-title" class="retake-modal-title">Retake opportunity unlocked</h3>
+          <p class="retake-modal-copy">
+            You earned
+            <strong>{{ retakePointsAvailable }}</strong>
+            retake {{ retakePointsAvailable === 1 ? 'chance' : 'chances' }}.
+          </p>
+          <p class="retake-modal-subcopy">
+            We will randomly reopen
+            {{ retakeEligibleCount === 1 ? 'the' : 'one of the' }}
+            {{ retakeEligibleCount }}
+            question{{ retakeEligibleCount === 1 ? '' : 's' }} you missed or got wrong.
+          </p>
+          <div class="retake-modal-actions">
+            <button
+              class="retake-skip-btn"
+              type="button"
+              @click="skipRetakesAndSubmit"
+            >
+              Skip & finish
+            </button>
+            <button
+              class="retake-start-btn"
+              type="button"
+              @click="startDeferredRetake"
+            >
+              Retake question
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
 
     <!-- Overview Screen -->
     <div v-if="quizStage === 'overview'" class="quiz-overview">
@@ -566,6 +989,15 @@ function formatQuestionType(type) {
               <div class="timer-label">Time Elapsed</div>
               <div class="timer-value">{{ timeFormatted }}</div>
             </div>
+            <div
+              v-if="isTimedQuiz"
+              class="timer-info per-question"
+              :class="{ danger: questionCountdownForUi <= 5 }"
+            >
+              <div class="timer-label">Per Question</div>
+              <div class="timer-value">{{ perQuestionTimerFormatted }}</div>
+              <div class="timer-subtext">Auto-advance</div>
+            </div>
           </div>
 
           <!-- Linear Progress Bar -->
@@ -625,6 +1057,13 @@ function formatQuestionType(type) {
               </span>
               <span class="question-number-badge">
                 Question {{ currentQuestionIndex + 1 }} of {{ totalQuestions }}
+              </span>
+              <span
+                v-if="isTimedQuiz"
+                class="question-timer-chip"
+                :class="{ danger: questionCountdownForUi <= 5 }"
+              >
+                ⏱ {{ perQuestionTimerFormatted }}
               </span>
             </div>
 
@@ -695,11 +1134,7 @@ function formatQuestionType(type) {
               :question="currentQuestion"
               :question-index="currentQuestionIndex"
               :model-value="answers[currentQuestionIndex] || []"
-              @update:model-value="(value) => {
-                answers[currentQuestionIndex] = value
-                persistProgress()
-                screenReaderStatus.value = `Answer recorded for question ${currentQuestionIndex + 1}.`
-              }"
+              @update:model-value="handleEnumerationAnswerUpdate"
             />
             </div>
 
@@ -720,7 +1155,7 @@ function formatQuestionType(type) {
               <button
                 v-else
                 class="nav-btn-submit"
-                @click="submitQuiz"
+                @click="handleSubmitClick"
                 :disabled="!isCurrentQuestionAnswered"
               >
                 <CheckCircle :size="16" />
@@ -882,7 +1317,7 @@ function formatQuestionType(type) {
 
   /* Timer icon keeps its gradient in dark mode */
   .timer-icon {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    background: var(--gradient-primary) !important;
   }
 
   .linear-progress-bar {
@@ -890,13 +1325,13 @@ function formatQuestionType(type) {
   }
 
   .linear-progress-fill {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    background: var(--gradient-primary) !important;
   }
 
   /* Keep question type badge vibrant */
   .question-type-badge {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-    color: white !important;
+    background: var(--gradient-primary) !important;
+    color: var(--color-text-on-primary) !important;
   }
 
   /* Question Card */
@@ -947,7 +1382,7 @@ function formatQuestionType(type) {
 
   .choice-button.selected .choice-key {
     background: #667eea !important;
-    color: white !important;
+    color: var(--color-text-on-primary) !important;
   }
 
   .choice-text {
@@ -994,6 +1429,29 @@ function formatQuestionType(type) {
   /* Navigation Buttons */
   .question-actions {
     border-top-color: #334155 !important;
+  }
+
+  .retake-modal {
+    background: #0f172a !important;
+    border-color: #1e293b !important;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6) !important;
+  }
+
+  .retake-modal-title {
+    color: #f8fafc !important;
+  }
+
+  .retake-modal-copy {
+    color: #e2e8f0 !important;
+  }
+
+  .retake-modal-subcopy {
+    color: #94a3b8 !important;
+  }
+
+  .retake-skip-btn {
+    background: #1e293b !important;
+    color: #f8fafc !important;
   }
 
   /* Overview Screen */
@@ -1250,6 +1708,100 @@ function formatQuestionType(type) {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+}
+
+.retake-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 24px;
+}
+
+.retake-modal {
+  width: 100%;
+  max-width: 480px;
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 32px;
+  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.35);
+  border: 1px solid #e2e8f0;
+  text-align: center;
+}
+
+.retake-modal-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 16px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #fbbf24 0%, #f97316 100%);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.retake-modal-title {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  color: #0f172a;
+}
+
+.retake-modal-copy {
+  margin-bottom: 8px;
+  font-size: 16px;
+  color: #334155;
+}
+
+.retake-modal-subcopy {
+  margin-bottom: 24px;
+  font-size: 14px;
+  color: #64748b;
+}
+
+.retake-modal-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.retake-skip-btn,
+.retake-start-btn {
+  flex: 1;
+  min-width: 160px;
+  border-radius: 999px;
+  padding: 14px 20px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.retake-skip-btn {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.retake-skip-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.15);
+}
+
+.retake-start-btn {
+  background: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
+  color: #fff;
+  box-shadow: 0 12px 30px rgba(249, 115, 22, 0.35);
+}
+
+.retake-start-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 36px rgba(249, 115, 22, 0.45);
 }
 
 .fade-enter-active,

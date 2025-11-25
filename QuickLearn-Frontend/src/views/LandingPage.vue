@@ -622,7 +622,7 @@ body.dark .hero-title {
 
 .hero-subtitle {
   font-size: 1.25rem;
-  color: #4a5568;
+  color: #374151;
   margin-bottom: 32px;
   line-height: 1.6;
 }
@@ -725,7 +725,7 @@ body.dark .hero-subtitle {
 
 .stat-label {
   font-size: 0.9rem;
-  color: #4a5568;
+  color: #374151;
   font-weight: 500;
 }
 
@@ -1406,12 +1406,14 @@ body.dark .author-info span {
   font-size: 2.5rem;
   font-weight: 800;
   margin-bottom: 16px;
+  color: #ffffff;
 }
 
 .cta-content p {
   font-size: 1.2rem;
   margin-bottom: 32px;
-  opacity: 0.9;
+  color: #f8f9fa;
+  opacity: 1;
 }
 
 /* Footer */
@@ -1442,10 +1444,11 @@ body.dark .author-info span {
   font-size: 1.2rem;
   font-weight: 600;
   margin-bottom: 16px;
+  color: #e5e7eb;
 }
 
 .footer-section p {
-  color: #a0aec0;
+  color: #d1d5db;
   line-height: 1.6;
 }
 
@@ -1458,7 +1461,7 @@ body.dark .author-info span {
 }
 
 .footer-section ul li a {
-  color: #a0aec0;
+  color: #d1d5db;
   text-decoration: none;
   transition: color 0.3s ease;
 }
@@ -1471,7 +1474,7 @@ body.dark .author-info span {
   border-top: 1px solid #2d3748;
   padding-top: 20px;
   text-align: center;
-  color: #a0aec0;
+  color: #d1d5db;
 }
 
 /* Responsive Design */

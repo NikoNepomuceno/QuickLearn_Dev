@@ -134,7 +134,7 @@ function handleRemoveQuestion(questionId) {
   padding: 0 12px;
   border-radius: 16px;
   background: var(--color-primary);
-  color: white;
+  color: var(--color-text-on-primary);
   font-size: 14px;
   font-weight: 600;
 }

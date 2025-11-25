@@ -406,10 +406,6 @@ function handleTabKeydown(event, tab) {
                       class="dropdown-menu"
                       @click.stop
                     >
-                      <button class="dropdown-item" @click="handleEditSummary(note)">
-                        <Edit :size="16" />
-                        Edit
-                      </button>
                       <button class="dropdown-item" @click="handleExportSummary(note)">
                         <Download :size="16" />
                         Export

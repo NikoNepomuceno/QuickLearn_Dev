@@ -1,9 +1,9 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, Eye, EyeOff, Lock, Mail, User, UserPlus } from 'lucide-vue-next'
+import { Eye, EyeOff, Lock, Mail, User, UserPlus } from 'lucide-vue-next'
 
-import AuthLayout from '@/components/layout/AuthLayout.vue'
+import RegisterLayout from '@/components/layout/RegisterLayout.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import FormField from '@/components/ui/FormField.vue'
@@ -104,10 +104,6 @@ async function onSubmit() {
   }
 }
 
-function goHome() {
-  router.push('/')
-}
-
 function togglePassword() {
   showPassword.value = !showPassword.value
 }
@@ -136,197 +132,200 @@ if (route.query.pp === '1') {
 </script>
 
 <template>
-  <AuthLayout
-    title="Create your account"
-    subtitle="Generate quizzes, flashcards, and notes in seconds."
-    :show-back="true"
-    back-label="Back to Home"
-    @back="goHome"
-  >
-    <template #back-icon>
-      <ArrowLeft :size="16" />
-    </template>
-
-    <form class="auth-form" @submit.prevent="onSubmit" novalidate autocomplete="off">
-      <FormField
-        label="Username"
-        required
-        for="register-username"
-      >
-        <BaseInput
-          id="register-username"
-          v-model="form.username"
-          placeholder="Choose a username"
-          autocomplete="off"
-          autocapitalize="none"
-          autocorrect="off"
-        >
-          <template #prefix>
-            <User :size="18" />
-          </template>
-        </BaseInput>
-      </FormField>
-
-      <FormField
-        label="Email"
-        required
-        for="register-email"
-      >
-        <BaseInput
-          id="register-email"
-          v-model="form.email"
-          type="email"
-          placeholder="you@example.com"
-          autocomplete="email"
-          autocapitalize="none"
-          autocorrect="off"
-        >
-          <template #prefix>
-            <Mail :size="18" />
-          </template>
-        </BaseInput>
-      </FormField>
-
-      <FormField
-        label="Password"
-        required
-        for="register-password"
-      >
-        <BaseInput
-          id="register-password"
-          v-model="form.password"
-          :type="showPassword ? 'text' : 'password'"
-          placeholder="Create a strong password"
-          autocomplete="new-password"
-        >
-          <template #prefix>
-            <Lock :size="18" />
-          </template>
-          <template #suffix>
-            <button
-              type="button"
-              class="icon-button"
-              @click="togglePassword"
-              :aria-pressed="showPassword"
-              :aria-label="showPassword ? 'Hide password' : 'Show password'"
-            >
-              <EyeOff v-if="showPassword" :size="18" />
-              <Eye v-else :size="18" />
-            </button>
-          </template>
-        </BaseInput>
-      </FormField>
-
-      <div v-if="passwordTouched" class="password-checklist" aria-live="polite">
-        <div
-          v-for="(met, key) in passwordChecklist"
-          :key="key"
-          :class="['password-checklist__item', { 'is-met': met }]"
-        >
-          <span class="password-checklist__icon" aria-hidden="true">
-            {{ met ? '✓' : '○' }}
-          </span>
-          <span class="password-checklist__text">
-            {{
-              key === 'length'
-                ? 'At least 8 characters'
-                : key === 'uppercase'
-                  ? 'One uppercase letter (A-Z)'
-                  : key === 'digit'
-                    ? 'One number (0-9)'
-                    : 'One special character (!@#$%^&*)'
-            }}
-          </span>
+  <RegisterLayout>
+    <div class="register-layout">
+      <section class="register-layout__left">
+        <div class="register-layout__brand">
+          <img src="/img/QuickLearn-Logo.png" alt="QuickLearn logo" />
+          <span>QuickLearn</span>
         </div>
-      </div>
 
-      <FormField
-        label="Confirm password"
-        required
-        for="register-confirm"
-      >
-        <BaseInput
-          id="register-confirm"
-          v-model="form.confirmPassword"
-          :type="showConfirmPassword ? 'text' : 'password'"
-          placeholder="Retype your password"
-          autocomplete="new-password"
-        >
-          <template #prefix>
-            <Lock :size="18" />
-          </template>
-          <template #suffix>
-            <button
-              type="button"
-              class="icon-button"
-              @click="toggleConfirmPassword"
-              :aria-pressed="showConfirmPassword"
-              :aria-label="showConfirmPassword ? 'Hide password' : 'Show password'"
+        <div class="register-layout__intro">
+          <p class="register-layout__eyebrow">Smart learning starts here</p>
+          <h2>Create your account</h2>
+          <p>Generate quizzes, flashcards, and notes in seconds. Join thousands of learners accelerating their study flow with QuickLearn.</p>
+        </div>
+
+        <div class="register-layout__cta">
+          <span>Already have an account?</span>
+          <router-link to="/login">Sign in</router-link>
+        </div>
+      </section>
+
+      <section class="register-layout__right">
+        <form class="auth-form" @submit.prevent="onSubmit" novalidate autocomplete="off">
+          <FormField
+            label="Username"
+            required
+            for="register-username"
+          >
+            <BaseInput
+              id="register-username"
+              v-model="form.username"
+              placeholder="Choose a username"
+              autocomplete="off"
+              autocapitalize="none"
+              autocorrect="off"
             >
-              <EyeOff v-if="showConfirmPassword" :size="18" />
-              <Eye v-else :size="18" />
-            </button>
-          </template>
-        </BaseInput>
-      </FormField>
+              <template #prefix>
+                <User :size="18" />
+              </template>
+            </BaseInput>
+          </FormField>
 
-      <div class="privacy-row">
-        <label class="privacy-row__label">
-          <input v-model="acceptedPrivacy" type="checkbox" />
-          <span>
-            I agree to the
-            <button type="button" class="privacy-row__link" @click="showPrivacy = true">
-              Privacy Policy
-            </button>
-          </span>
-        </label>
-      </div>
+          <FormField
+            label="Email"
+            required
+            for="register-email"
+          >
+            <BaseInput
+              id="register-email"
+              v-model="form.email"
+              type="email"
+              placeholder="you@example.com"
+              autocomplete="email"
+              autocapitalize="none"
+              autocorrect="off"
+            >
+              <template #prefix>
+                <Mail :size="18" />
+              </template>
+            </BaseInput>
+          </FormField>
 
-      <BaseButton
-        variant="primary"
-        size="md"
-        block
-        type="submit"
-        :loading="isLoading"
-      >
-        <UserPlus :size="18" />
-        Create account
-      </BaseButton>
+          <FormField
+            label="Password"
+            required
+            for="register-password"
+          >
+            <BaseInput
+              id="register-password"
+              v-model="form.password"
+              :type="showPassword ? 'text' : 'password'"
+              placeholder="Create a strong password"
+              autocomplete="new-password"
+            >
+              <template #prefix>
+                <Lock :size="18" />
+              </template>
+              <template #suffix>
+                <button
+                  type="button"
+                  class="icon-button"
+                  @click="togglePassword"
+                  :aria-pressed="showPassword"
+                  :aria-label="showPassword ? 'Hide password' : 'Show password'"
+                >
+                  <EyeOff v-if="showPassword" :size="18" />
+                  <Eye v-else :size="18" />
+                </button>
+              </template>
+            </BaseInput>
+          </FormField>
 
-    </form>
+          <div v-if="passwordTouched" class="password-checklist" aria-live="polite">
+            <div
+              v-for="(met, key) in passwordChecklist"
+              :key="key"
+              :class="['password-checklist__item', { 'is-met': met }]"
+            >
+              <span class="password-checklist__icon" aria-hidden="true">
+                {{ met ? '✓' : '○' }}
+              </span>
+              <span class="password-checklist__text">
+                {{
+                  key === 'length'
+                    ? 'At least 8 characters'
+                    : key === 'uppercase'
+                      ? 'One uppercase letter (A-Z)'
+                      : key === 'digit'
+                        ? 'One number (0-9)'
+                        : 'One special character (!@#$%^&*)'
+                }}
+              </span>
+            </div>
+          </div>
 
-    <div class="auth-divider">
-      <span>Or continue with</span>
+          <FormField
+            label="Confirm password"
+            required
+            for="register-confirm"
+          >
+            <BaseInput
+              id="register-confirm"
+              v-model="form.confirmPassword"
+              :type="showConfirmPassword ? 'text' : 'password'"
+              placeholder="Retype your password"
+              autocomplete="new-password"
+            >
+              <template #prefix>
+                <Lock :size="18" />
+              </template>
+              <template #suffix>
+                <button
+                  type="button"
+                  class="icon-button"
+                  @click="toggleConfirmPassword"
+                  :aria-pressed="showConfirmPassword"
+                  :aria-label="showConfirmPassword ? 'Hide password' : 'Show password'"
+                >
+                  <EyeOff v-if="showConfirmPassword" :size="18" />
+                  <Eye v-else :size="18" />
+                </button>
+              </template>
+            </BaseInput>
+          </FormField>
+
+          <div class="privacy-row">
+            <label class="privacy-row__label">
+              <input v-model="acceptedPrivacy" type="checkbox" />
+              <span>
+                I agree to the
+                <button type="button" class="privacy-row__link" @click="showPrivacy = true">
+                  Privacy Policy
+                </button>
+              </span>
+            </label>
+          </div>
+
+          <BaseButton
+            variant="primary"
+            size="md"
+            block
+            type="submit"
+            :loading="isLoading"
+          >
+            <UserPlus :size="18" />
+            Create account
+          </BaseButton>
+        </form>
+
+        <div class="auth-divider">
+          <span>Or continue with</span>
+        </div>
+
+        <div class="social-buttons">
+          <BaseButton variant="secondary" block @click="handleGoogleLogin">
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+            </svg>
+            Google
+          </BaseButton>
+
+          <BaseButton variant="secondary" block @click="handleGitHubLogin">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M12 0C5.37 0 0 5.46 0 12.2c0 5.4 3.44 9.97 8.21 11.6.6.12.82-.27.82-.59v-2.28c-3.34.75-4.05-1.45-4.05-1.45-.55-1.41-1.33-1.78-1.33-1.78-1.1-.76.08-.74.08-.74 1.2.09 1.84 1.27 1.84 1.27 1.07 1.85 2.81 1.32 3.5 1.01.11-.8.42-1.32.76-1.62-2.66-.31-5.47-1.35-5.47-6 0-1.33.46-2.41 1.23-3.26-.12-.31-.52-1.58.12-3.3 0 0 1.01-.33 3.31 1.25.96-.27 1.98-.4 3-.4 1.02 0 2.04.14 3 .4 2.3-1.58 3.31-1.25 3.31-1.25.64 1.72.24 2.99.12 3.3.77.85 1.23 1.93 1.23 3.26 0 4.66-2.81 5.68-5.49 5.99.43.38.82 1.13.82 2.29v3.39c0 .32.21.71.82.59C20.56 22.17 24 17.6 24 12.2 24 5.46 18.63 0 12 0z" />
+            </svg>
+            GitHub
+          </BaseButton>
+        </div>
+      </section>
     </div>
 
-    <div class="social-buttons">
-      <BaseButton variant="secondary" block @click="handleGoogleLogin">
-        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-        </svg>
-        Google
-      </BaseButton>
-
-      <BaseButton variant="secondary" block @click="handleGitHubLogin">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <path d="M12 0C5.37 0 0 5.46 0 12.2c0 5.4 3.44 9.97 8.21 11.6.6.12.82-.27.82-.59v-2.28c-3.34.75-4.05-1.45-4.05-1.45-.55-1.41-1.33-1.78-1.33-1.78-1.1-.76.08-.74.08-.74 1.2.09 1.84 1.27 1.84 1.27 1.07 1.85 2.81 1.32 3.5 1.01.11-.8.42-1.32.76-1.62-2.66-.31-5.47-1.35-5.47-6 0-1.33.46-2.41 1.23-3.26-.12-.31-.52-1.58.12-3.3 0 0 1.01-.33 3.31 1.25.96-.27 1.98-.4 3-.4 1.02 0 2.04.14 3 .4 2.3-1.58 3.31-1.25 3.31-1.25.64 1.72.24 2.99.12 3.3.77.85 1.23 1.93 1.23 3.26 0 4.66-2.81 5.68-5.49 5.99.43.38.82 1.13.82 2.29v3.39c0 .32.21.71.82.59C20.56 22.17 24 17.6 24 12.2 24 5.46 18.63 0 12 0z" />
-        </svg>
-        GitHub
-      </BaseButton>
-    </div>
-
-    <template #footer>
-      <div class="auth-footer">
-        <span>Already have an account?</span>
-        <router-link class="auth-footer__link" to="/login">
-          Sign in
-        </router-link>
-      </div>
-    </template>
-  </AuthLayout>
+  </RegisterLayout>
 
   <PrivacyPolicyModal v-model="showPrivacy" @accept="handlePrivacyAccept" />
 </template>
@@ -337,6 +336,113 @@ if (route.query.pp === '1') {
   overflow-x: hidden;
 }
 
+.register-layout {
+  display: flex;
+  width: 100%;
+  background: var(--color-surface);
+  border-radius: 24px;
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.register-layout__left {
+  flex: 1;
+  background: var(--gradient-primary);
+  color: var(--color-text-on-dark);
+  padding: clamp(2.5rem, 4vw, 4rem);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 2rem;
+}
+
+.register-layout__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-weight: 700;
+  font-size: 1.1rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.register-layout__brand img {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 20px rgba(10, 16, 40, 0.35));
+}
+
+.register-layout__intro {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.register-layout__eyebrow,
+.register-layout__left h2,
+.register-layout__left p,
+.register-layout__cta span {
+  color: var(--color-text-on-dark);
+}
+
+.register-layout__left h2 {
+  color: var(--color-text-on-dark);
+}
+
+.register-layout__left p {
+  color: rgba(248, 249, 255, 0.92);
+}
+
+.register-layout__eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 0.75rem;
+  font-weight: 600;
+  opacity: 0.8;
+  margin: 0;
+}
+
+.register-layout__left h2 {
+  font-size: clamp(2rem, 3vw, 2.5rem);
+  font-weight: 700;
+  margin: 0;
+}
+
+.register-layout__left p {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.7;
+  max-width: 32ch;
+}
+
+.register-layout__cta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  color: var(--color-text-on-dark);
+  opacity: 0.85;
+}
+
+.register-layout__cta a {
+  color: var(--color-text-on-primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.register-layout__cta a:hover {
+  text-decoration: underline;
+}
+
+.register-layout__right {
+  flex: 1;
+  padding: clamp(2rem, 4vw, 3.75rem);
+  background: var(--color-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
 
 .auth-form {
   display: grid;
@@ -396,7 +502,7 @@ if (route.query.pp === '1') {
   align-items: center;
   gap: var(--space-2);
   font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
+  color: var(--color-text);
 }
 
 .privacy-row__link {
@@ -416,7 +522,7 @@ if (route.query.pp === '1') {
   position: relative;
   text-align: center;
   font-size: var(--font-size-sm);
-  color: var(--color-text-soft);
+  color: var(--color-text-muted);
 }
 
 .auth-divider::before {
@@ -440,24 +546,6 @@ if (route.query.pp === '1') {
   gap: var(--space-3);
 }
 
-.auth-footer {
-  display: flex;
-  justify-content: center;
-  gap: var(--space-2);
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
-}
-
-.auth-footer__link {
-  color: var(--color-primary);
-  font-weight: var(--font-weight-semibold);
-  text-decoration: none;
-}
-
-.auth-footer__link:hover {
-  color: var(--color-primary-dark);
-}
-
 body.dark .password-checklist {
   background: var(--color-surface-subtle);
   border-color: var(--color-border);
@@ -465,5 +553,35 @@ body.dark .password-checklist {
 
 body.dark .auth-divider span {
   background: var(--color-surface);
+}
+
+body.dark .register-layout {
+  background: var(--color-surface);
+  box-shadow: 0 18px 40px rgba(5, 9, 20, 0.45);
+}
+
+body.dark .register-layout__right {
+  background: var(--color-surface);
+}
+
+@media (max-width: 1024px) {
+  .register-layout {
+    border-radius: 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .register-layout {
+    flex-direction: column;
+  }
+
+  .register-layout__left,
+  .register-layout__right {
+    padding: 2rem;
+  }
+
+  .register-layout__left {
+    gap: 1.5rem;
+  }
 }
 </style>

@@ -370,7 +370,7 @@ function getQuestionStem(question) {
   height: 32px;
   border-radius: 50%;
   background: var(--color-primary);
-  color: white;
+  color: var(--color-text-on-primary);
   font-weight: 600;
   font-size: 14px;
 }
@@ -428,7 +428,7 @@ function getQuestionStem(question) {
 
 .action-btn:hover:not(:disabled) {
   background: var(--color-primary);
-  color: white;
+  color: var(--color-text-on-primary);
   border-color: var(--color-primary);
 }
 
