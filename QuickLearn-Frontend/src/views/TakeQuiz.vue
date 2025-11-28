@@ -9,7 +9,6 @@ import { Clock, CheckCircle, ArrowRight, Play } from 'lucide-vue-next'
 
 const router = useRouter()
 const route = useRoute()
-
 const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1280)
 const screenReaderStatus = ref('')
 const storageKey = computed(() => {
@@ -20,11 +19,10 @@ const storageKey = computed(() => {
 const quiz = ref(null)
 const currentQuestionIndex = ref(0)
 const answers = ref({})
-// Removed inline results view; results are shown on dedicated route
 const timeElapsed = ref(0)
 const startTime = ref(null)
-const questionTimesMs = ref([]) // per-question timings in milliseconds
-const questionStartedAt = ref(null) // timestamp when current question started
+const questionTimesMs = ref([])
+const questionStartedAt = ref(null)
 const FAST_CHOICE_THRESHOLD_MS = 3000
 const FAST_TEXT_THRESHOLD_MS = 5000
 const MAX_RETAKE_POINTS = 2
@@ -41,13 +39,30 @@ let perQuestionTimer = null
 const questionTimeRemaining = ref(null)
 const MIN_QUESTION_TIMER = 10
 const MAX_QUESTION_TIMER = 300
+const TRUE_FALSE_CHOICES = ['True', 'False']
 
-// Quiz stage management: 'overview', 'countdown', 'active'
 const quizStage = ref('overview')
 let countdownTimeout = null
 
 const currentQuestion = computed(() => {
   return quiz.value?.questions?.[currentQuestionIndex.value] || null
+})
+
+const isMultipleChoiceQuestion = computed(() => currentQuestion.value?.type === 'multiple_choice')
+const isTrueFalseQuestion = computed(() => currentQuestion.value?.type === 'true_false')
+
+const currentQuestionChoices = computed(() => {
+  const question = currentQuestion.value
+  if (!question) return []
+
+  if (question.type === 'true_false') {
+    if (Array.isArray(question.choices) && question.choices.length) {
+      return question.choices.slice(0, 2)
+    }
+    return TRUE_FALSE_CHOICES
+  }
+
+  return Array.isArray(question.choices) ? question.choices : []
 })
 
 const totalQuestions = computed(() => {
@@ -95,6 +110,13 @@ const questionCountdownForUi = computed(() => {
     return questionTimeRemaining.value
   }
   return questionTimerLimit.value
+})
+const questionTimerProgress = computed(() => {
+  if (!isTimedQuiz.value) return 0
+  const total = questionTimerLimit.value || 0
+  if (!total) return 0
+  const remaining = Math.max(0, questionCountdownForUi.value || 0)
+  return (remaining / total) * 100
 })
 const perQuestionTimerFormatted = computed(() => {
   if (!isTimedQuiz.value) return ''
@@ -159,10 +181,8 @@ function isAnswerCorrect(userAnswer, correctAnswer, questionType) {
       return false
     })
   } else {
-    // For other question types (multiple_choice, true_false, identification)
     let cleanedUserAnswer = userAnswer.toString().trim()
 
-    // For identification: remove common prefixes/suffixes (same as voice parser)
     if (questionType === 'identification') {
       cleanedUserAnswer = cleanedUserAnswer
         .replace(/^(my answer is|the answer is|answer|i think|i believe)\s*/i, '')
@@ -173,10 +193,8 @@ function isAnswerCorrect(userAnswer, correctAnswer, questionType) {
     const normalizedUser = cleanedUserAnswer.toLowerCase()
     const normalizedCorrect = correctAnswer.toString().trim().toLowerCase()
 
-    // Direct match
     if (normalizedUser === normalizedCorrect) return true
 
-    // Handle common variations
     const variations = {
       dom: ['document object model', 'dom'],
       'document object model': ['dom', 'document object model'],
@@ -205,12 +223,10 @@ function isAnswerCorrect(userAnswer, correctAnswer, questionType) {
       false: ['no', 'incorrect', 'false', '0'],
     }
 
-    // Check if user answer matches any variation of correct answer
     if (variations[normalizedCorrect]) {
       return variations[normalizedCorrect].includes(normalizedUser)
     }
 
-    // Check if correct answer matches any variation of user answer
     if (variations[normalizedUser]) {
       return variations[normalizedUser].includes(normalizedCorrect)
     }
@@ -236,20 +252,17 @@ const timeFormatted = computed(() => {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`
 })
 
-// Extract number from question text (e.g., "Name two scenarios" -> 2)
 function extractNumberFromQuestion(questionText) {
   if (!questionText) return null
 
   const text = questionText.toLowerCase()
 
-  // Number word to number mapping
   const numberWords = {
     'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
     'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
     'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14, 'fifteen': 15
   }
 
-  // Try to find number words first
   for (const [word, num] of Object.entries(numberWords)) {
     const regex = new RegExp(`\\b${word}\\b`, 'i')
     if (regex.test(text)) {
@@ -257,7 +270,6 @@ function extractNumberFromQuestion(questionText) {
     }
   }
 
-  // Try to find numeric patterns like "2", "3", etc.
   const numericMatch = text.match(/\b(\d+)\b/)
   if (numericMatch) {
     const num = parseInt(numericMatch[1], 10)
@@ -269,17 +281,25 @@ function extractNumberFromQuestion(questionText) {
   return null
 }
 
+function getEnumerationRequiredCount(question) {
+  if (!question || question.type !== 'enumeration') return 0
+
+  const textNumber = extractNumberFromQuestion(question.question)
+  if (textNumber !== null) return textNumber
+
+  if (Array.isArray(question.answer)) {
+    return question.answer.length
+  }
+
+  return 0
+}
+
 const isCurrentQuestionAnswered = computed(() => {
   const currentAnswer = answers.value[currentQuestionIndex.value]
   if (!currentAnswer) return false
 
-  // For enumeration questions, check if all required fields are filled
   if (currentQuestion.value?.type === 'enumeration') {
-    // First, try to extract number from question text
-    const textNumber = extractNumberFromQuestion(currentQuestion.value?.question)
-    const requiredCount = textNumber !== null
-      ? textNumber
-      : (Array.isArray(currentQuestion.value?.answer) ? currentQuestion.value.answer.length : 0)
+    const requiredCount = getEnumerationRequiredCount(currentQuestion.value)
 
     return (
       Array.isArray(currentAnswer) &&
@@ -289,6 +309,33 @@ const isCurrentQuestionAnswered = computed(() => {
   }
 
   return currentAnswer && currentAnswer.toString().trim() !== ''
+})
+
+const identificationAnswer = computed(() => {
+  const value = answers.value?.[currentQuestionIndex.value]
+  return typeof value === 'string' ? value : ''
+})
+
+const identificationCharCount = computed(() => identificationAnswer.value.length)
+
+const enumerationProgress = computed(() => {
+  if (currentQuestion.value?.type !== 'enumeration') {
+    return { answered: 0, required: 0 }
+  }
+
+  const required = getEnumerationRequiredCount(currentQuestion.value)
+  const value = answers.value?.[currentQuestionIndex.value]
+  const answered = Array.isArray(value)
+    ? value.filter((item) => (item ?? '').toString().trim() !== '').length
+    : 0
+
+  return { answered, required }
+})
+
+const enumerationProgressPercent = computed(() => {
+  const { answered, required } = enumerationProgress.value
+  if (!required) return 0
+  return Math.min(100, (answered / required) * 100)
 })
 
 const isVoiceEnabled = ref(false)
@@ -470,7 +517,7 @@ function hasMeaningfulAnswer(answer, questionType) {
     return Array.isArray(answer) && answer.some((item) => (item ?? '').toString().trim() !== '')
   }
   if (Array.isArray(answer)) {
-    return answer.length > 0 && answer.some((item) => (item ?? '').toString().trim() !== '')
+    return answer.some((item) => (item ?? '').toString().trim() !== '')
   }
   if (typeof answer === 'string') {
     return answer.trim() !== ''
@@ -572,6 +619,10 @@ function recordAnswerForCurrent(answer) {
 
 function selectAnswer(answer) {
   recordAnswerForCurrent(answer)
+}
+
+function handleIdentificationInput(value) {
+  selectAnswer(value)
 }
 
 function nextQuestion() {
@@ -916,273 +967,776 @@ function formatQuestionType(type) {
 
     <!-- Active Quiz -->
     <Transition name="quiz-enter">
-      <div v-if="quizStage === 'active'" class="quiz-container">
-        <!-- Minimal Sticky Header -->
-        <div class="quiz-header-minimal">
-          <div class="header-left">
-            <button class="icon-btn back-btn" @click="goHome" title="Exit Quiz">
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path d="m12 19-7-7 7-7" />
-                <path d="m19 12H5" />
-              </svg>
-            </button>
-            <div class="quiz-breadcrumb">
-              <span class="quiz-title-small">{{ quiz?.title || 'Quiz' }}</span>
-            </div>
-          </div>
-        </div>
-
-      <!-- Two-Column Grid Layout -->
-      <div class="quiz-active-layout">
-        <!-- Sidebar -->
-        <div class="quiz-sidebar">
-          <!-- Progress Circle -->
-          <div class="progress-circle-large">
-            <svg class="progress-svg" viewBox="0 0 120 120">
-              <circle
-                class="progress-bg"
-                cx="60"
-                cy="60"
-                r="54"
-                fill="none"
-                stroke="#e5e7eb"
-                stroke-width="8"
-              />
-              <circle
-                class="progress-fill-circle"
-                cx="60"
-                cy="60"
-                r="54"
-                fill="none"
-                stroke="url(#gradient)"
-                stroke-width="8"
-                :stroke-dasharray="339.292"
-                :stroke-dashoffset="339.292 - (339.292 * progress) / 100"
-                stroke-linecap="round"
-              />
-              <defs>
-                <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" style="stop-color: #667eea; stop-opacity: 1" />
-                  <stop offset="100%" style="stop-color: #764ba2; stop-opacity: 1" />
-                </linearGradient>
-              </defs>
-            </svg>
-            <div class="progress-center">
-              <div class="progress-number">{{ currentQuestionIndex + 1 }}</div>
-              <div class="progress-total">of {{ totalQuestions }}</div>
-            </div>
-          </div>
-
-          <!-- Timer Card -->
-          <div class="timer-card">
-            <div class="timer-icon">
-              <Clock :size="20" />
-            </div>
-            <div class="timer-info">
-              <div class="timer-label">Time Elapsed</div>
-              <div class="timer-value">{{ timeFormatted }}</div>
-            </div>
-            <div
-              v-if="isTimedQuiz"
-              class="timer-info per-question"
-              :class="{ danger: questionCountdownForUi <= 5 }"
+      <div v-if="quizStage === 'active'" class="quiz-container wg-quiz-shell">
+        <!-- WayGround-like top bar -->
+        <header class="wg-top-bar">
+          <button class="wg-top-exit" type="button" @click="goHome" title="Exit Quiz">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
             >
-              <div class="timer-label">Per Question</div>
-              <div class="timer-value">{{ perQuestionTimerFormatted }}</div>
-              <div class="timer-subtext">Auto-advance</div>
+              <path d="m12 19-7-7 7-7" />
+              <path d="m19 12H5" />
+            </svg>
+          </button>
+
+          <div class="wg-top-center">
+            <span class="wg-quiz-label">Question</span>
+            <span class="wg-question-count">
+              {{ currentQuestionIndex + 1 }} / {{ totalQuestions }}
+            </span>
+            <div class="wg-progress-track">
+              <div class="wg-progress-fill" :style="{ width: `${progress}%` }"></div>
             </div>
           </div>
 
-          <!-- Linear Progress Bar -->
-          <div class="linear-progress-card">
-            <div class="progress-header">
-              <span class="progress-label">Progress</span>
-              <span class="progress-count">{{ Object.keys(answers).length }} of {{ totalQuestions }} answered</span>
-            </div>
-            <div class="linear-progress-bar">
-              <div
-                class="linear-progress-fill"
-                :style="{ width: `${(Object.keys(answers).length / totalQuestions) * 100}%` }"
-              ></div>
-            </div>
-          </div>
-
-          <!-- Voice Control Card -->
-          <div class="voice-control-card">
-            <div class="voice-header">
-              <div class="voice-title">
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                  <line x1="12" x2="12" y1="19" y2="22" />
-                </svg>
-                <span>Voice Input</span>
-              </div>
-            </div>
-            <div class="voice-component">
-              <VoiceQuiz
-                :question="currentQuestion"
-                :question-number="currentQuestionIndex + 1"
-                :is-enabled="isVoiceEnabled"
-                @answer-selected="handleVoiceAnswer"
-                @error="handleVoiceError"
-                @status-change="handleVoiceStatusChange"
-              />
-            </div>
-          </div>
-        </div>
-
-        <!-- Main Question Area -->
-        <div class="quiz-content">
-        <div class="question-section">
-          <div class="question-card-enhanced">
-            <!-- Question Meta -->
-            <div class="question-meta">
-              <span class="question-type-badge">
-                {{ formatQuestionType(currentQuestion?.type) }}
-              </span>
-              <span class="question-number-badge">
-                Question {{ currentQuestionIndex + 1 }} of {{ totalQuestions }}
-              </span>
+          <div class="wg-top-right">
+            <div class="wg-timer">
+              <Clock :size="18" />
+              <span class="wg-timer-main">{{ timeFormatted }}</span>
               <span
                 v-if="isTimedQuiz"
-                class="question-timer-chip"
+                class="wg-timer-per-question"
                 :class="{ danger: questionCountdownForUi <= 5 }"
               >
-                ⏱ {{ perQuestionTimerFormatted }}
+                {{ perQuestionTimerFormatted }}
               </span>
             </div>
+          </div>
+        </header>
 
-            <!-- Question Text -->
-            <h2 class="question-text-large">
-              {{ currentQuestion?.question }}
-            </h2>
-
-            <!-- Voice Listening Indicator -->
-            <div v-if="isVoiceEnabled" class="voice-listening-indicator">
-              <div class="voice-wave-animation">
-                <span class="wave"></span>
-                <span class="wave"></span>
-                <span class="wave"></span>
+        <!-- Main WayGround-style layout -->
+        <main class="wg-main">
+          <section class="wg-question-surface">
+            <!-- Timed quiz progress bar (per-question) -->
+            <div v-if="isTimedQuiz" class="wg-timer-progress-wrapper">
+              <div class="wg-timer-progress-track">
+                <div
+                  class="wg-timer-progress-fill"
+                :style="{ width: `${questionTimerProgress}%` }"
+                ></div>
               </div>
-              <span class="voice-text">Voice input active - speak your answer</span>
+            </div>
+            <div class="wg-question-card">
+              <p class="wg-question-type">
+                {{ formatQuestionType(currentQuestion?.type) }}
+              </p>
+              <h2 class="wg-question-text">
+                {{ currentQuestion?.question }}
+              </h2>
+
+              <div v-if="isVoiceEnabled" class="voice-listening-indicator wg-voice-banner">
+                <div class="voice-wave-animation">
+                  <span class="wave"></span>
+                  <span class="wave"></span>
+                  <span class="wave"></span>
+                </div>
+                <span class="voice-text">Voice input active – speak your answer</span>
+              </div>
             </div>
 
             <!-- Answer Area -->
-            <div class="answer-area">
-
-            <!-- Multiple Choice and True/False Questions -->
-            <div
-              v-if="
-                currentQuestion?.type === 'multiple_choice' ||
-                currentQuestion?.type === 'true_false'
-              "
-              class="choices-enhanced"
-            >
-              <button
-                v-for="(choice, index) in currentQuestion?.choices"
-                :key="index"
-                class="choice-button"
-                :class="{ selected: answers[currentQuestionIndex] === choice }"
-                @click="selectAnswer(choice)"
-                type="button"
+            <div class="wg-answer-area">
+              <!-- Multiple Choice & True/False -->
+              <div
+                v-if="isMultipleChoiceQuestion || isTrueFalseQuestion"
+                class="wg-options-grid"
+                :class="{ 'wg-options-true-false': isTrueFalseQuestion }"
               >
-                <span class="choice-key">{{ String.fromCharCode(65 + index) }}</span>
-                <span class="choice-text">{{ choice }}</span>
-                <span class="choice-check">
-                  <CheckCircle v-if="answers[currentQuestionIndex] === choice" :size="20" />
-                </span>
-              </button>
-            </div>
+                <button
+                  v-for="(choice, index) in currentQuestionChoices"
+                  :key="`${choice}-${index}`"
+                  class="wg-option"
+                  :class="[
+                    `wg-option-${index}`,
+                    {
+                      selected: answers[currentQuestionIndex] === choice,
+                      'wg-boolean-option': isTrueFalseQuestion
+                    }
+                  ]"
+                  type="button"
+                  @click="selectAnswer(choice)"
+                >
+                  <span class="wg-option-shape">
+                    <span v-if="index === 0" class="wg-shape-triangle"></span>
+                    <span v-else-if="index === 1" class="wg-shape-diamond"></span>
+                    <span v-else-if="index === 2" class="wg-shape-circle"></span>
+                    <span v-else class="wg-shape-square"></span>
+                  </span>
+                  <div class="wg-option-content">
+                    <span class="wg-option-text">
+                      {{ choice }}
+                    </span>
+                    <small
+                      v-if="isTrueFalseQuestion"
+                      class="wg-option-subtext"
+                    >
+                      Select
+                      {{
+                        choice.toString().toLowerCase() === 'true'
+                          ? 'if the statement is correct'
+                          : 'if the statement is incorrect'
+                      }}
+                    </small>
+                  </div>
+                  <span class="wg-option-check">
+                    <CheckCircle v-if="answers[currentQuestionIndex] === choice" :size="20" />
+                  </span>
+                </button>
+              </div>
 
-            <!-- Identification (Fill-in-the-blank) Questions -->
-            <div
-              v-else-if="currentQuestion?.type === 'identification'"
-              class="input-enhanced"
-            >
-              <div class="input-group">
-                <label for="identification-answer" class="input-label">Your Answer:</label>
-                <input
+              <!-- Identification -->
+              <div
+                v-else-if="currentQuestion?.type === 'identification'"
+                class="wg-identification"
+              >
+                <header class="wg-identification-header">
+                  <span class="wg-identification-pill">Short answer</span>
+                  <span class="wg-identification-count">{{ identificationCharCount }} chars</span>
+                </header>
+                <label for="identification-answer" class="input-label sr-only">
+                  Type your answer
+                </label>
+                <textarea
                   id="identification-answer"
-                  type="text"
-                  v-model="answers[currentQuestionIndex]"
-                  class="text-input-large"
-                  placeholder="Type your answer here..."
-                  @input="selectAnswer($event.target.value)"
+                  class="wg-textarea wg-text-input-dark"
+                  :value="identificationAnswer"
+                  placeholder="Enter your answer here..."
+                  rows="4"
+                  @input="handleIdentificationInput($event.target.value)"
                   autofocus
+                ></textarea>
+                <p class="wg-identification-hint">
+                  Provide a concise response. Your work saves automatically.
+                </p>
+              </div>
+
+              <!-- Enumeration -->
+              <div v-else-if="currentQuestion?.type === 'enumeration'" class="wg-enumeration">
+                <header class="wg-enumeration-header">
+                  <span class="wg-enumeration-pill">List each required item</span>
+                  <span class="wg-enumeration-progress">
+                    {{ enumerationProgress.answered }} / {{ enumerationProgress.required }} filled
+                  </span>
+                </header>
+                <div class="wg-enumeration-meter" aria-hidden="true">
+                  <div
+                    class="wg-enumeration-meter-fill"
+                    :style="{ width: `${enumerationProgressPercent}%` }"
+                  ></div>
+                </div>
+                <EnumerationInput
+                  :question="currentQuestion"
+                  :question-index="currentQuestionIndex"
+                  :model-value="answers[currentQuestionIndex] || []"
+                  @update:model-value="handleEnumerationAnswerUpdate"
                 />
               </div>
             </div>
 
-            <!-- Enumeration (List multiple answers) Questions -->
-            <EnumerationInput
-              v-else-if="currentQuestion?.type === 'enumeration'"
-              :question="currentQuestion"
-              :question-index="currentQuestionIndex"
-              :model-value="answers[currentQuestionIndex] || []"
-              @update:model-value="handleEnumerationAnswerUpdate"
-            />
-            </div>
+            <!-- Bottom bar -->
+            <footer class="wg-bottom-bar">
+              <div class="wg-bottom-left">
+                <VoiceQuiz
+                  :question="currentQuestion"
+                  :question-number="currentQuestionIndex + 1"
+                  :is-enabled="isVoiceEnabled"
+                  @answer-selected="handleVoiceAnswer"
+                  @error="handleVoiceError"
+                  @status-change="handleVoiceStatusChange"
+                />
+              </div>
 
-            <!-- Navigation Actions -->
-            <div class="question-actions">
-              <div class="spacer"></div>
-
-              <button
-                v-if="currentQuestionIndex < totalQuestions - 1"
-                class="nav-btn-primary"
-                @click="nextQuestion"
-                :disabled="!isCurrentQuestionAnswered"
-              >
-                Next Question
-                <ArrowRight :size="16" />
-              </button>
-
-              <button
-                v-else
-                class="nav-btn-submit"
-                @click="handleSubmitClick"
-                :disabled="!isCurrentQuestionAnswered"
-              >
-                <CheckCircle :size="16" />
-                Submit Quiz
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-      </div>
+              <div class="wg-bottom-right">
+                <button
+                  v-if="currentQuestionIndex < totalQuestions - 1"
+                  class="nav-btn-primary wg-nav-primary"
+                  type="button"
+                  @click="nextQuestion"
+                  :disabled="!isCurrentQuestionAnswered"
+                >
+                  Next
+                  <ArrowRight :size="16" />
+                </button>
+                <button
+                  v-else
+                  class="nav-btn-submit wg-nav-submit"
+                  type="button"
+                  @click="handleSubmitClick"
+                  :disabled="!isCurrentQuestionAnswered"
+                >
+                  <CheckCircle :size="16" />
+                  Submit
+                </button>
+              </div>
+            </footer>
+          </section>
+        </main>
       </div>
     </Transition>
   </div>
 </template>
 
 <style scoped>
-.quiz-page {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 24px;
+ .quiz-page {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 24px 32px 32px;
   min-height: 100vh;
   position: relative;
+  display: flex;
+  flex-direction: column;
+  background: #f9fafb;
 }
 
 .quiz-container {
   position: relative;
   z-index: 1;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* WayGround-inspired active quiz layout */
+.wg-quiz-shell {
+  width: 100%;
+  max-width: 1200px;
+  margin: 16px auto 0;
+  padding: 8px 24px 32px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.wg-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 20px;
+  border-radius: 999px;
+  background: white;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  color: #111827;
+  margin-bottom: 24px;
+  width: 100%;
+  border: 1px solid #e5e7eb;
+}
+
+.wg-top-exit {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: none;
+  background: #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #374151;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+}
+
+.wg-top-exit:hover {
+  transform: translateY(-1px);
+  background: #e5e7eb;
+  color: #111827;
+}
+
+.wg-top-center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+
+.wg-quiz-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: #6b7280;
+}
+
+.wg-question-count {
+  font-size: 16px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.wg-progress-track {
+  width: 100%;
+  max-width: 420px;
+  height: 6px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.6);
+}
+
+.wg-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 50%, #a855f7 100%);
+  transition: width 0.25s ease-out;
+}
+
+.wg-top-right {
+  display: flex;
+  align-items: center;
+}
+
+.wg-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  box-shadow: 0 0 0 1px rgba(229, 231, 235, 0.8);
+  font-size: 13px;
+}
+
+.wg-timer svg {
+  color: #374151;
+}
+
+.wg-timer-main {
+  font-weight: 600;
+  color: #111827;
+}
+
+.wg-timer-per-question {
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: rgba(59, 130, 246, 0.1);
+  color: #2563eb;
+}
+
+.wg-timer-per-question.danger {
+  background: rgba(248, 113, 113, 0.16);
+  color: #dc2626;
+}
+
+.wg-main {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  padding: 0 8px;
+  width: 100%;
+}
+
+.wg-timer-progress-wrapper {
+  width: 100%;
+  max-width: 1200px;
+  margin: 6px auto 0;
+  padding: 0 4px;
+}
+
+.wg-timer-progress-track {
+  position: relative;
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  overflow: hidden;
+}
+
+.wg-timer-progress-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 50%, #a855f7 100%);
+  transition: width 0.95s linear;
+}
+
+.wg-question-surface {
+  width: 100%;
+  border-radius: 28px;
+  padding: 32px 40px 32px;
+  /* Big main container box (like WayGround) */
+  background: white;
+  color: #111827;
+  min-height: calc(100vh - 180px);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e5e7eb;
+}
+
+.wg-question-card {
+  padding: 22px 24px 26px;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  margin-bottom: 32px;
+}
+
+.wg-question-type {
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #6b7280;
+  margin-bottom: 10px;
+}
+
+.wg-question-text {
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1.4;
+  margin: 0;
+  color: #111827;
+}
+
+.wg-voice-banner {
+  margin-top: 18px;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.14), rgba(129, 140, 248, 0.2));
+  border-color: rgba(96, 165, 250, 0.9);
+}
+
+.wg-answer-area {
+  flex: 1;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: stretch;
+}
+
+.wg-options-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px 24px;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  align-content: stretch;
+}
+
+.wg-option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 22px 24px;
+  border-radius: 20px;
+  border: 2px solid #e5e7eb;
+  cursor: pointer;
+  text-align: left;
+  color: #111827;
+  width: 100%;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transition:
+    transform 0.12s ease-out,
+    box-shadow 0.12s ease-out,
+    filter 0.12s ease-out,
+    opacity 0.15s ease-out,
+    border-color 0.12s ease-out;
+  font-family: inherit;
+  min-height: 96px;
+  background: white;
+}
+
+.wg-option::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at top left, rgba(255, 255, 255, 0.3), transparent 55%);
+  opacity: 0.3;
+}
+
+.wg-option:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+  border-color: #667eea;
+}
+
+.wg-option.selected {
+  transform: translateY(-3px) scale(1.015);
+  box-shadow:
+    0 12px 32px rgba(102, 126, 234, 0.25),
+    0 0 0 2px rgba(102, 126, 234, 0.3);
+  border-color: #667eea;
+}
+
+.wg-option-shape {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  background: rgba(243, 244, 246, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wg-shape-triangle,
+.wg-shape-diamond,
+.wg-shape-circle,
+.wg-shape-square {
+  display: block;
+}
+
+.wg-shape-triangle {
+  width: 0;
+  height: 0;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-bottom: 16px solid #111827;
+}
+
+.wg-shape-diamond {
+  width: 18px;
+  height: 18px;
+  transform: rotate(45deg);
+  border-radius: 4px;
+  background: #111827;
+}
+
+.wg-shape-circle {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #111827;
+}
+
+.wg-shape-square {
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  background: #111827;
+}
+
+.wg-option-text {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: #111827;
+}
+
+.wg-option-check {
+  position: relative;
+  z-index: 1;
+  color: #667eea;
+  opacity: 0;
+  transform: scale(0.8);
+  transition:
+    opacity 0.12s ease-out,
+    transform 0.12s ease-out;
+}
+
+.wg-option.selected .wg-option-check {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.wg-option-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wg-option-subtext {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.wg-boolean-option {
+  min-height: 120px;
+}
+
+.wg-options-true-false {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 640px) {
+  .wg-options-true-false {
+    grid-template-columns: 1fr;
+  }
+}
+
+.wg-option-0 {
+  background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+  border-color: #10b981;
+}
+
+.wg-option-1 {
+  background: linear-gradient(135deg, #fff7ed, #ffedd5);
+  border-color: #f97316;
+}
+
+.wg-option-2 {
+  background: linear-gradient(135deg, #fef2f2, #fee2e2);
+  border-color: #ef4444;
+}
+
+.wg-option-3 {
+  background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+  border-color: #8b5cf6;
+}
+
+.wg-identification,
+.wg-enumeration {
+  padding: 18px 20px;
+  border-radius: 14px;
+  background: #f9fafb;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e5e7eb;
+  flex: 1;
+  width: 100%;
+}
+
+.wg-identification-header,
+.wg-enumeration-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.wg-identification-pill,
+.wg-enumeration-pill {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(102, 126, 234, 0.12);
+  color: #4f46e5;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.wg-identification-count,
+.wg-enumeration-progress {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.wg-textarea {
+  width: 100%;
+  min-height: 220px;
+  resize: vertical;
+  padding: 18px 20px;
+  border-radius: 18px;
+  border: 2px solid #e5e7eb;
+  font-size: 18px;
+  font-family: inherit;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+  background: #ffffff;
+  color: #111827;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+}
+
+.wg-textarea:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow:
+    0 0 0 4px rgba(102, 126, 234, 0.15),
+    0 14px 30px rgba(15, 23, 42, 0.12);
+}
+
+.wg-textarea::placeholder {
+  color: #9ca3af;
+}
+
+.wg-identification-hint {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0;
+}
+
+.wg-enumeration-meter {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  overflow: hidden;
+}
+
+.wg-enumeration-meter-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #10b981, #22d3ee);
+  transition: width 0.3s ease;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.wg-text-input-dark {
+  background: white;
+  border-color: #d1d5db;
+  color: #111827;
+}
+
+.wg-text-input-dark::placeholder {
+  color: #9ca3af;
+}
+
+.wg-text-input-dark:focus {
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.wg-bottom-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding-top: 18px;
+  border-top: 1px solid #e5e7eb;
+  margin-top: 12px;
+}
+
+.wg-bottom-left {
+  max-width: 360px;
+}
+
+.wg-bottom-right {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.wg-nav-primary,
+.wg-nav-submit {
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.7);
+}
+
+.wg-nav-primary:disabled,
+.wg-nav-submit:disabled {
+  opacity: 0.5;
+  box-shadow: none;
 }
 
 /* Minimal Sticky Header */
@@ -1251,289 +1805,484 @@ function formatQuestionType(type) {
 }
 
 /* Dark Mode Support */
-@media (prefers-color-scheme: dark) {
-  .quiz-header-minimal {
-    background: rgba(15, 23, 42, 0.98) !important;
-    border-bottom: 1px solid #334155 !important;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+body.dark .quiz-page {
+  background: #0f172a !important;
+}
+
+body.dark .wg-top-bar {
+    background: linear-gradient(135deg, #020617 0%, #020617 40%, #0f172a 100%) !important;
+    box-shadow: 0 18px 45px rgba(15, 23, 42, 0.8) !important;
+    color: #e5e7eb !important;
+    border: none !important;
   }
 
-  .icon-btn {
-    background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
-    border-color: #475569 !important;
-    color: #e2e8f0 !important;
-  }
+body.dark .wg-top-exit {
+  background: rgba(15, 23, 42, 0.9) !important;
+  color: #9ca3af !important;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6) !important;
+}
 
-  .icon-btn:hover {
-    background: linear-gradient(135deg, #334155 0%, #475569 100%) !important;
-    border-color: #64748b !important;
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4) !important;
-  }
+body.dark .wg-top-exit:hover {
+  background: rgba(31, 41, 55, 0.95) !important;
+  color: #f9fafb !important;
+}
 
-  .quiz-breadcrumb {
-    background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
-    border-color: #475569 !important;
-  }
+body.dark .wg-quiz-label {
+  color: #9ca3af !important;
+}
 
-  .quiz-title-small {
-    color: #f1f5f9 !important;
-  }
+body.dark .wg-question-count {
+  color: #f9fafb !important;
+}
 
-  /* Sidebar Cards */
-  .progress-circle-large,
-  .timer-card,
-  .linear-progress-card,
-  .voice-control-card {
-    background: #1e293b !important;
-    border-color: #334155 !important;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3) !important;
-  }
+body.dark .wg-timer {
+  background: rgba(15, 23, 42, 0.9) !important;
+  box-shadow: 0 0 0 1px rgba(55, 65, 81, 0.7) !important;
+}
 
-  .progress-bg {
-    stroke: #334155 !important;
-  }
+body.dark .wg-timer svg {
+  color: #e5e7eb !important;
+}
 
-  .progress-number {
-    color: #f1f5f9 !important;
-  }
+body.dark .wg-timer-main {
+  color: #f9fafb !important;
+}
 
-  .progress-total {
-    color: #94a3b8 !important;
-  }
+body.dark .wg-timer-per-question {
+  background: rgba(59, 130, 246, 0.1) !important;
+  color: #93c5fd !important;
+}
 
-  .timer-label,
-  .progress-label {
-    color: #94a3b8 !important;
-  }
+body.dark .wg-timer-per-question.danger {
+  background: rgba(248, 113, 113, 0.16) !important;
+  color: #fecaca !important;
+}
 
-  .timer-value,
-  .progress-count {
-    color: #f1f5f9 !important;
-  }
+body.dark .wg-question-surface {
+  background: radial-gradient(circle at top, #020617 0%, #020617 60%, #020617 100%) !important;
+  color: #f9fafb !important;
+  border: none !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4) !important;
+}
 
-  .voice-title {
-    color: #f1f5f9 !important;
-  }
+body.dark .wg-question-type {
+  color: #9ca3af !important;
+}
 
-  /* Timer icon keeps its gradient in dark mode */
-  .timer-icon {
-    background: var(--gradient-primary) !important;
-  }
+body.dark .wg-question-text {
+  color: #f9fafb !important;
+}
 
-  .linear-progress-bar {
-    background: #334155 !important;
-  }
+body.dark .wg-option {
+  background: transparent !important;
+  border: none !important;
+  color: #f9fafb !important;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.75) !important;
+}
 
-  .linear-progress-fill {
-    background: var(--gradient-primary) !important;
-  }
+body.dark .wg-option::after {
+  background: radial-gradient(circle at top left, rgba(255, 255, 255, 0.18), transparent 55%) !important;
+  opacity: 0.4 !important;
+}
 
-  /* Keep question type badge vibrant */
-  .question-type-badge {
-    background: var(--gradient-primary) !important;
-    color: var(--color-text-on-primary) !important;
-  }
+body.dark .wg-option:hover {
+  box-shadow: 0 24px 52px rgba(0, 0, 0, 0.9) !important;
+}
 
-  /* Question Card */
-  .question-card-enhanced {
-    background: #1e293b !important;
-    border-color: #334155 !important;
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3) !important;
-  }
+body.dark .wg-option.selected {
+  box-shadow:
+    0 26px 60px rgba(0, 0, 0, 0.95),
+    0 0 0 2px rgba(248, 250, 252, 0.8) !important;
+  border: none !important;
+}
 
-  .question-number-badge {
-    color: #94a3b8 !important;
-  }
+body.dark .wg-option-shape {
+  background: rgba(15, 23, 42, 0.15) !important;
+}
 
-  .question-text-large {
-    color: #f1f5f9 !important;
-  }
+body.dark .wg-shape-triangle {
+  border-bottom-color: #f9fafb !important;
+}
 
-  .voice-listening-indicator {
-    background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
-    border-color: #667eea !important;
-  }
+body.dark .wg-shape-diamond,
+body.dark .wg-shape-circle,
+body.dark .wg-shape-square {
+  background: #f9fafb !important;
+}
 
-  .voice-text {
-    color: #818cf8 !important;
-  }
+body.dark .wg-option-text {
+  color: #f9fafb !important;
+}
 
-  /* Choice Buttons */
-  .choice-button {
-    background: #1e293b !important;
-    border-color: #334155 !important;
-  }
+body.dark .wg-option-check {
+  color: #f9fafb !important;
+}
 
-  .choice-button:hover {
-    border-color: #667eea !important;
-    box-shadow: 0 8px 16px rgba(102, 126, 234, 0.2) !important;
-  }
+body.dark .wg-option-subtext {
+  color: #cbd5f5 !important;
+}
 
-  .choice-button.selected {
-    background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
-    border-color: #667eea !important;
-    box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3) !important;
-  }
+body.dark .wg-option-0 {
+  background: linear-gradient(135deg, #0f766e, #14b8a6) !important;
+  border: none !important;
+}
 
-  .choice-key {
-    background: #334155 !important;
-    color: #94a3b8 !important;
-  }
+body.dark .wg-option-1 {
+  background: linear-gradient(135deg, #ea580c, #fb923c) !important;
+  border: none !important;
+}
 
-  .choice-button.selected .choice-key {
-    background: #667eea !important;
-    color: var(--color-text-on-primary) !important;
-  }
+body.dark .wg-option-2 {
+  background: linear-gradient(135deg, #dc2626, #fb7185) !important;
+  border: none !important;
+}
 
-  .choice-text {
-    color: #e2e8f0 !important;
-  }
+body.dark .wg-option-3 {
+  background: linear-gradient(135deg, #7c3aed, #a855f7) !important;
+  border: none !important;
+}
 
-  /* Input Fields */
-  .text-input-large,
-  .text-area-large {
-    background: #1e293b !important;
-    border-color: #334155 !important;
-    color: #f1f5f9 !important;
-  }
+body.dark .wg-identification,
+body.dark .wg-enumeration {
+  background: rgba(15, 23, 42, 0.65) !important;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.65) !important;
+  border: none !important;
+}
 
-  .text-input-large:focus,
-  .text-area-large:focus {
-    border-color: #667eea !important;
-    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.2) !important;
-  }
+body.dark .wg-identification-count,
+body.dark .wg-enumeration-progress {
+  color: #cbd5f5 !important;
+}
 
-  .text-input-large::placeholder,
-  .text-area-large::placeholder {
-    color: #64748b !important;
-  }
+body.dark .wg-identification-pill,
+body.dark .wg-enumeration-pill {
+  background: rgba(79, 70, 229, 0.25) !important;
+  color: #c4b5fd !important;
+}
 
-  .input-label {
-    color: #e2e8f0 !important;
-  }
+body.dark .wg-identification-hint {
+  color: #a5b4fc !important;
+}
 
-  .enumeration-preview {
-    background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
-    border-color: #475569 !important;
-    color: #818cf8 !important;
-  }
+body.dark .wg-textarea {
+  background: rgba(15, 23, 42, 0.9) !important;
+  border-color: rgba(55, 65, 81, 0.85) !important;
+  color: #f9fafb !important;
+}
 
-  .enumeration-preview small {
-    color: #818cf8 !important;
-  }
+body.dark .wg-textarea:focus {
+  border-color: #7c3aed !important;
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.35) !important;
+}
 
-  .enumeration-hint {
-    color: #94a3b8 !important;
-  }
+body.dark .wg-enumeration-meter {
+  background: rgba(51, 65, 85, 0.9) !important;
+}
 
-  /* Navigation Buttons */
-  .question-actions {
-    border-top-color: #334155 !important;
-  }
+body.dark .wg-enumeration-meter-fill {
+  background: linear-gradient(90deg, #34d399, #67e8f9) !important;
+}
 
-  .retake-modal {
-    background: #0f172a !important;
-    border-color: #1e293b !important;
-    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6) !important;
-  }
+body.dark .wg-text-input-dark {
+  background: rgba(15, 23, 42, 0.9) !important;
+  border-color: rgba(55, 65, 81, 0.85) !important;
+  color: #f9fafb !important;
+}
 
-  .retake-modal-title {
-    color: #f8fafc !important;
-  }
+body.dark .wg-text-input-dark::placeholder {
+  color: #6b7280 !important;
+}
 
-  .retake-modal-copy {
-    color: #e2e8f0 !important;
-  }
+body.dark .wg-text-input-dark:focus {
+  border-color: #4f46e5 !important;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.45) !important;
+}
 
-  .retake-modal-subcopy {
-    color: #94a3b8 !important;
-  }
+body.dark .wg-bottom-bar {
+  border-top-color: rgba(30, 64, 175, 0.6) !important;
+}
 
-  .retake-skip-btn {
-    background: #1e293b !important;
-    color: #f8fafc !important;
-  }
+body.dark .quiz-header-minimal {
+  background: rgba(15, 23, 42, 0.98) !important;
+  border-bottom: 1px solid #334155 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+}
 
-  /* Overview Screen */
-  .overview-content {
-    background: #1e293b !important;
-    border-color: #334155 !important;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4) !important;
-  }
+body.dark .icon-btn {
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
+  border-color: #475569 !important;
+  color: #e2e8f0 !important;
+}
 
-  .overview-description {
-    color: #94a3b8 !important;
-  }
+body.dark .icon-btn:hover {
+  background: linear-gradient(135deg, #334155 0%, #475569 100%) !important;
+  border-color: #64748b !important;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4) !important;
+}
 
-  .stat-item {
-    background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
-    border-color: #475569 !important;
-  }
+body.dark .quiz-breadcrumb {
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
+  border-color: #475569 !important;
+}
 
-  .stat-value {
-    color: #f1f5f9 !important;
-  }
+body.dark .quiz-title-small {
+  color: #f1f5f9 !important;
+}
 
-  .stat-label {
-    color: #94a3b8 !important;
-  }
+/* Sidebar Cards */
+body.dark .progress-circle-large,
+body.dark .timer-card,
+body.dark .linear-progress-card,
+body.dark .voice-control-card {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3) !important;
+}
 
-  /* Countdown Overlay */
-  .countdown-overlay {
-    background: rgba(15, 23, 42, 0.9) !important;
-  }
+body.dark .progress-bg {
+  stroke: #334155 !important;
+}
 
-  /* Results Section (if visible) */
-  .results-section {
-    background: #1e293b !important;
-    border-color: #334155 !important;
-  }
+body.dark .progress-number {
+  color: #f1f5f9 !important;
+}
 
-  .results-header h2 {
-    color: #f1f5f9 !important;
-  }
+body.dark .progress-total {
+  color: #94a3b8 !important;
+}
 
-  .results-subtitle {
-    color: #94a3b8 !important;
-  }
+body.dark .timer-label,
+body.dark .progress-label {
+  color: #94a3b8 !important;
+}
 
-  .stat-card {
-    background: #1e293b !important;
-    border-color: #334155 !important;
-  }
+body.dark .timer-value,
+body.dark .progress-count {
+  color: #f1f5f9 !important;
+}
 
-  .stat-card.correct {
-    background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%) !important;
-    border-color: #059669 !important;
-  }
+body.dark .voice-title {
+  color: #f1f5f9 !important;
+}
 
-  .stat-card.incorrect {
-    background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.1) 100%) !important;
-    border-color: #dc2626 !important;
-  }
+/* Timer icon keeps its gradient in dark mode */
+body.dark .timer-icon {
+  background: var(--gradient-primary) !important;
+}
 
-  .stat-card.time {
-    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.1) 100%) !important;
-    border-color: #2563eb !important;
-  }
+body.dark .linear-progress-bar {
+  background: #334155 !important;
+}
 
-  .review-item {
-    background: #1e293b !important;
-    border-color: #334155 !important;
-  }
+body.dark .linear-progress-fill {
+  background: var(--gradient-primary) !important;
+}
 
-  .review-question {
-    color: #f1f5f9 !important;
-  }
+/* Keep question type badge vibrant */
+body.dark .question-type-badge {
+  background: var(--gradient-primary) !important;
+  color: var(--color-text-on-primary) !important;
+}
 
-  .answer-value {
-    color: #e2e8f0 !important;
-  }
+/* Question Card */
+body.dark .question-card-enhanced {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3) !important;
+}
 
-  .detailed-results {
-    background: #1e293b !important;
-    border-color: #334155 !important;
-  }
+body.dark .question-number-badge {
+  color: #94a3b8 !important;
+}
+
+body.dark .question-text-large {
+  color: #f1f5f9 !important;
+}
+
+body.dark .voice-listening-indicator {
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
+  border-color: #667eea !important;
+}
+
+body.dark .voice-text {
+  color: #818cf8 !important;
+}
+
+/* Choice Buttons */
+body.dark .choice-button {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+}
+
+body.dark .choice-button:hover {
+  border-color: #667eea !important;
+  box-shadow: 0 8px 16px rgba(102, 126, 234, 0.2) !important;
+}
+
+body.dark .choice-button.selected {
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
+  border-color: #667eea !important;
+  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3) !important;
+}
+
+body.dark .choice-key {
+  background: #334155 !important;
+  color: #94a3b8 !important;
+}
+
+body.dark .choice-button.selected .choice-key {
+  background: #667eea !important;
+  color: var(--color-text-on-primary) !important;
+}
+
+body.dark .choice-text {
+  color: #e2e8f0 !important;
+}
+
+/* Input Fields */
+body.dark .text-input-large,
+body.dark .text-area-large {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+
+body.dark .text-input-large:focus,
+body.dark .text-area-large:focus {
+  border-color: #667eea !important;
+  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.2) !important;
+}
+
+body.dark .text-input-large::placeholder,
+body.dark .text-area-large::placeholder {
+  color: #64748b !important;
+}
+
+body.dark .input-label {
+  color: #e2e8f0 !important;
+}
+
+body.dark .enumeration-preview {
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
+  border-color: #475569 !important;
+  color: #818cf8 !important;
+}
+
+body.dark .enumeration-preview small {
+  color: #818cf8 !important;
+}
+
+body.dark .enumeration-hint {
+  color: #94a3b8 !important;
+}
+
+/* Navigation Buttons */
+body.dark .question-actions {
+  border-top-color: #334155 !important;
+}
+
+body.dark .retake-modal {
+  background: #0f172a !important;
+  border-color: #1e293b !important;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6) !important;
+}
+
+body.dark .retake-modal-title {
+  color: #f8fafc !important;
+}
+
+body.dark .retake-modal-copy {
+  color: #e2e8f0 !important;
+}
+
+body.dark .retake-modal-subcopy {
+  color: #94a3b8 !important;
+}
+
+body.dark .retake-skip-btn {
+  background: #1e293b !important;
+  color: #f8fafc !important;
+}
+
+/* Overview Screen */
+body.dark .overview-content {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4) !important;
+}
+
+body.dark .overview-description {
+  color: #94a3b8 !important;
+}
+
+body.dark .stat-item {
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
+  border-color: #475569 !important;
+}
+
+body.dark .stat-value {
+  color: #f1f5f9 !important;
+}
+
+body.dark .stat-label {
+  color: #94a3b8 !important;
+}
+
+/* Countdown Overlay */
+body.dark .countdown-overlay {
+  background: rgba(15, 23, 42, 0.9) !important;
+}
+
+/* Results Section (if visible) */
+body.dark .results-section {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+}
+
+body.dark .results-header h2 {
+  color: #f1f5f9 !important;
+}
+
+body.dark .results-subtitle {
+  color: #94a3b8 !important;
+}
+
+body.dark .stat-card {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+}
+
+body.dark .stat-card.correct {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%) !important;
+  border-color: #059669 !important;
+}
+
+body.dark .stat-card.incorrect {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.1) 100%) !important;
+  border-color: #dc2626 !important;
+}
+
+body.dark .stat-card.time {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.1) 100%) !important;
+  border-color: #2563eb !important;
+}
+
+body.dark .review-item {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+}
+
+body.dark .review-question {
+  color: #f1f5f9 !important;
+}
+
+body.dark .answer-value {
+  color: #e2e8f0 !important;
+}
+
+body.dark .detailed-results {
+  background: #1e293b !important;
+  border-color: #334155 !important;
 }
 
 /* Two-Column Grid Layout */
@@ -1618,10 +2367,11 @@ function formatQuestionType(type) {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 24px;
-  background: linear-gradient(135deg, #f8faff 0%, #f0f4ff 100%);
+  padding: 22px;
+  background: #ffffff;
   border-radius: 16px;
-  border: 2px solid #e0e7ff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.05);
 }
 
 .stat-icon {
@@ -1630,9 +2380,9 @@ function formatQuestionType(type) {
   justify-content: center;
   width: 48px;
   height: 48px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: rgba(102, 126, 234, 0.12);
   border-radius: 12px;
-  color: white;
+  color: #4c51bf;
   flex-shrink: 0;
 }
 
@@ -2624,31 +3374,32 @@ function formatQuestionType(type) {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 24px;
-  background: #f8fafc;
+  padding: 22px;
+  background: #ffffff;
   border-radius: 16px;
   border: 1px solid #e2e8f0;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.05);
   transition: all 0.3s ease;
 }
 
 .stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+  transform: translateY(-3px);
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.12);
 }
 
 .stat-card.correct {
-  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-  border-color: #bbf7d0;
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.25);
 }
 
 .stat-card.incorrect {
-  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
-  border-color: #fecaca;
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.25);
 }
 
 .stat-card.time {
-  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-  border-color: #bae6fd;
+  background: rgba(59, 130, 246, 0.08);
+  border-color: rgba(59, 130, 246, 0.25);
 }
 
 .stat-icon {
@@ -2662,18 +3413,18 @@ function formatQuestionType(type) {
 }
 
 .stat-card.correct .stat-icon {
-  background: #10b981;
-  color: white;
+  background: rgba(16, 185, 129, 0.15);
+  color: #047857;
 }
 
 .stat-card.incorrect .stat-icon {
-  background: #ef4444;
-  color: white;
+  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
 }
 
 .stat-card.time .stat-icon {
-  background: #3b82f6;
-  color: white;
+  background: rgba(59, 130, 246, 0.15);
+  color: #1d4ed8;
 }
 
 .stat-content {

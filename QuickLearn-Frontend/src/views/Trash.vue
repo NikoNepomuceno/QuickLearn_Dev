@@ -3,12 +3,13 @@ import { ref, onMounted, computed } from 'vue'
 import AppShell from '@/components/layout/AppShell.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
-import ConfirmModal from '@/components/ConfirmModal.vue'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import cloudQuizService from '@/services/cloudQuizService'
 import { Trash2, RotateCcw, XCircle, FolderOpen } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import BeatLoader from 'vue-spinner/src/BeatLoader.vue'
 
+const { confirmDialog } = useConfirmDialog()
 const items = ref([])
 const isLoading = ref(false)
 const error = ref('')
@@ -16,10 +17,6 @@ const activeFilter = ref('all')
 const filterKeys = ['all', 'quizzes', 'summaries', 'flashcards']
 
 // Modal state
-const showRestoreModal = ref(false)
-const itemToRestore = ref(null)
-const showDeleteModal = ref(false)
-const itemToDelete = ref(null)
 const router = useRouter()
 
 function resolveItemType(item) {
@@ -87,31 +84,9 @@ function getCollectionLabel(type) {
   return 'quizzes'
 }
 
-const restoreMessage = computed(() => {
-  if (!itemToRestore.value) return 'Restore this item?'
-  const type = resolveItemType(itemToRestore.value)
-  const typeLabel = getItemTypeLabel(itemToRestore.value)
-  const title = itemToRestore.value.title || `Untitled ${typeLabel}`
-  return `Restore "${title}" to your ${getCollectionLabel(type)}?`
-})
 
-const deleteMessage = computed(() => {
-  if (!itemToDelete.value) return 'Permanently delete this item? This cannot be undone.'
-  const type = resolveItemType(itemToDelete.value)
-  const typeLabel = getItemTypeLabel(itemToDelete.value)
-  const title = itemToDelete.value.title || `Untitled ${typeLabel}`
-  return `Permanently delete "${title}"? This cannot be undone.`
-})
 
-const restoreModalTitle = computed(() => {
-  if (!itemToRestore.value) return 'Restore Item'
-  return `Restore ${getItemTypeLabel(itemToRestore.value)}`
-})
 
-const deleteModalTitle = computed(() => {
-  if (!itemToDelete.value) return 'Delete Item'
-  return `Delete ${getItemTypeLabel(itemToDelete.value)}`
-})
 
 const filteredItems = computed(() => {
   if (activeFilter.value === 'all') return items.value
@@ -155,6 +130,36 @@ function handleFilterKeydown(event, tab) {
   }
 }
 
+async function handleRestore(item) {
+  const result = await confirmDialog({
+    title: item ? `Restore ${getItemTypeLabel(item)}` : 'Restore Item',
+    message: item ? `Restore "${item.title || getItemTypeLabel(item)}" to your ${getCollectionLabel(resolveItemType(item))}?` : 'Restore this item?',
+    confirmText: 'Restore',
+    icon: 'question'
+  })
+
+  if (!result?.isConfirmed) {
+    return
+  }
+
+  await restore(item)
+}
+
+async function handlePermanentDelete(item) {
+  const result = await confirmDialog({
+    title: item ? `Delete ${getItemTypeLabel(item)}` : 'Delete Item',
+    message: item ? `Permanently delete "${item.title || getItemTypeLabel(item)}"? This cannot be undone.` : 'Permanently delete this item? This cannot be undone.',
+    confirmText: 'Delete',
+    icon: 'warning'
+  })
+
+  if (!result?.isConfirmed) {
+    return
+  }
+
+  await permanentlyDelete(item)
+}
+
 async function loadTrash() {
   try {
     isLoading.value = true
@@ -168,10 +173,6 @@ async function loadTrash() {
   }
 }
 
-function requestRestore(item) {
-  itemToRestore.value = item
-  showRestoreModal.value = true
-}
 
 async function restore(item) {
   try {
@@ -183,10 +184,6 @@ async function restore(item) {
   }
 }
 
-function requestDelete(item) {
-  itemToDelete.value = item
-  showDeleteModal.value = true
-}
 
 async function permanentlyDelete(item) {
   try {
@@ -198,35 +195,9 @@ async function permanentlyDelete(item) {
   }
 }
 
-async function confirmRestore() {
-  if (!itemToRestore.value) return
-  try {
-    await restore(itemToRestore.value)
-  } finally {
-    showRestoreModal.value = false
-    itemToRestore.value = null
-  }
-}
 
-function cancelRestore() {
-  showRestoreModal.value = false
-  itemToRestore.value = null
-}
 
-async function confirmDelete() {
-  if (!itemToDelete.value) return
-  try {
-    await permanentlyDelete(itemToDelete.value)
-  } finally {
-    showDeleteModal.value = false
-    itemToDelete.value = null
-  }
-}
 
-function cancelDelete() {
-  showDeleteModal.value = false
-  itemToDelete.value = null
-}
 
 onMounted(loadTrash)
 </script>
@@ -386,11 +357,11 @@ onMounted(loadTrash)
           </div>
 
           <div class="trash-card__actions">
-            <BaseButton variant="secondary" size="sm" @click="() => requestRestore(item)">
+            <BaseButton variant="secondary" size="sm" @click="() => handleRestore(item)">
               <RotateCcw :size="16" />
               Restore
             </BaseButton>
-            <BaseButton variant="danger" size="sm" @click="() => requestDelete(item)">
+            <BaseButton variant="danger" size="sm" @click="() => handlePermanentDelete(item)">
               <XCircle :size="16" />
               Delete
             </BaseButton>
@@ -399,25 +370,6 @@ onMounted(loadTrash)
       </BaseCard>
     </div>
 
-    <ConfirmModal
-      v-model="showRestoreModal"
-      :title="restoreModalTitle"
-      :message="restoreMessage"
-      confirm-text="Restore"
-      cancel-text="Cancel"
-      @confirm="confirmRestore"
-      @cancel="cancelRestore"
-    />
-
-    <ConfirmModal
-      v-model="showDeleteModal"
-      :title="deleteModalTitle"
-      :message="deleteMessage"
-      confirm-text="Delete"
-      cancel-text="Cancel"
-      @confirm="confirmDelete"
-      @cancel="cancelDelete"
-    />
   </AppShell>
 </template>
 

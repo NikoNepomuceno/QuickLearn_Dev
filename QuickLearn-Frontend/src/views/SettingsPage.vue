@@ -1,12 +1,13 @@
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import AppShell from '@/components/layout/AppShell.vue'
-import ConfirmModal from '@/components/ConfirmModal.vue'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { useRouter } from 'vue-router';
 import BeatLoader from 'vue-spinner/src/BeatLoader.vue';
 import { authService } from '@/services/authService'
 
 const router = useRouter()
+const { confirmDialog } = useConfirmDialog()
 
 const isLoading = ref(false)
 const isUpdatingPassword = ref(false)
@@ -103,8 +104,6 @@ const passwordForm = ref({
 })
 
 // Account deletion
-const showDeleteModal = ref(false)
-const deleteConfirmation = ref('')
 
 // Subscription and usage limits
 const subscriptionTier = ref('free')
@@ -357,43 +356,48 @@ async function updatePassword() {
   }
 }
 
-function openDeleteModal() {
-  showDeleteModal.value = true
-  deleteConfirmation.value = ''
-}
 
-function closeDeleteModal() {
-  showDeleteModal.value = false
-  deleteConfirmation.value = ''
-}
 
 async function deleteAccount() {
-  if (deleteConfirmation.value !== 'DELETE') {
-    window.$toast?.error('Please type "DELETE" to confirm')
-    return
-  }
-  
   try {
     isDeletingAccount.value = true
-    
+
     await authService.deleteAccount()
-    
+
     window.$toast?.success('Account deleted successfully')
-    
-    // Clear tokens and redirect to login
+
     authService.clearLegacyTokens()
     router.push('/login')
   } catch (error) {
     window.$toast?.error(error.message || 'Failed to delete account')
   } finally {
     isDeletingAccount.value = false
-    closeDeleteModal()
   }
 }
 
 // Subscription functions
 function handleUpgrade() {
   window.$toast?.info('Coming soon! Premium features will be available shortly.')
+}
+
+async function confirmAccountDeletion() {
+  const result = await confirmDialog({
+    title: 'Delete Account',
+    message: 'This action cannot be undone. This will permanently delete your account and remove all data from our servers.',
+    confirmText: 'Delete Account',
+    icon: 'warning',
+    requireText: {
+      value: 'DELETE',
+      placeholder: 'DELETE',
+      validationMessage: 'Please type "DELETE" to confirm'
+    }
+  })
+
+  if (!result?.isConfirmed) {
+    return
+  }
+
+  await deleteAccount()
 }
 
 function getUsagePercentage(used, limit) {
@@ -1134,7 +1138,7 @@ function formatDate(dateString) {
               </div>
               <button 
                 class="btn-danger"
-                @click="openDeleteModal"
+                @click="confirmAccountDeletion"
                 :disabled="isDeletingAccount"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1151,31 +1155,6 @@ function formatDate(dateString) {
       </main>
     </div>
 
-    <!-- Delete Confirmation Modal -->
-    <ConfirmModal
-      v-model="showDeleteModal"
-      title="Delete Account"
-      :message="`This action cannot be undone. This will permanently delete your account and remove all data from our servers.`"
-      confirm-text="Delete Account"
-      cancel-text="Cancel"
-      :confirm-disabled="deleteConfirmation !== 'DELETE'"
-      @confirm="deleteAccount"
-      @cancel="closeDeleteModal"
-    >
-      <template #customContent>
-        <div class="delete-confirmation">
-          <label for="deleteConfirmation">Type <strong>DELETE</strong> to confirm:</label>
-          <input
-            id="deleteConfirmation"
-            v-model="deleteConfirmation"
-            type="text"
-            placeholder="DELETE"
-            class="delete-input"
-            @keyup.enter="deleteConfirmation === 'DELETE' && deleteAccount()"
-          />
-        </div>
-      </template>
-    </ConfirmModal>
   </AppShell>
 </template>
 

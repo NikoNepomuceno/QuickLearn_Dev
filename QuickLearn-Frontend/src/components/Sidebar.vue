@@ -2,7 +2,7 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { logoutUser, clearLegacyTokens } from '../services/authService'
-import ConfirmModal from './ConfirmModal.vue'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { Upload, Brain, LogOut, Trash, Menu, X, Settings, Book, Trophy, Database } from 'lucide-vue-next'
 
 defineOptions({
@@ -10,12 +10,8 @@ defineOptions({
 })
 
 const router = useRouter()
-const showConfirm = ref(false)
 const isOpen = ref(false)
-
-function requestLogout() {
-  showConfirm.value = true
-}
+const { confirmDialog } = useConfirmDialog()
 
 async function confirmLogout() {
   try {
@@ -26,6 +22,21 @@ async function confirmLogout() {
   clearLegacyTokens()
   window.$toast?.success('Logged out successfully')
   router.replace('/login')
+}
+
+async function requestLogout() {
+  const result = await confirmDialog({
+    title: 'Logout?',
+    message: 'You will need to log in again to continue.',
+    confirmText: 'Logout',
+    icon: 'question'
+  })
+
+  if (!result?.isConfirmed) {
+    return
+  }
+
+  await confirmLogout()
 }
 
 function toggleSidebar() {
@@ -128,15 +139,6 @@ onBeforeUnmount(() => {
       <LogOut class="icon" :size="18" />
       <span>Logout</span>
     </button>
-
-    <ConfirmModal
-      v-model="showConfirm"
-      title="Logout?"
-      message="You will need to log in again to continue."
-      confirm-text="Logout"
-      cancel-text="Cancel"
-      @confirm="confirmLogout"
-    />
   </aside>
 </template>
 

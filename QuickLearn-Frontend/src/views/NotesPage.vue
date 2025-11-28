@@ -3,7 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import AppShell from '@/components/layout/AppShell.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
-import ConfirmModal from '@/components/ConfirmModal.vue'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import ExportModal from '@/components/ExportModal.vue'
 import { useRouter } from 'vue-router'
 import BeatLoader from 'vue-spinner/src/BeatLoader.vue'
@@ -13,6 +13,7 @@ import ExportService from '@/services/exportService.js'
 import { onBeforeUnmount } from 'vue'
 
 const router = useRouter()
+const { confirmDialog } = useConfirmDialog()
 
 const isLoading = ref(false)
 const error = ref(null)
@@ -20,19 +21,10 @@ const notes = ref([])
 const flashcards = ref([])
 const filterType = ref('all')
 const filterKeys = ['all', 'summary', 'flashcards']
-const showDeleteModal = ref(false)
-const noteToDelete = ref(null)
-const flashcardToDelete = ref(null)
 const showExportModal = ref(false)
 const noteToExport = ref(null)
 const openDropdownId = ref(null)
 
-const deleteMessage = computed(() => {
-  if (!noteToDelete.value && !flashcardToDelete.value) return 'Are you sure you want to delete this item?'
-  const item = noteToDelete.value || flashcardToDelete.value
-  const itemType = noteToDelete.value ? 'summary' : 'flashcard'
-  return `Are you sure you want to delete "${item.title || `Untitled ${itemType}`}"? This action cannot be undone.`
-})
 
 onMounted(async () => {
   await loadNotes()
@@ -165,49 +157,9 @@ function generateSummaryContent(summary) {
   return content
 }
 
-function requestDelete(note) {
-  noteToDelete.value = note
-  flashcardToDelete.value = null
-  showDeleteModal.value = true
-}
 
-function requestDeleteFlashcard(flashcard) {
-  flashcardToDelete.value = flashcard
-  noteToDelete.value = null
-  showDeleteModal.value = true
-}
 
-async function confirmDelete() {
-  if (noteToDelete.value) {
-    try {
-      await cloudQuizService.deleteSummary(noteToDelete.value.id)
-      window.$toast?.success('Summary deleted')
-      await loadNotes()
-    } catch (e) {
-      window.$toast?.error('Failed to delete summary')
-    } finally {
-      showDeleteModal.value = false
-      noteToDelete.value = null
-    }
-  } else if (flashcardToDelete.value) {
-    try {
-      await cloudQuizService.deleteFlashcard(flashcardToDelete.value.id)
-      window.$toast?.success('Flashcard deleted')
-      await loadNotes()
-    } catch (e) {
-      window.$toast?.error('Failed to delete flashcard')
-    } finally {
-      showDeleteModal.value = false
-      flashcardToDelete.value = null
-    }
-  }
-}
 
-function cancelDelete() {
-  showDeleteModal.value = false
-  noteToDelete.value = null
-  flashcardToDelete.value = null
-}
 
 function toggleDropdown(itemId) {
   openDropdownId.value = openDropdownId.value === itemId ? null : itemId
@@ -226,9 +178,28 @@ function handleEditSummary(note) {
   closeDropdown()
 }
 
-function handleDeleteSummary(note) {
-  requestDelete(note)
+async function handleDeleteSummary(note) {
   closeDropdown()
+
+  const title = note?.title || 'Untitled summary'
+  const result = await confirmDialog({
+    title: 'Delete summary',
+    message: `Are you sure you want to delete "${title}"? This action cannot be undone.`,
+    confirmText: 'Delete',
+    icon: 'warning'
+  })
+
+  if (!result?.isConfirmed) {
+    return
+  }
+
+  try {
+    await cloudQuizService.deleteSummary(note.id)
+    window.$toast?.success('Summary deleted')
+    await loadNotes()
+  } catch (e) {
+    window.$toast?.error('Failed to delete summary')
+  }
 }
 
 function handleExportSummary(note) {
@@ -246,9 +217,28 @@ function handleEditFlashcard(flashcard) {
   closeDropdown()
 }
 
-function handleDeleteFlashcard(flashcard) {
-  requestDeleteFlashcard(flashcard)
+async function handleDeleteFlashcard(flashcard) {
   closeDropdown()
+
+  const title = flashcard?.title || 'Untitled flashcard'
+  const result = await confirmDialog({
+    title: 'Delete flashcard',
+    message: `Are you sure you want to delete "${title}"? This action cannot be undone.`,
+    confirmText: 'Delete',
+    icon: 'warning'
+  })
+
+  if (!result?.isConfirmed) {
+    return
+  }
+
+  try {
+    await cloudQuizService.deleteFlashcard(flashcard.id)
+    window.$toast?.success('Flashcard deleted')
+    await loadNotes()
+  } catch (e) {
+    window.$toast?.error('Failed to delete flashcard')
+  }
 }
 
 // Close dropdown when clicking outside
@@ -505,16 +495,6 @@ function handleTabKeydown(event, tab) {
         </section>
       </div>
     </div>
-
-    <ConfirmModal
-      v-model="showDeleteModal"
-      :title="noteToDelete ? 'Delete summary' : 'Delete flashcard'"
-      :message="deleteMessage"
-      confirm-text="Delete"
-      cancel-text="Cancel"
-      @confirm="confirmDelete"
-      @cancel="cancelDelete"
-    />
 
     <ExportModal
       :visible="showExportModal"

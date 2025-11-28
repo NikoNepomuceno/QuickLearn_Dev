@@ -80,7 +80,10 @@
               Check in on your friends, celebrate wins, and offer encouragement.
             </span>
             <span v-else-if="activeTab === 'leaderboard'">
-              Track the top learners this week and stay motivated to climb the ranks.
+              {{ leaderboardHelper }}
+              <span class="tab-helper__chip">
+                Focus: {{ activeCategoryLabel }}
+              </span>
             </span>
             <span v-else-if="activeTab === 'achievements'">
               View your earned achievements and track your progress toward unlocking new ones.
@@ -108,7 +111,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, Transition } from 'vue'
+import { ref, onMounted, onBeforeUnmount, Transition, computed } from 'vue'
+import { storeToRefs } from 'pinia'
 import AppShell from '@/components/layout/AppShell.vue'
 import FriendsPanel from '../components/FriendsPanel.vue'
 import LeaderboardPanel from '../components/LeaderboardPanel.vue'
@@ -116,6 +120,7 @@ import InboxPanel from '../components/InboxPanel.vue'
 import AchievementsPanel from '../components/AchievementsPanel.vue'
 import { getPendingRequestsCount } from '../services/leaderboard.api'
 import { DotLottieVue } from '@lottiefiles/dotlottie-vue'
+import { useLeaderboardStore } from '../store/leaderboard.store'
 
 const activeTab = ref('leaderboard')
 const badgeCount = ref(0)
@@ -134,6 +139,15 @@ const showAnimation = ref(!hasSeenAnimation())
 let animationTimeout = null
 
 let pollHandle
+const leaderboardStore = useLeaderboardStore()
+const { activeCategory } = storeToRefs(leaderboardStore)
+const activeCategoryLabel = computed(() => activeCategory.value?.categoryLabel || 'Overall')
+const leaderboardHelper = computed(() => {
+  if (!activeCategory.value) {
+    return 'Track the top learners this week and stay motivated to climb the ranks.'
+  }
+  return `Comparing strengths in ${activeCategory.value.categoryLabel}.`
+})
 
 onMounted(async () => {
   // Start fetching data in parallel
@@ -275,6 +289,18 @@ function clearBadge() {
   margin: 0;
   font-size: 14px;
   color: #4b5563;
+}
+
+.tab-helper__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: rgba(79, 70, 229, 0.1);
+  color: var(--primary-main);
 }
 
 .panel-body {
@@ -468,6 +494,11 @@ body.dark .main-panel__headline h3 {
 body.dark .main-panel__headline p,
 body.dark .tab-helper {
   color: #cbd5f5;
+}
+
+body.dark .tab-helper__chip {
+  background: rgba(79, 70, 229, 0.25);
+  color: var(--primary-light);
 }
 
 body.dark .content-grid .main-panel {

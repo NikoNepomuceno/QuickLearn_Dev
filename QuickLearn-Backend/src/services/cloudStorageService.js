@@ -1,6 +1,7 @@
 const Quiz = require('../models/Quiz');
 const QuizAttempt = require('../models/QuizAttempt');
 const File = require('../models/File');
+const UserCategoryStat = require('../models/UserCategoryStat');
 const { parseUploadedFile } = require('../utils/parseFile');
 const { generateAIPoweredQuiz, generateAdvancedQuiz, generateAIPoweredSummary, generateAIPoweredFlashcards } = require('./quizService');
 const questionBankService = require('./questionBankService');
@@ -113,6 +114,53 @@ function computeSpeedPoints({ questions, userAnswers, questionTimesMs, totalTime
         total += Math.round(pts * multiplier);
     }
     return { pointsEarned: total, usedTimes: times };
+}
+
+function buildCategoryStatIncrements(quiz, totalPoints) {
+    const questions = Array.isArray(quiz?.questions) ? quiz.questions : [];
+    if (!questions.length || !Number.isFinite(totalPoints) || totalPoints <= 0) {
+        return [];
+    }
+
+    const buckets = new Map();
+    let totalWeight = 0;
+
+    for (const question of questions) {
+        const label = (question?.category && String(question.category).trim())
+            || (question?.topic && String(question.topic).trim())
+            || (question?.subject && String(question.subject).trim())
+            || 'General';
+
+        const key = UserCategoryStat.normalizeCategoryKey(label);
+        const weight = getTypeMultiplier(question?.type) || 1;
+        totalWeight += weight;
+
+        const bucket = buckets.get(key) || {
+            categoryKey: key,
+            categoryLabel: label,
+            topic: question?.topic || label,
+            subject: question?.subject || null,
+            weightSum: 0,
+            attempts: 0
+        };
+
+        bucket.weightSum += weight;
+        bucket.attempts += 1;
+        buckets.set(key, bucket);
+    }
+
+    if (!totalWeight) {
+        totalWeight = questions.length || 1;
+    }
+
+    return Array.from(buckets.values()).map(bucket => ({
+        categoryKey: bucket.categoryKey,
+        categoryLabel: bucket.categoryLabel,
+        topic: bucket.topic,
+        subject: bucket.subject,
+        attempts: bucket.attempts,
+        points: (totalPoints * bucket.weightSum) / totalWeight
+    }));
 }
 
 class CloudStorageService {
@@ -422,6 +470,19 @@ class CloudStorageService {
                 pointsEarned,
                 questionTimesMs: usedTimes
             });
+
+            // Update per-category stats for leaderboards
+            try {
+                const effectivePoints = Number.isFinite(pointsEarned) && pointsEarned > 0
+                    ? pointsEarned
+                    : Math.max(0, Number(attemptData.score) || 0);
+                const categoryIncrements = buildCategoryStatIncrements(quiz, effectivePoints);
+                if (categoryIncrements.length > 0) {
+                    await UserCategoryStat.incrementStats(userId, categoryIncrements);
+                }
+            } catch (categoryErr) {
+                console.error('Failed to update category stats:', categoryErr);
+            }
 
             // Check and award achievements
             try {

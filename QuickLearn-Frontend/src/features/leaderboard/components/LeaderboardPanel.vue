@@ -2,9 +2,44 @@
   <BaseCard
     padding="lg"
     class="leaderboard-panel"
-    subtitle="Celebrating the top three community learners this week."
+    subtitle="Celebrating the top three community learners and their specialty areas."
   >
-    <template #title>Community podium</template>
+    <template #title>
+      <div class="leaderboard-panel__title-row">
+        <span>Community podium</span>
+        <span class="leaderboard-panel__timestamp" v-if="lastUpdatedDisplay">
+          Updated {{ lastUpdatedDisplay }}
+        </span>
+      </div>
+    </template>
+
+    <div class="leaderboard-panel__categories">
+      <span class="leaderboard-panel__categories-label">Focus:</span>
+      <button
+        class="leaderboard-panel__category-pill"
+        :class="{ active: !selectedCategoryKey }"
+        type="button"
+        @click="selectCategory(null)"
+      >
+        Overall
+      </button>
+      <template v-if="hasCategories">
+        <button
+          v-for="category in topCategories"
+          :key="category.categoryKey"
+          class="leaderboard-panel__category-pill"
+          :class="{ active: selectedCategoryKey === category.categoryKey }"
+          type="button"
+          @click="selectCategory(category.categoryKey)"
+        >
+          <span>{{ category.categoryLabel }}</span>
+          <small>{{ (category.totalPoints || 0).toLocaleString() }} pts</small>
+        </button>
+      </template>
+      <span v-else class="leaderboard-panel__categories-empty">
+        No specialty categories yet. Keep taking categorized quizzes to unlock comparisons.
+      </span>
+    </div>
 
     <div class="leaderboard-panel__podium-shell">
       <div class="leaderboard-panel__podium">
@@ -36,7 +71,14 @@
           </span>
           <div class="leaderboard-panel__name">{{ member?.displayName || '—' }}</div>
           <div class="leaderboard-panel__points">
-            {{ (member?.points ?? 0).toLocaleString() }} pts
+            {{ formatPoints(member).toLocaleString() }} pts
+            <span class="leaderboard-panel__category-tag" v-if="member">
+              {{
+                selectedCategoryLabel ||
+                member?.highlightCategory?.categoryLabel ||
+                'Overall'
+              }}
+            </span>
           </div>
           <div class="leaderboard-panel__pedestal">
             <span>{{ podiumLabels[index] }}</span>
@@ -45,7 +87,11 @@
       </div>
     </div>
 
-    <ul class="leaderboard-panel__list">
+    <div v-if="isLoading" class="leaderboard-panel__loading">
+      Loading leaderboard…
+    </div>
+
+    <ul v-else class="leaderboard-panel__list">
       <li v-for="member in leaderboard" :key="member.userId" class="leaderboard-panel__item">
         <div class="leaderboard-panel__profile">
           <span class="avatar avatar--sm">
@@ -61,42 +107,88 @@
             <div class="text-sm text-muted">@{{ member.username }}</div>
           </div>
         </div>
-        <div class="leaderboard-panel__score">{{ member.points }} pts</div>
+        <div class="leaderboard-panel__score">
+          <span>{{ formatPoints(member).toLocaleString() }} pts</span>
+          <span class="leaderboard-panel__category-chip" v-if="member.highlightCategory">
+            {{ selectedCategoryLabel || member.highlightCategory.categoryLabel }}
+          </span>
+        </div>
       </li>
     </ul>
   </BaseCard>
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { computed, onMounted, onBeforeUnmount } from 'vue'
+import { storeToRefs } from 'pinia'
 import BaseCard from '@/components/ui/BaseCard.vue'
-import { getLeaderboard } from '../services/leaderboard.api'
+import { useLeaderboardStore } from '../store/leaderboard.store'
 import { useLeaderboardSocket } from '../services/socket'
 
-const leaderboard = ref([])
-const podium = ref([null, null, null])
+const REFRESH_INTERVAL_MS = 60_000
+const leaderboardStore = useLeaderboardStore()
+const {
+  leadersWithFallback,
+  availableCategories,
+  activeCategoryKey,
+  activeCategory,
+  isLoading
+} = storeToRefs(leaderboardStore)
+
+const leaderboard = computed(() => leadersWithFallback.value)
+const podium = computed(() => {
+  const top = leaderboard.value.slice(0, 3)
+  return [top[1] || null, top[0] || null, top[2] || null]
+})
 const podiumSlots = ['second', 'first', 'third']
 const podiumTitles = ['2nd place', 'Champion', '3rd place']
 const podiumLabels = ['2nd', '1st', '3rd']
 
-function recomputePodium(list) {
-  const top = list.slice(0, 3)
-  podium.value = [top[1] || null, top[0] || null, top[2] || null]
+const hasCategories = computed(() => (availableCategories.value || []).length > 0)
+const topCategories = computed(() => (availableCategories.value || []).slice(0, 5))
+const selectedCategoryKey = computed(() => activeCategoryKey.value)
+const selectedCategoryLabel = computed(() => activeCategory.value?.categoryLabel || null)
+const lastUpdatedDisplay = computed(() => {
+  if (!leaderboardStore.lastUpdated) return null
+  const diffMs = Date.now() - leaderboardStore.lastUpdated.getTime()
+  if (diffMs < 60_000) return 'just now'
+  const minutes = Math.round(diffMs / 60_000)
+  return `${minutes}m ago`
+})
+
+function formatPoints(member) {
+  const raw = selectedCategoryKey.value
+    ? member?.categoryScore ?? 0
+    : member?.points ?? 0
+  return Number(raw) || 0
+}
+
+function selectCategory(categoryKey) {
+  leaderboardStore.setCategory(categoryKey)
 }
 
 let closeSocket
+let refreshTimer
 
 onMounted(async () => {
-  const initial = await getLeaderboard()
-  leaderboard.value = initial
-  recomputePodium(initial)
+  if (!leaderboardStore.leaders.length) {
+    await leaderboardStore.loadLeaderboard().catch(() => {})
+  }
+  refreshTimer = window.setInterval(() => {
+    leaderboardStore.loadLeaderboard(leaderboardStore.activeCategoryKey || null).catch(() => {})
+  }, REFRESH_INTERVAL_MS)
   closeSocket = useLeaderboardSocket(({ data }) => {
-    leaderboard.value = data
-    recomputePodium(data)
+    if (!Array.isArray(data) || leaderboardStore.activeCategoryKey) return
+    leaderboardStore.leaders = data
+    leaderboardStore.lastUpdatedIso = new Date().toISOString()
   })
 })
 
 onBeforeUnmount(() => {
+  if (refreshTimer) {
+    clearInterval(refreshTimer)
+    refreshTimer = null
+  }
   if (closeSocket) {
     closeSocket()
   }
@@ -104,6 +196,66 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.leaderboard-panel__title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.leaderboard-panel__timestamp {
+  font-size: 0.85rem;
+  color: var(--color-muted);
+}
+
+.leaderboard-panel__categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: var(--space-4);
+}
+
+.leaderboard-panel__categories-label {
+  font-size: 0.85rem;
+  color: var(--color-muted);
+}
+
+.leaderboard-panel__category-pill {
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  border-radius: 999px;
+  padding: 6px 14px;
+  background: rgba(255, 255, 255, 0.95);
+  cursor: pointer;
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  font-weight: 600;
+  font-size: 0.85rem;
+  transition: all 0.2s ease;
+}
+
+.leaderboard-panel__category-pill small {
+  font-weight: 500;
+  color: var(--color-muted);
+  font-size: 0.7rem;
+}
+
+.leaderboard-panel__category-pill.active {
+  background: linear-gradient(135deg, var(--primary-light), var(--primary-main));
+  color: #fff;
+  border-color: transparent;
+  box-shadow: var(--primary-glow);
+}
+
+.leaderboard-panel__categories-empty {
+  font-size: 0.85rem;
+  color: var(--color-muted);
+  margin-left: 12px;
+  padding: 6px 0;
+}
+
 .leaderboard-panel__podium-shell {
   position: relative;
   display: flex;
@@ -190,6 +342,17 @@ onBeforeUnmount(() => {
 .leaderboard-panel__points {
   font-size: 0.85rem;
   color: var(--color-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+}
+
+.leaderboard-panel__category-tag {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--primary-main);
 }
 
 .leaderboard-panel__pedestal {
@@ -206,24 +369,17 @@ onBeforeUnmount(() => {
   border: 1px solid rgba(203, 213, 225, 0.8);
 }
 
-.leaderboard-panel__podium-slot--first .leaderboard-panel__pedestal {
-  background: linear-gradient(135deg, var(--primary-light), var(--primary-main));
-  color: #ffffff;
-}
-
-.leaderboard-panel__podium-slot--second .leaderboard-panel__pedestal {
-  background: linear-gradient(135deg, rgba(96, 165, 250, 0.6), rgba(59, 130, 246, 0.85));
-  color: #ffffff;
-}
-
-.leaderboard-panel__podium-slot--third .leaderboard-panel__pedestal {
-  background: linear-gradient(135deg, rgba(248, 113, 113, 0.6), rgba(239, 68, 68, 0.82));
-  color: #ffffff;
-}
-
 .leaderboard-panel__pedestal span {
   font-size: 0.85rem;
   letter-spacing: 0.04em;
+}
+
+.leaderboard-panel__loading {
+  padding: var(--space-4) 0;
+  text-align: center;
+  color: var(--color-muted);
+  font-size: 0.95rem;
+  border-top: 1px dashed rgba(226, 232, 240, 0.8);
 }
 
 .leaderboard-panel__list {
@@ -256,6 +412,17 @@ onBeforeUnmount(() => {
 .leaderboard-panel__score {
   font-weight: var(--font-weight-semibold);
   color: var(--color-text);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: right;
+}
+
+.leaderboard-panel__category-chip {
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--primary-main);
 }
 
 @media (max-width: 768px) {
@@ -282,6 +449,11 @@ onBeforeUnmount(() => {
   .leaderboard-panel__item {
     flex-direction: column;
     align-items: flex-start;
+    text-align: left;
+  }
+
+  .leaderboard-panel__score {
+    text-align: left;
   }
 }
 
@@ -320,16 +492,20 @@ body.dark .leaderboard-panel__pedestal {
   border: 1px solid rgba(51, 65, 85, 0.7);
 }
 
-body.dark .leaderboard-panel__podium-slot--first .leaderboard-panel__pedestal {
+body.dark .leaderboard-panel__category-pill {
+  background: rgba(15, 23, 42, 0.95);
+  border-color: rgba(63, 76, 107, 0.7);
+  color: #e2e8f0;
+}
+
+body.dark .leaderboard-panel__category-pill.active {
   background: linear-gradient(135deg, var(--primary-light), var(--primary-main));
+  color: #fff;
 }
 
-body.dark .leaderboard-panel__podium-slot--second .leaderboard-panel__pedestal {
-  background: linear-gradient(135deg, rgba(96, 165, 250, 0.7), rgba(59, 130, 246, 0.95));
-}
-
-body.dark .leaderboard-panel__podium-slot--third .leaderboard-panel__pedestal {
-  background: linear-gradient(135deg, rgba(248, 113, 113, 0.65), rgba(239, 68, 68, 0.9));
+body.dark .leaderboard-panel__category-tag,
+body.dark .leaderboard-panel__category-chip {
+  color: var(--primary-light);
 }
 </style>
 

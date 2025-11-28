@@ -4,16 +4,15 @@ import { API_BASE as API } from '@/config/api.config'
 async function authFetch(path, options = {}) {
 	const headers = options.headers || {}
 	if (!headers['Content-Type'] && !(options.body instanceof FormData)) headers['Content-Type'] = 'application/json'
-	
+
 	try {
 		const response = await fetch(`${API}${path}`, {
 			credentials: 'include',
 			headers,
 			...options
 		})
-		
+
 		if (!response.ok) {
-			// Extract actual error message from response
 			let errorMessage = `Request failed with status ${response.status}`
 			try {
 				const errorData = await response.json()
@@ -26,11 +25,10 @@ async function authFetch(path, options = {}) {
 			}
 			throw new Error(errorMessage)
 		}
-		
+
 		return await response.json()
 	} catch (error) {
-		// Check for network/CORS errors
-		if (error.message.includes('Failed to fetch') || 
+		if (error.message.includes('Failed to fetch') ||
 			error.message.includes('NetworkError') ||
 			error.name === 'TypeError' ||
 			error.message.includes('Network request failed')) {
@@ -59,8 +57,16 @@ export async function getFriends() {
 	return res.friends || []
 }
 
-export async function getLeaderboard() {
-	const res = await authFetch('/api/leaderboard')
+export async function fetchLeaderboard(options = {}) {
+	const params = new URLSearchParams()
+	if (options.categoryKey) params.set('categoryKey', options.categoryKey)
+	if (options.limit) params.set('limit', options.limit)
+	const query = params.toString()
+	return authFetch(`/api/leaderboard${query ? `?${query}` : ''}`)
+}
+
+export async function getLeaderboard(options = {}) {
+	const res = await fetchLeaderboard(options)
 	return res.data || []
 }
 

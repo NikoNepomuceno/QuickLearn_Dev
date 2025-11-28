@@ -146,18 +146,28 @@ async function confirmClearAll() {
       <!-- Main Content -->
       <div class="question-bank__grid">
         <!-- Filters Sidebar -->
-        <aside class="question-bank__sidebar">
-          <QuestionFilters
-            :filters="store.filters"
-            :available-topics="store.availableTopics"
-            :available-categories="store.availableCategories"
-            @update-filters="handleUpdateFilters"
-            @clear-filters="handleClearFilters"
-          />
+        <aside
+          class="question-bank__sidebar"
+          role="complementary"
+          aria-label="Filter questions"
+        >
+          <div class="question-bank__sidebar-panel">
+            <QuestionFilters
+              :filters="store.filters"
+              :available-topics="store.availableTopics"
+              :available-categories="store.availableCategories"
+              @update-filters="handleUpdateFilters"
+              @clear-filters="handleClearFilters"
+            />
+          </div>
         </aside>
 
         <!-- Questions Area -->
-        <main class="question-bank__main">
+        <main
+          class="question-bank__main"
+          role="region"
+          aria-label="Question list"
+        >
           <!-- Loading State -->
           <div v-if="store.isLoading && !hasQuestions" class="question-bank__loading">
             <BeatLoader
@@ -189,11 +199,14 @@ async function confirmClearAll() {
 
           <!-- Questions Grid -->
           <div v-else class="question-bank__content">
-            <div class="question-bank__stats">
-              <span>
+            <div class="question-bank__stats" role="status" aria-live="polite">
+              <p class="question-bank__stats-copy">
                 Showing {{ store.questions.length }} of {{ store.pagination.total }} questions
-              </span>
-              <span v-if="store.selectedCount > 0" class="selected-count">
+              </p>
+              <span
+                v-if="store.selectedCount > 0"
+                class="selected-count"
+              >
                 {{ store.selectedCount }} selected
               </span>
             </div>
@@ -234,19 +247,30 @@ async function confirmClearAll() {
         </main>
 
         <!-- Selected Questions Panel -->
-        <aside class="question-bank__selected">
-          <SelectedQuestionsPanel
-            :selected-count="store.selectedCount"
-            :selected-questions="store.selectedQuestions"
-            @build-quiz="handleBuildQuiz"
-            @clear-selection="handleClearSelection"
-            @remove-question="handleRemoveQuestion"
-          />
+        <aside
+          class="question-bank__selected"
+          role="complementary"
+          aria-label="Selected questions summary"
+        >
+          <div class="question-bank__selected-panel">
+            <SelectedQuestionsPanel
+              :selected-count="store.selectedCount"
+              :selected-questions="store.selectedQuestions"
+              @build-quiz="handleBuildQuiz"
+              @clear-selection="handleClearSelection"
+              @remove-question="handleRemoveQuestion"
+            />
+          </div>
         </aside>
       </div>
 
       <!-- Error Message -->
-      <div v-if="store.error" class="question-bank__error">
+      <div
+        v-if="store.error"
+        class="question-bank__error"
+        role="alert"
+        aria-live="assertive"
+      >
         <AlertCircle :size="20" />
         <span>{{ store.error }}</span>
       </div>
@@ -288,7 +312,8 @@ async function confirmClearAll() {
 .question-bank {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: clamp(20px, 2vw, 32px);
+  padding-bottom: clamp(16px, 2vw, 32px);
 }
 
 .question-bank__header {
@@ -296,24 +321,36 @@ async function confirmClearAll() {
   justify-content: space-between;
   align-items: center;
   gap: 16px;
+  flex-wrap: wrap;
 }
 
 .question-bank__header-actions {
   display: flex;
   gap: 12px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .question-bank__grid {
   display: grid;
-  grid-template-columns: 280px 1fr 320px;
-  gap: 24px;
+  grid-template-columns: minmax(260px, 300px) minmax(0, 1fr) minmax(260px, 340px);
+  gap: clamp(20px, 2vw, 32px);
   align-items: start;
 }
 
 .question-bank__sidebar {
   position: sticky;
   top: 20px;
+}
+
+.question-bank__sidebar-panel,
+.question-bank__selected-panel,
+.question-bank__main {
+  background: var(--color-surface, #fff);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 16px;
+  padding: clamp(16px, 1.4vw, 24px);
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
 }
 
 .question-bank__main {
@@ -361,20 +398,30 @@ async function confirmClearAll() {
 .question-bank__stats {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  font-size: 14px;
+  align-items: baseline;
+  gap: 12px;
+  font-size: clamp(0.95rem, 1vw, 1.05rem);
   color: var(--color-text-muted);
+  line-height: 1.6;
+}
+
+.question-bank__stats-copy {
+  margin: 0;
 }
 
 .selected-count {
   color: var(--color-primary);
   font-weight: 600;
+  font-size: clamp(1rem, 1.1vw, 1.1rem);
+  background: rgba(102, 126, 234, 0.1);
+  border-radius: 999px;
+  padding: 4px 12px;
 }
 
 .questions-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(clamp(260px, 26vw, 340px), 1fr));
+  gap: 20px;
 }
 
 .pagination {
@@ -393,6 +440,13 @@ async function confirmClearAll() {
 .question-bank__selected {
   position: sticky;
   top: 20px;
+}
+
+.question-bank :deep(button:focus-visible),
+.question-bank :deep(a:focus-visible) {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 8px;
 }
 
 .question-bank__error {
@@ -462,13 +516,13 @@ async function confirmClearAll() {
 /* Responsive */
 @media (max-width: 1400px) {
   .question-bank__grid {
-    grid-template-columns: 260px 1fr 300px;
+    grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) minmax(240px, 320px);
   }
 }
 
 @media (max-width: 1200px) {
   .question-bank__grid {
-    grid-template-columns: 240px 1fr;
+    grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
   }
 
   .question-bank__selected {
@@ -486,8 +540,20 @@ async function confirmClearAll() {
     position: static;
   }
 
+  .question-bank__sidebar-panel,
+  .question-bank__selected-panel,
+  .question-bank__main {
+    padding: 20px;
+  }
+
   .questions-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinning {
+    animation: none;
   }
 }
 </style>

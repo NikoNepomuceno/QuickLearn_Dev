@@ -991,35 +991,6 @@ body.dark .avatar {
 
 /* Modal Dark Mode Styles - Global to work with teleported modals */
 
-/* ConfirmModal Dark Mode */
-body.dark .modal-backdrop {
-  background: rgba(0, 0, 0, 0.7) !important;
-}
-
-body.dark .modal {
-  background: #0f172a !important;
-  border-color: #1f2a44 !important;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4) !important;
-}
-
-body.dark .modal .title {
-  color: #e5e7eb !important;
-}
-
-body.dark .modal .message {
-  color: #9ca3af !important;
-}
-
-body.dark .modal .btn.ghost {
-  background: #0f172a !important;
-  border-color: #1f2a44 !important;
-  color: #e5e7eb !important;
-}
-
-body.dark .modal .btn.ghost:hover {
-  background: #1f2a44 !important;
-}
-
 /* QuizConfigModal Dark Mode */
 body.dark .modal-head h3 {
   color: #e5e7eb !important;

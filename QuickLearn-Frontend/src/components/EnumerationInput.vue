@@ -18,20 +18,17 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue'])
 
-// Extract number from question text (e.g., "Name two scenarios" -> 2)
 function extractNumberFromQuestion(questionText) {
   if (!questionText) return null
 
   const text = questionText.toLowerCase()
 
-  // Number word to number mapping
   const numberWords = {
     'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
     'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
     'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14, 'fifteen': 15
   }
 
-  // Try to find number words first
   for (const [word, num] of Object.entries(numberWords)) {
     const regex = new RegExp(`\\b${word}\\b`, 'i')
     if (regex.test(text)) {
@@ -39,7 +36,6 @@ function extractNumberFromQuestion(questionText) {
     }
   }
 
-  // Try to find numeric patterns like "2", "3", etc.
   const numericMatch = text.match(/\b(\d+)\b/)
   if (numericMatch) {
     const num = parseInt(numericMatch[1], 10)
@@ -51,12 +47,9 @@ function extractNumberFromQuestion(questionText) {
   return null
 }
 
-// Compute expected number of answers
-// Priority: 1) Number from question text, 2) Answer array length
 const expectedCount = computed(() => {
   if (props.question?.type !== 'enumeration') return 0
 
-  // First, try to extract number from question text
   const textNumber = extractNumberFromQuestion(props.question?.question)
   if (textNumber !== null) {
     return textNumber
@@ -166,7 +159,7 @@ initializeFields()
 
 .input-label {
   font-weight: 600;
-  color: #374151;
+  color: #1f2937;
   font-size: 16px;
   margin-bottom: 8px;
 }
@@ -186,7 +179,7 @@ initializeFields()
 
 .enumeration-field-label {
   font-weight: 600;
-  color: #374151;
+  color: #1f2937;
   font-size: 14px;
 }
 
@@ -196,53 +189,69 @@ initializeFields()
 
 .text-input-large {
   padding: 16px 20px;
-  border: 2px solid #e5e7eb;
-  border-radius: 12px;
+  border: 2px solid #d7dce3;
+  border-radius: 16px;
   font-size: 18px;
-  transition: all 0.2s ease;
-  background: #fff;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+  background: #ffffff;
+  color: #0f172a;
   font-family: inherit;
   width: 100%;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+}
+
+.text-input-large::placeholder {
+  color: #6b7280;
 }
 
 .text-input-large:focus {
   outline: none;
   border-color: #667eea;
-  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+  box-shadow:
+    0 0 0 4px rgba(102, 126, 234, 0.15),
+    0 10px 25px rgba(15, 23, 42, 0.14);
+  background: #ffffff;
 }
 
 .enumeration-hint {
   margin-top: 8px;
   font-size: 13px;
-  color: #6b7280;
+  color: #475569;
   font-weight: 500;
 }
 
-/* Dark Mode Support */
-@media (prefers-color-scheme: dark) {
-  .input-label,
-  .enumeration-field-label {
-    color: #e2e8f0 !important;
-  }
+:global(body.dark) .enumeration-enhanced {
+  background: transparent;
+}
 
-  .text-input-large {
-    background: #1e293b !important;
-    border-color: #334155 !important;
-    color: #f1f5f9 !important;
-  }
+:global(body.dark) .input-label,
+:global(body.dark) .enumeration-field-label {
+  color: #e2e8f0;
+}
 
-  .text-input-large:focus {
-    border-color: #667eea !important;
-    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.2) !important;
-  }
+:global(body.dark) .text-input-large {
+  background: #0b162b;
+  border-color: #334155;
+  color: #f8fafc;
+  box-shadow:
+    0 10px 24px rgba(2, 6, 23, 0.7),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+}
 
-  .text-input-large::placeholder {
-    color: #64748b !important;
-  }
+:global(body.dark) .text-input-large:focus {
+  border-color: #8b5cf6;
+  box-shadow:
+    0 0 0 4px rgba(139, 92, 246, 0.35),
+    0 18px 38px rgba(0, 0, 0, 0.75);
+  background: #111b30;
+}
 
-  .enumeration-hint {
-    color: #94a3b8 !important;
-  }
+:global(body.dark) .text-input-large::placeholder {
+  color: #94a3b8;
+}
+
+:global(body.dark) .enumeration-hint {
+  color: #cbd5f5;
 }
 </style>
 
