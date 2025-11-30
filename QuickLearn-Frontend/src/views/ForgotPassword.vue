@@ -12,7 +12,7 @@ import { forgotPassword } from '@/services/authService'
 const router = useRouter()
 
 const form = reactive({
-  email: ''
+  email: '',
 })
 
 const isLoading = ref(false)
@@ -59,11 +59,7 @@ function goBack() {
     </template>
 
     <form class="auth-form" @submit.prevent="handleSubmit" novalidate>
-      <FormField
-        label="Email address"
-        required
-        for="forgot-email"
-      >
+      <FormField label="Email address" required for="forgot-email">
         <BaseInput
           id="forgot-email"
           v-model="form.email"
@@ -77,13 +73,7 @@ function goBack() {
         </BaseInput>
       </FormField>
 
-      <BaseButton
-        variant="primary"
-        size="md"
-        block
-        type="submit"
-        :loading="isLoading"
-      >
+      <BaseButton variant="primary" size="md" block type="submit" :loading="isLoading">
         <Send :size="18" />
         Send reset link
       </BaseButton>

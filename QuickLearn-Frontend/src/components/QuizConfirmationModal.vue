@@ -1,6 +1,6 @@
 <script setup>
-import { defineEmits } from 'vue'
-import { PartyPopper, FileText, Save, Share2, X } from 'lucide-vue-next'
+import { computed } from 'vue'
+import { PartyPopper, FileText, Save, Share2, X, Clock } from 'lucide-vue-next'
 
 const emit = defineEmits(['close', 'takeQuiz', 'downloadQuiz', 'shareQuiz'])
 
@@ -13,6 +13,71 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+})
+
+// Extract quiz configurations from metadata
+const quizConfig = computed(() => {
+  const metadata = props.quiz?.metadata || {}
+  const options = metadata.options || {}
+  const legacy = metadata.timedSettings || metadata.timedMode || {}
+  
+  // Get timed mode settings
+  const timedModeEnabled =
+    options.timedModeEnabled ??
+    legacy.timedModeEnabled ??
+    metadata.timedModeEnabled ??
+    metadata.timedQuiz ??
+    false
+  
+  const questionTimerSeconds = timedModeEnabled
+    ? options.questionTimerSeconds ??
+      legacy.questionTimerSeconds ??
+      metadata.questionTimerSeconds ??
+      null
+    : null
+  
+  // Get question types from metadata or infer from actual questions
+  const questionTypes = options.questionTypes || metadata.questionTypes || []
+  let typeLabel = 'Multiple choice'
+  
+  // First, try to determine from metadata
+  if (Array.isArray(questionTypes) && questionTypes.length > 0) {
+    const uniqueTypes = [...new Set(questionTypes)]
+    if (uniqueTypes.length > 1 || questionTypes.includes('mixed')) {
+      typeLabel = 'Mixed types'
+    } else if (uniqueTypes.length === 1) {
+      const type = uniqueTypes[0]
+      const typeMap = {
+        multiple_choice: 'Multiple choice',
+        true_false: 'True or False',
+        identification: 'Identification',
+        enumeration: 'Enumeration',
+        mixed: 'Mixed types',
+      }
+      typeLabel = typeMap[type] || 'Multiple choice'
+    }
+  } else {
+    // Fallback: Determine type from actual questions if metadata is missing
+    const questionTypesInQuiz = [...new Set((props.quiz?.questions || []).map(q => q?.type).filter(Boolean))]
+    if (questionTypesInQuiz.length > 1) {
+      typeLabel = 'Mixed types'
+    } else if (questionTypesInQuiz.length === 1) {
+      const typeMap = {
+        multiple_choice: 'Multiple choice',
+        true_false: 'True or False',
+        identification: 'Identification',
+        enumeration: 'Enumeration',
+      }
+      typeLabel = typeMap[questionTypesInQuiz[0]] || 'Multiple choice'
+    }
+  }
+  
+  return {
+    questionCount: props.quiz?.questions?.length || 0,
+    typeLabel,
+    timedModeEnabled,
+    questionTimerSeconds,
+  }
 })
 
 function handleTakeQuiz() {
@@ -48,10 +113,19 @@ function handleClose() {
       <div class="modal-body">
         <div class="quiz-info">
           <h3>{{ quiz.title }}</h3>
-          <p class="description">{{ quiz.description }}</p>
+          <p class="description">{{ quiz.description || 'Quiz generated from cached questions' }}</p>
           <div class="quiz-stats">
-            <span class="stat">{{ quiz.questions?.length || 0 }} questions</span>
-            <span class="stat">Multiple choice</span>
+            <span class="stat">
+              <span class="stat-value">{{ quizConfig.questionCount }}</span>
+              <span class="stat-label">questions</span>
+            </span>
+            <span class="stat">
+              <span class="stat-label">{{ quizConfig.typeLabel }}</span>
+            </span>
+            <span v-if="quizConfig.timedModeEnabled && quizConfig.questionTimerSeconds" class="stat stat-timed">
+              <Clock :size="14" />
+              <span class="stat-label">{{ quizConfig.questionTimerSeconds }}s per question</span>
+            </span>
           </div>
         </div>
 
@@ -141,11 +215,14 @@ function handleClose() {
 
 .modal-header h2 {
   margin: 0;
-  font-size: 24px;
-  color: #1f2937;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  color: #111827;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .close-btn {
@@ -177,29 +254,55 @@ function handleClose() {
 }
 
 .quiz-info h3 {
-  margin: 0 0 8px;
-  font-size: 20px;
-  color: #1f2937;
+  margin: 0 0 10px;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+  color: #111827;
 }
 
 .description {
   color: #6b7280;
-  margin: 0 0 16px;
-  line-height: 1.5;
+  margin: 0 0 20px;
+  font-size: 14px;
+  line-height: 1.6;
+  font-weight: 400;
 }
 
 .quiz-stats {
   display: flex;
   justify-content: center;
-  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .stat {
   background: #f3f4f6;
-  color: #4b5563;
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 14px;
+  color: #374151;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1.4;
+}
+
+.stat-timed {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.stat-value {
+  font-weight: 700;
+  color: #111827;
+}
+
+.stat-label {
   font-weight: 500;
 }
 
@@ -235,6 +338,7 @@ function handleClose() {
 .action-btn.secondary {
   border-color: #d1d5db;
   background: #f9fafb;
+  color: #111827;
 }
 
 .action-btn.secondary:hover {
@@ -246,6 +350,7 @@ function handleClose() {
 .action-btn.tertiary {
   border-color: #d1d5db;
   background: #f9fafb;
+  color: #111827;
 }
 
 .action-btn.tertiary:hover {
@@ -269,17 +374,42 @@ function handleClose() {
 }
 
 .text strong {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+  color: inherit;
 }
 
 .text small {
-  font-size: 14px;
-  opacity: 0.8;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: inherit;
+}
+
+.action-btn.primary .text strong {
+  color: #ffffff;
 }
 
 .action-btn.primary .text small {
-  opacity: 0.9;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.action-btn.secondary .text strong {
+  color: #111827;
+}
+
+.action-btn.secondary .text small {
+  color: #4b5563;
+}
+
+.action-btn.tertiary .text strong {
+  color: #111827;
+}
+
+.action-btn.tertiary .text small {
+  color: #4b5563;
 }
 
 /* Responsive design */
@@ -295,6 +425,7 @@ function handleClose() {
 
   .modal-header h2 {
     font-size: 20px;
+    font-weight: 700;
   }
 
   .modal-body {
@@ -302,11 +433,18 @@ function handleClose() {
   }
 
   .quiz-info h3 {
-    font-size: 18px;
+    font-size: 17px;
+    font-weight: 700;
   }
 
   .description {
-    font-size: 14px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  
+  .stat {
+    font-size: 12px;
+    padding: 6px 12px;
   }
 
   .quiz-stats {
@@ -350,6 +488,7 @@ function handleClose() {
 
   .modal-header h2 {
     font-size: 18px;
+    font-weight: 700;
   }
 
   .modal-body {

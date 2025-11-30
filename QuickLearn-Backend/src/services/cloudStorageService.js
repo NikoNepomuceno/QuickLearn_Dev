@@ -5,6 +5,9 @@ const UserCategoryStat = require('../models/UserCategoryStat');
 const { parseUploadedFile } = require('../utils/parseFile');
 const { generateAIPoweredQuiz, generateAdvancedQuiz, generateAIPoweredSummary, generateAIPoweredFlashcards } = require('./quizService');
 const questionBankService = require('./questionBankService');
+const { computeHashFromFiles } = require('./backgroundQuizService');
+const { getCachedQuestions, filterQuestionsFromCache } = require('./quizCacheService');
+const { generateFullQuizSetInBackground } = require('./backgroundQuizService');
 
 // ----- Scoring helpers -----
 function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
@@ -309,23 +312,83 @@ class CloudStorageService {
                 selectedPages = []
             } = options;
 
-            const contentToUse = this.getContentFromSelection(combinedText, selectedPages);
+            // Compute file hash for caching
+            const fileHash = computeHashFromFiles(files);
+            console.log(`[Quiz] File hash: ${fileHash.substring(0, 8)}...`);
+
+            // Check cache first
+            const cached = await getCachedQuestions(fileHash);
             let generatedQuiz;
-            if (isAdvanced) {
-                generatedQuiz = await generateAdvancedQuiz(contentToUse, {
-                    numQuestions,
-                    difficulty,
-                    includeReasoning,
-                    customInstructions
-                });
-            } else {
-                generatedQuiz = await generateAIPoweredQuiz(contentToUse, {
-                    numQuestions,
-                    difficulty,
+
+            if (cached && cached.questions && cached.questions.length > 0) {
+                console.log(`[Quiz] Cache hit! Found ${cached.questions.length} cached questions`);
+                
+                // Filter cached questions based on user config
+                const filteredQuestions = filterQuestionsFromCache(cached.questions, {
+                    count: numQuestions,
                     questionTypes,
-                    focusAreas,
-                    customInstructions
+                    selectedPages,
+                    pages: pages
                 });
+                
+                if (filteredQuestions.length >= numQuestions) {
+                    // Use cached questions
+                    generatedQuiz = {
+                        title: `Quiz from ${uploadedFiles[0]?.originalName || 'document'}`,
+                        description: 'Quiz generated from cached questions',
+                        questions: filteredQuestions
+                    };
+                    console.log(`[Quiz] Using ${filteredQuestions.length} questions from cache`);
+                } else {
+                    // Not enough cached questions match config, generate on-demand
+                    console.log(`[Quiz] Cache has questions but not enough match config, generating on-demand`);
+                    const contentToUse = this.getContentFromSelection(combinedText, selectedPages);
+                    
+                    if (isAdvanced) {
+                        generatedQuiz = await generateAdvancedQuiz(contentToUse, {
+                            numQuestions,
+                            difficulty,
+                            includeReasoning,
+                            customInstructions
+                        });
+                    } else {
+                        generatedQuiz = await generateAIPoweredQuiz(contentToUse, {
+                            numQuestions,
+                            difficulty,
+                            questionTypes,
+                            focusAreas,
+                            customInstructions
+                        });
+                    }
+                }
+            } else {
+                // Cache miss - generate on-demand for user
+                console.log(`[Quiz] Cache miss, generating on-demand`);
+                const contentToUse = this.getContentFromSelection(combinedText, selectedPages);
+                
+                if (isAdvanced) {
+                    generatedQuiz = await generateAdvancedQuiz(contentToUse, {
+                        numQuestions,
+                        difficulty,
+                        includeReasoning,
+                        customInstructions
+                    });
+                } else {
+                    generatedQuiz = await generateAIPoweredQuiz(contentToUse, {
+                        numQuestions,
+                        difficulty,
+                        questionTypes,
+                        focusAreas,
+                        customInstructions
+                    });
+                }
+                
+                // Trigger background generation of full 50-question set
+                // Don't await - let it run in background
+                generateFullQuizSetInBackground(files, fileHash)
+                    .catch(err => {
+                        console.error('[Quiz] Background generation failed:', err);
+                    });
             }
 
             // Step 4: Save quiz to database

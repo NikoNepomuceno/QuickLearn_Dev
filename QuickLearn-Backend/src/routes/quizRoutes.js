@@ -429,6 +429,25 @@ router.get('/system/ai-status', (req, res) => {
 	});
 });
 
+// Health check for Redis service
+router.get('/system/redis-status', async (req, res) => {
+	try {
+		const { getRedisClient } = require('../config/redis');
+		const client = getRedisClient();
+		const pong = await client.ping();
+		res.json({
+			redisAvailable: pong === 'PONG',
+			status: 'connected'
+		});
+	} catch (error) {
+		res.status(500).json({
+			redisAvailable: false,
+			status: 'error',
+			error: error.message
+		});
+	}
+});
+
 module.exports = router;
 
 
