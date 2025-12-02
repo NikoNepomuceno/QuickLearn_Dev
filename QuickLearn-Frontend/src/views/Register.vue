@@ -347,7 +347,7 @@ if (route.query.pp === '1') {
 
 .register-layout__left {
   flex: 1;
-  background: var(--gradient-primary);
+  background: var(--color-primary);
   color: var(--color-text-on-dark);
   padding: clamp(2.5rem, 4vw, 4rem);
   display: flex;

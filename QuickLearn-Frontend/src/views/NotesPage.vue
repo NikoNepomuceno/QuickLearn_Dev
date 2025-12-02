@@ -94,6 +94,21 @@ function formatFileSize(bytes) {
   return cloudQuizService.formatFileSize(bytes)
 }
 
+function formatDate(dateString) {
+  if (!dateString) return 'Recently'
+  const date = new Date(dateString)
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date)
+}
+
+function getFileTypeClass(type) {
+  const t = type?.toLowerCase()
+  if (t === 'pdf') return 'file-icon--red'
+  if (t === 'docx' || t === 'doc') return 'file-icon--blue'
+  return 'file-icon--gray'
+}
+
+
+
 async function downloadAsPDF(note) {
   try {
     await ExportService.exportToPDF(note, note.title || 'summary')
@@ -361,7 +376,6 @@ function handleTabKeydown(event, tab) {
         </BaseCard>
       </div>
 
-      <div v-else id="notes-panel" role="tabpanel" tabindex="0">
         <section
           v-if="filteredItems.summaries.length"
           class="library-section"
@@ -371,18 +385,25 @@ function handleTabKeydown(event, tab) {
             <span class="library-section__count">{{ filteredItems.summaries.length }} total</span>
           </header>
           <div class="library-grid">
-            <BaseCard v-for="note in filteredItems.summaries" :key="note.id" padding="lg">
-              <div class="note-card">
-                <div class="note-card__header">
-                  <div class="note-card__meta">
-                    <FileText :size="20" />
-                    <div>
-                      <h3>{{ note.title || 'Untitled note' }}</h3>
-                      <p class="note-card__subtitle">
-                        {{ note.description || 'Summary created by QuickLearn' }}
-                      </p>
+            <BaseCard v-for="note in filteredItems.summaries" :key="note.id" class="styled-card" :padding="'none'">
+              <div class="card-content">
+                <!-- Header: File Info & Actions -->
+                <div class="card-header">
+                  <div class="file-info">
+                    <div class="file-icon" :class="getFileTypeClass(note.sourceFile?.type)">
+                      <FileText v-if="!note.sourceFile?.type" :size="24" />
+                      <span v-else class="file-type-text">{{ note.sourceFile.type.toUpperCase() }}</span>
+                    </div>
+                    <div class="file-meta">
+                      <div class="file-meta-top">
+                        <span class="file-type">{{ note.sourceFile?.type?.toUpperCase() || 'FILE' }}</span>
+                        <span class="dot">•</span>
+                        <span class="file-size">{{ formatFileSize(note.sourceFile?.size) }}</span>
+                      </div>
+                      <div class="file-date">{{ formatDate(note.createdAt) }}</div>
                     </div>
                   </div>
+                  
                   <div class="dropdown-wrapper">
                     <button
                       class="dropdown-trigger"
@@ -408,18 +429,34 @@ function handleTabKeydown(event, tab) {
                   </div>
                 </div>
 
-                <div class="note-card__details" v-if="note.sourceFile && note.sourceFile.name">
-                  <span>{{ note.sourceFile.name }}</span>
-                  <span>•</span>
-                  <span>{{ note.sourceFile.type?.toUpperCase() || 'FILE' }}</span>
-                  <span>•</span>
-                  <span>{{ formatFileSize(note.sourceFile.size) }}</span>
+                <!-- Body: Title & Description -->
+                <div class="card-body">
+                  <h3 class="card-title" :title="note.title">{{ note.title || 'Untitled note' }}</h3>
+                  <p class="card-description">
+                    {{ note.description || 'Summary created by QuickLearn' }}
+                  </p>
+                  
+                  <!-- Optional: Tags (Mocked for now as data structure doesn't show tags explicitly, 
+                       but layout supports it if we add them later) -->
+                  <div class="card-tags" v-if="note.tags && note.tags.length">
+                    <span v-for="tag in note.tags" :key="tag" class="tag">{{ tag }}</span>
+                  </div>
                 </div>
 
-                <div class="note-card__stats">
-                  <div class="stat-chip">Key points: {{ note.keyPoints?.length || 0 }}</div>
-                  <div class="stat-chip">Sections: {{ note.sections?.length || 0 }}</div>
-                  <div class="stat-chip">Takeaways: {{ note.conclusions?.length || 0 }}</div>
+                <!-- Footer: Stats -->
+                <div class="card-footer">
+                  <div class="stat-block">
+                    <span class="stat-value">{{ note.keyPoints?.length || 0 }}</span>
+                    <span class="stat-label">POINTS</span>
+                  </div>
+                  <div class="stat-block">
+                    <span class="stat-value">{{ note.sections?.length || 0 }}</span>
+                    <span class="stat-label">SECTIONS</span>
+                  </div>
+                  <div class="stat-block">
+                    <span class="stat-value">{{ note.conclusions?.length || 0 }}</span>
+                    <span class="stat-label">INSIGHTS</span>
+                  </div>
                 </div>
               </div>
             </BaseCard>
@@ -435,18 +472,24 @@ function handleTabKeydown(event, tab) {
             <span class="library-section__count">{{ filteredItems.flashcards.length }} total</span>
           </header>
           <div class="library-grid">
-            <BaseCard v-for="fc in filteredItems.flashcards" :key="fc.id" padding="lg">
-              <div class="note-card">
-                <div class="note-card__header">
-                  <div class="note-card__meta">
-                    <FileText :size="20" />
-                    <div>
-                      <h3>{{ fc.title || 'Flashcards' }}</h3>
-                      <p class="note-card__subtitle">
-                        {{ fc.description || 'Flashcards generated by QuickLearn' }}
-                      </p>
+            <BaseCard v-for="fc in filteredItems.flashcards" :key="fc.id" class="styled-card" :padding="'none'">
+              <div class="card-content">
+                <!-- Header: File Info & Actions -->
+                <div class="card-header">
+                  <div class="file-info">
+                    <div class="file-icon file-icon--blue">
+                      <span class="file-type-text">FC</span>
+                    </div>
+                    <div class="file-meta">
+                      <div class="file-meta-top">
+                        <span class="file-type">FLASHCARDS</span>
+                        <span class="dot">•</span>
+                        <span class="file-size">{{ formatFileSize(fc.sourceFile?.size) }}</span>
+                      </div>
+                      <div class="file-date">{{ formatDate(fc.createdAt) }}</div>
                     </div>
                   </div>
+
                   <div class="dropdown-wrapper">
                     <button
                       class="dropdown-trigger"
@@ -472,28 +515,33 @@ function handleTabKeydown(event, tab) {
                   </div>
                 </div>
 
-                <div class="note-card__details" v-if="fc.sourceFile && fc.sourceFile.name">
-                  <span>{{ fc.sourceFile.name }}</span>
-                  <span>•</span>
-                  <span>{{ fc.sourceFile.type?.toUpperCase() || 'FILE' }}</span>
-                  <span>•</span>
-                  <span>{{ formatFileSize(fc.sourceFile.size) }}</span>
+                <!-- Body: Title & Description -->
+                <div class="card-body">
+                  <h3 class="card-title" :title="fc.title">{{ fc.title || 'Flashcards' }}</h3>
+                  <p class="card-description">
+                    {{ fc.description || 'Flashcards generated by QuickLearn' }}
+                  </p>
                 </div>
 
-                <div class="note-card__stats">
-                  <div class="stat-chip">Cards: {{ fc.cardsCount || 0 }}</div>
-                </div>
-
-                <div class="note-card__actions">
-                  <BaseButton variant="primary" size="sm" @click="router.push(`/flashcards/${fc.id}/study`)">
-                    Study
+                <!-- Footer: Stats & Action -->
+                <div class="card-footer card-footer--single">
+                  <div class="stat-block">
+                    <span class="stat-value">{{ fc.cardsCount || 0 }}</span>
+                    <span class="stat-label">CARDS</span>
+                  </div>
+                  <BaseButton 
+                    variant="primary" 
+                    size="sm" 
+                    class="study-btn"
+                    @click="router.push(`/flashcards/${fc.id}/study`)"
+                  >
+                    Study Now
                   </BaseButton>
                 </div>
               </div>
             </BaseCard>
           </div>
         </section>
-      </div>
     </div>
 
     <ExportModal
@@ -507,6 +555,230 @@ function handleTabKeydown(event, tab) {
 </template>
 
 <style scoped>
+/* New Card Styles */
+.styled-card {
+  height: 100%;
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+  transition: box-shadow 0.2s ease;
+}
+
+/* Force BaseCard body to fill height so footer pushes to bottom */
+.styled-card :deep(.base-card__body) {
+  flex: 1;
+  height: 100%;
+}
+
+.card-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.card-header {
+  padding: var(--space-4) var(--space-4) 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--space-3);
+}
+
+.file-info {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.file-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.file-icon--red {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.file-icon--blue {
+  background: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+}
+
+.file-icon--gray {
+  background: var(--color-surface-subtle);
+  color: var(--color-text-muted);
+}
+
+.file-meta {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+
+.file-meta-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.dot {
+  color: var(--color-border-strong);
+}
+
+.file-date {
+  font-size: 12px;
+  color: var(--color-text-soft);
+}
+
+.card-body {
+  padding: 0 var(--space-4);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.card-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-heading);
+  margin: 0;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.card-description {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  margin: 0;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: auto;
+  padding-top: var(--space-2);
+}
+
+.tag {
+  font-size: 11px;
+  padding: 4px 10px;
+  background: var(--color-surface-subtle);
+  border-radius: var(--radius-pill);
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.card-footer {
+  margin-top: auto;
+  padding: var(--space-4);
+  background: transparent;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+}
+
+.card-footer--single {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0;
+}
+
+.card-footer--single .stat-block {
+  min-width: 100px;
+  padding-left: var(--space-4);
+  padding-right: var(--space-4);
+}
+
+.stat-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  background: var(--color-surface-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-1);
+}
+
+.stat-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-heading);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.stat-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-text-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.study-btn {
+  font-size: 12px;
+  padding: 6px 16px;
+}
+
+/* Dark mode adjustments */
+body.dark .styled-card {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+}
+
+body.dark .card-footer {
+  background: rgba(0, 0, 0, 0.1);
+  border-color: var(--color-border);
+}
+
+body.dark .file-icon--red {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+body.dark .file-icon--blue {
+  background: rgba(59, 130, 246, 0.2);
+}
+
+body.dark .tag {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Dropdown styles override for this card context if needed */
+.dropdown-trigger {
+  opacity: 0.6;
+}
+.dropdown-trigger:hover {
+  opacity: 1;
+  background: var(--color-surface-subtle);
+}
+
+/* Keep existing toolbar styles */
 .page-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -612,91 +884,6 @@ function handleTabKeydown(event, tab) {
   }
 }
 
-.note-card {
-  display: grid;
-  gap: var(--space-4);
-}
-
-.note-card__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-4);
-}
-
-.note-card__meta {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.note-card__meta h3 {
-  margin: 0;
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text);
-}
-
-.note-card__subtitle {
-  margin: 0;
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
-}
-
-.note-card__details {
-  display: flex;
-  gap: var(--space-2);
-  font-size: var(--font-size-sm);
-  color: var(--color-text-soft);
-  flex-wrap: wrap;
-}
-
-.note-card__stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.stat-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-pill);
-  background: var(--color-surface-subtle);
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
-}
-
-.note-card__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-}
-
-body.dark .note-card__details {
-  color: var(--color-text-muted);
-}
-
-body.dark .stat-chip {
-  background: var(--color-surface-subtle);
-  color: var(--color-text-muted);
-}
-
-body.dark .tab-group {
-  background: var(--color-surface-subtle);
-  border-color: var(--color-border);
-}
-
-body.dark .tab {
-  color: var(--color-text-muted);
-}
-
-body.dark .tab--active {
-  background: var(--color-surface);
-  color: var(--color-primary);
-}
-
 .dropdown-wrapper {
   position: relative;
 }
@@ -774,4 +961,19 @@ body.dark .tab--active {
 .dropdown-item--danger:hover {
   background: rgba(239, 68, 68, 0.1);
 }
+
+body.dark .tab-group {
+  background: var(--color-surface-subtle);
+  border-color: var(--color-border);
+}
+
+body.dark .tab {
+  color: var(--color-text-muted);
+}
+
+body.dark .tab--active {
+  background: var(--color-surface);
+  color: var(--color-primary);
+}
+
 </style>

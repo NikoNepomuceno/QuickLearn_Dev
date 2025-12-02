@@ -21,20 +21,29 @@ export function useConfirmDialog() {
     confirmText = 'Confirm',
     cancelText = 'Cancel',
     icon = 'warning',
-    requireText
+    requireText,
+    danger = false
   } = {}) {
     if (typeof window === 'undefined') {
       return { isConfirmed: false }
     }
 
+    const modalAppearance = getModalAppearance()
+
+    // Add red color for destructive actions - replace the confirm button class entirely
+    if (danger) {
+      modalAppearance.customClass.confirmButton = 'swal2-danger-confirm'
+    }
+
     if (requireText) {
-      return Swal.fire({
+      const swalConfig = {
         title,
         text: message,
         icon,
         showCancelButton: true,
         confirmButtonText: confirmText,
         cancelButtonText: cancelText,
+        confirmButtonColor: danger ? '#dc2626' : undefined,
         input: 'text',
         inputPlaceholder: requireText.placeholder ?? '',
         inputAttributes: {
@@ -47,16 +56,81 @@ export function useConfirmDialog() {
           }
           return value
         },
-        ...getModalAppearance()
-      })
+        didOpen: () => {
+          if (danger) {
+            setTimeout(() => {
+              const confirmButton = document.querySelector('.swal2-confirm')
+              if (confirmButton) {
+                // Force red background using inline styles (inline styles override CSS classes)
+                confirmButton.style.background = '#dc2626'
+                confirmButton.style.backgroundColor = '#dc2626'
+                confirmButton.style.color = '#ffffff'
+                confirmButton.style.border = 'none'
+                const hoverHandler = () => {
+                  confirmButton.style.background = '#b91c1c'
+                  confirmButton.style.backgroundColor = '#b91c1c'
+                }
+                const leaveHandler = () => {
+                  confirmButton.style.background = '#dc2626'
+                  confirmButton.style.backgroundColor = '#dc2626'
+                }
+                confirmButton.addEventListener('mouseenter', hoverHandler)
+                confirmButton.addEventListener('mouseleave', leaveHandler)
+              }
+            }, 10)
+          }
+        },
+        ...modalAppearance
+      }
+      return Swal.fire(swalConfig)
     }
 
     if (window?.$toast?.confirm) {
       return window.$toast.confirm(title, message, confirmText)
     }
 
-    const isConfirmed = window.confirm(`${title}\n\n${message}`)
-    return { isConfirmed }
+    // For non-requireText cases, use SweetAlert2 directly with danger styling
+    const baseConfig = {
+      title,
+      text: message,
+      icon,
+      showCancelButton: true,
+      confirmButtonText: confirmText,
+      cancelButtonText: cancelText,
+      confirmButtonColor: danger ? '#dc2626' : undefined,
+      didOpen: () => {
+        if (danger) {
+          setTimeout(() => {
+            const confirmButton = document.querySelector('.swal2-confirm')
+            if (confirmButton) {
+              // Force red background using inline styles (inline styles override CSS classes)
+              confirmButton.style.background = '#dc2626'
+              confirmButton.style.backgroundColor = '#dc2626'
+              confirmButton.style.color = '#ffffff'
+              confirmButton.style.border = 'none'
+              const hoverHandler = () => {
+                confirmButton.style.background = '#b91c1c'
+                confirmButton.style.backgroundColor = '#b91c1c'
+              }
+              const leaveHandler = () => {
+                confirmButton.style.background = '#dc2626'
+                confirmButton.style.backgroundColor = '#dc2626'
+              }
+              confirmButton.addEventListener('mouseenter', hoverHandler)
+              confirmButton.addEventListener('mouseleave', leaveHandler)
+            }
+          }, 10)
+        }
+      },
+      ...modalAppearance
+    }
+
+    if (danger) {
+      baseConfig.customClass.confirmButton = 'swal2-danger-confirm'
+    }
+
+    const result = await Swal.fire(baseConfig)
+    return { isConfirmed: result.isConfirmed }
   }
 
   return { confirmDialog }

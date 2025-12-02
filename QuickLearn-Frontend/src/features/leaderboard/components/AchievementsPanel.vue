@@ -197,7 +197,7 @@ onMounted(async () => {
   display: flex;
   gap: var(--space-6);
   padding: var(--space-4) var(--space-5);
-  background: linear-gradient(135deg, rgba(79, 70, 229, 0.08), rgba(59, 130, 246, 0.1));
+  background: rgba(79, 70, 229, 0.08);
   border-radius: var(--radius-lg);
   border: 1px solid rgba(79, 70, 229, 0.15);
   margin-bottom: var(--space-6);
@@ -249,7 +249,7 @@ onMounted(async () => {
   left: 0;
   right: 0;
   height: 4px;
-  background: linear-gradient(90deg, var(--primary-light), var(--primary-main));
+  background: var(--color-primary);
   transform: scaleX(0);
   transition: transform 0.3s ease;
 }
@@ -260,7 +260,7 @@ onMounted(async () => {
 
 .achievement-card--earned {
   border-color: rgba(79, 70, 229, 0.3);
-  background: linear-gradient(135deg, rgba(79, 70, 229, 0.04), rgba(59, 130, 246, 0.06));
+  background: rgba(79, 70, 229, 0.04);
   box-shadow: 0 4px 12px rgba(79, 70, 229, 0.1);
 }
 
@@ -302,24 +302,24 @@ onMounted(async () => {
 }
 
 .achievement-card__icon.rarity--common {
-  background: linear-gradient(135deg, rgba(148, 163, 184, 0.3), rgba(100, 116, 139, 0.4));
+  background: rgba(148, 163, 184, 0.3);
   border: 3px solid rgba(148, 163, 184, 0.5);
 }
 
 .achievement-card__icon.rarity--rare {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.4), rgba(37, 99, 235, 0.5));
+  background: rgba(59, 130, 246, 0.4);
   border: 3px solid rgba(59, 130, 246, 0.6);
   box-shadow: 0 0 30px rgba(59, 130, 246, 0.4);
 }
 
 .achievement-card__icon.rarity--epic {
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.5), rgba(124, 58, 237, 0.6));
+  background: rgba(139, 92, 246, 0.5);
   border: 3px solid rgba(139, 92, 246, 0.7);
   box-shadow: 0 0 40px rgba(139, 92, 246, 0.5);
 }
 
 .achievement-card__icon.rarity--legendary {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.6), rgba(217, 119, 6, 0.7));
+  background: rgba(245, 158, 11, 0.6);
   border: 3px solid rgba(245, 158, 11, 0.8);
   box-shadow: 0 0 50px rgba(245, 158, 11, 0.6);
 }
@@ -350,7 +350,7 @@ onMounted(async () => {
   right: -4px;
   width: 28px;
   height: 28px;
-  background: linear-gradient(135deg, #10b981, #059669);
+  background: #10b981;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -470,7 +470,7 @@ onMounted(async () => {
 
 .progress-mini__fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--primary-light), var(--primary-main));
+  background: var(--color-primary);
   border-radius: 999px;
   transition: width 0.3s ease;
 }
@@ -525,7 +525,7 @@ body.dark .achievement-card {
 }
 
 body.dark .achievement-card--earned {
-  background: linear-gradient(135deg, rgba(79, 70, 229, 0.12), rgba(59, 130, 246, 0.15));
+  background: rgba(79, 70, 229, 0.12);
   border-color: rgba(79, 70, 229, 0.4);
 }
 
@@ -534,7 +534,7 @@ body.dark .achievement-card--locked {
 }
 
 body.dark .achievements-panel__stats {
-  background: linear-gradient(135deg, rgba(79, 70, 229, 0.15), rgba(59, 130, 246, 0.2));
+  background: rgba(79, 70, 229, 0.15);
   border-color: rgba(79, 70, 229, 0.3);
 }
 

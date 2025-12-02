@@ -18,93 +18,168 @@
 
     <Transition name="fade" appear>
       <div v-if="!showAnimation" class="leaderboards-page">
-        <div class="content-grid">
-        <section class="main-panel">
-          <header class="main-panel__header">
-            <div class="main-panel__headline">
-              <h3>Community leaderboards</h3>
-              <p>Switch between views to compare your impact with friends and the wider community.</p>
-            </div>
-          </header>
+        <!-- Leaderboard tab with sidebar layout -->
+        <template v-if="activeTab === 'leaderboard'">
+          <div class="leaderboard-container">
+            <aside class="leaderboard-sidebar" role="complementary" aria-label="Leaderboard filters">
+              <LeaderboardFilters
+                :selected-category-key="activeCategoryKey"
+                :grouped-categories="groupedCategories"
+                :has-categories="hasCategories"
+                @select-category="handleCategorySelect"
+                @clear-filter="handleCategoryClear"
+              />
+            </aside>
+            <section class="main-panel">
+              <header class="main-panel__header">
+                <div class="main-panel__headline">
+                  <h3>Community leaderboards</h3>
+                  <p>Switch between views to compare your impact with friends and the wider community.</p>
+                </div>
+              </header>
 
-          <nav class="tab-group" role="tablist" aria-label="Leaderboard views">
-            <button
-              class="btn"
-              :class="{ active: activeTab === 'friends' }"
-              type="button"
-              role="tab"
-              :aria-selected="activeTab === 'friends'"
-              :tabindex="activeTab === 'friends' ? 0 : -1"
-              @click="activeTab = 'friends'"
-            >
-              View friends
-            </button>
-            <button
-              class="btn"
-              :class="{ active: activeTab === 'leaderboard' }"
-              type="button"
-              role="tab"
-              :aria-selected="activeTab === 'leaderboard'"
-              :tabindex="activeTab === 'leaderboard' ? 0 : -1"
-              @click="activeTab = 'leaderboard'"
-            >
-              Leaderboard
-            </button>
-            <button
-              class="btn"
-              :class="{ active: activeTab === 'achievements' }"
-              type="button"
-              role="tab"
-              :aria-selected="activeTab === 'achievements'"
-              :tabindex="activeTab === 'achievements' ? 0 : -1"
-              @click="activeTab = 'achievements'"
-            >
-              Achievements
-            </button>
-            <button
-              class="btn btn-with-badge"
-              :class="{ active: activeTab === 'inbox' }"
-              type="button"
-              role="tab"
-              :aria-selected="activeTab === 'inbox'"
-              :tabindex="activeTab === 'inbox' ? 0 : -1"
-              @click="handleInboxClick"
-            >
-              Inbox
-              <span v-if="badgeCount > 0" class="badge">{{ badgeCount }}</span>
-            </button>
-          </nav>
+              <nav class="tab-group" role="tablist" aria-label="Leaderboard views">
+                <button
+                  class="btn"
+                  :class="{ active: activeTab === 'friends' }"
+                  type="button"
+                  role="tab"
+                  :aria-selected="activeTab === 'friends'"
+                  :tabindex="activeTab === 'friends' ? 0 : -1"
+                  @click="activeTab = 'friends'"
+                >
+                  View friends
+                </button>
+                <button
+                  class="btn"
+                  :class="{ active: activeTab === 'leaderboard' }"
+                  type="button"
+                  role="tab"
+                  :aria-selected="activeTab === 'leaderboard'"
+                  :tabindex="activeTab === 'leaderboard' ? 0 : -1"
+                  @click="activeTab = 'leaderboard'"
+                >
+                  Leaderboard
+                </button>
+                <button
+                  class="btn"
+                  :class="{ active: activeTab === 'achievements' }"
+                  type="button"
+                  role="tab"
+                  :aria-selected="activeTab === 'achievements'"
+                  :tabindex="activeTab === 'achievements' ? 0 : -1"
+                  @click="activeTab = 'achievements'"
+                >
+                  Achievements
+                </button>
+                <button
+                  class="btn btn-with-badge"
+                  :class="{ active: activeTab === 'inbox' }"
+                  type="button"
+                  role="tab"
+                  :aria-selected="activeTab === 'inbox'"
+                  :tabindex="activeTab === 'inbox' ? 0 : -1"
+                  @click="handleInboxClick"
+                >
+                  Inbox
+                  <span v-if="badgeCount > 0" class="badge">{{ badgeCount }}</span>
+                </button>
+              </nav>
 
-          <p class="tab-helper">
-            <span v-if="activeTab === 'friends'">
-              Check in on your friends, celebrate wins, and offer encouragement.
-            </span>
-            <span v-else-if="activeTab === 'leaderboard'">
-              {{ leaderboardHelper }}
-              <span class="tab-helper__chip">
-                Focus: {{ activeCategoryLabel }}
-              </span>
-            </span>
-            <span v-else-if="activeTab === 'achievements'">
-              View your earned achievements and track your progress toward unlocking new ones.
-            </span>
-            <span v-else>
-              Review friend requests and community invites waiting for your response.
-            </span>
-          </p>
+              <p class="tab-helper">
+                {{ leaderboardHelper }}
+              </p>
 
-          <div class="panel-body">
-            <FriendsPanel v-if="activeTab === 'friends'" />
-            <LeaderboardPanel v-else-if="activeTab === 'leaderboard'" />
-            <AchievementsPanel v-else-if="activeTab === 'achievements'" />
-            <InboxPanel
-              v-else
-              @requests-viewed="clearBadge"
-              @request-updated="fetchRequestsCount"
-            />
+              <div class="panel-body">
+                <LeaderboardPanel />
+              </div>
+            </section>
           </div>
-        </section>
-      </div>
+        </template>
+
+        <!-- Other tabs without sidebar -->
+        <template v-else>
+          <div class="content-grid">
+            <section class="main-panel">
+              <header class="main-panel__header">
+                <div class="main-panel__headline">
+                  <h3>Community leaderboards</h3>
+                  <p>Switch between views to compare your impact with friends and the wider community.</p>
+                </div>
+              </header>
+
+              <nav class="tab-group" role="tablist" aria-label="Leaderboard views">
+                <button
+                  class="btn"
+                  :class="{ active: activeTab === 'friends' }"
+                  type="button"
+                  role="tab"
+                  :aria-selected="activeTab === 'friends'"
+                  :tabindex="activeTab === 'friends' ? 0 : -1"
+                  @click="activeTab = 'friends'"
+                >
+                  View friends
+                </button>
+                <button
+                  class="btn"
+                  :class="{ active: activeTab === 'leaderboard' }"
+                  type="button"
+                  role="tab"
+                  :aria-selected="activeTab === 'leaderboard'"
+                  :tabindex="activeTab === 'leaderboard' ? 0 : -1"
+                  @click="activeTab = 'leaderboard'"
+                >
+                  Leaderboard
+                </button>
+                <button
+                  class="btn"
+                  :class="{ active: activeTab === 'achievements' }"
+                  type="button"
+                  role="tab"
+                  :aria-selected="activeTab === 'achievements'"
+                  :tabindex="activeTab === 'achievements' ? 0 : -1"
+                  @click="activeTab = 'achievements'"
+                >
+                  Achievements
+                </button>
+                <button
+                  class="btn btn-with-badge"
+                  :class="{ active: activeTab === 'inbox' }"
+                  type="button"
+                  role="tab"
+                  :aria-selected="activeTab === 'inbox'"
+                  :tabindex="activeTab === 'inbox' ? 0 : -1"
+                  @click="handleInboxClick"
+                >
+                  Inbox
+                  <span v-if="badgeCount > 0" class="badge">{{ badgeCount }}</span>
+                </button>
+              </nav>
+
+              <p class="tab-helper">
+                <span v-if="activeTab === 'friends'">
+                  Check in on your friends, celebrate wins, and offer encouragement.
+                </span>
+                <span v-else-if="activeTab === 'achievements'">
+                  View your earned achievements and track your progress toward unlocking new ones.
+                </span>
+                <span v-else>
+                  Review friend requests and community invites waiting for your response.
+                </span>
+              </p>
+
+              <div class="panel-body">
+                <FriendsPanel v-if="activeTab === 'friends'" />
+                <AchievementsPanel v-else-if="activeTab === 'achievements'" />
+                <InboxPanel
+                  v-else
+                  @requests-viewed="clearBadge"
+                  @request-updated="fetchRequestsCount"
+                />
+              </div>
+            </section>
+          </div>
+        </template>
       </div>
     </Transition>
   </AppShell>
@@ -116,6 +191,7 @@ import { storeToRefs } from 'pinia'
 import AppShell from '@/components/layout/AppShell.vue'
 import FriendsPanel from '../components/FriendsPanel.vue'
 import LeaderboardPanel from '../components/LeaderboardPanel.vue'
+import LeaderboardFilters from '../components/LeaderboardFilters.vue'
 import InboxPanel from '../components/InboxPanel.vue'
 import AchievementsPanel from '../components/AchievementsPanel.vue'
 import { getPendingRequestsCount } from '../services/leaderboard.api'
@@ -140,7 +216,7 @@ let animationTimeout = null
 
 let pollHandle
 const leaderboardStore = useLeaderboardStore()
-const { activeCategory } = storeToRefs(leaderboardStore)
+const { activeCategory, activeCategoryKey, availableCategories } = storeToRefs(leaderboardStore)
 const activeCategoryLabel = computed(() => activeCategory.value?.categoryLabel || 'Overall')
 const leaderboardHelper = computed(() => {
   if (!activeCategory.value) {
@@ -148,6 +224,83 @@ const leaderboardHelper = computed(() => {
   }
   return `Comparing strengths in ${activeCategory.value.categoryLabel}.`
 })
+
+// Function to detect parent category from label
+function detectParentCategory(categoryLabel) {
+  const label = String(categoryLabel || '').toLowerCase()
+  
+  if (label.includes('next.js') || label.includes('nextjs') || label.includes('next ')) {
+    return 'Next.js'
+  }
+  if (label.includes('react') && !label.includes('next')) {
+    return 'React'
+  }
+  if (label.includes('angular')) {
+    return 'Angular'
+  }
+  if (label.includes('vue')) {
+    return 'Vue'
+  }
+  if (label.includes('spa') || label.includes('single page application')) {
+    return 'SPA'
+  }
+  if (label.includes('lifecycle') || label.includes('life cycle')) {
+    return 'Lifecycle'
+  }
+  if (
+    label.includes('routing') ||
+    label.includes('route') ||
+    label.includes('navigation') ||
+    label.includes('router')
+  ) {
+    return 'Routing'
+  }
+  if (label.includes('component') || label.includes('composition')) {
+    return 'Components'
+  }
+  if (label.includes('data fetching') || label.includes('data fetch')) {
+    return 'Data Fetching'
+  }
+  
+  return 'Other'
+}
+
+// Group categories by parent
+const groupedCategories = computed(() => {
+  const categories = availableCategories.value || []
+  const groups = new Map()
+  
+  categories.forEach(category => {
+    const parent = detectParentCategory(category.categoryLabel)
+    if (!groups.has(parent)) {
+      groups.set(parent, {
+        parentName: parent,
+        categories: [],
+        totalPoints: 0
+      })
+    }
+    const group = groups.get(parent)
+    group.categories.push(category)
+    group.totalPoints += category.totalPoints || 0
+  })
+  
+  return Array.from(groups.values())
+    .map(group => ({
+      ...group,
+      categories: group.categories.sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0))
+    }))
+    .sort((a, b) => b.totalPoints - a.totalPoints)
+})
+
+const hasCategories = computed(() => (availableCategories.value || []).length > 0)
+
+function handleCategorySelect(categoryKey) {
+  leaderboardStore.setCategory(categoryKey)
+}
+
+function handleCategoryClear() {
+  leaderboardStore.setCategory(null)
+}
 
 onMounted(async () => {
   // Start fetching data in parallel
@@ -199,28 +352,26 @@ function clearBadge() {
 .leaderboards-page {
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  padding: 28px;
+  gap: var(--space-6);
+  padding: var(--space-7);
   min-height: 100%;
 }
 
 .content-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 24px;
+  gap: var(--space-6);
   align-items: start;
 }
 
 .main-panel {
-  background: #ffffff;
-  border: 1px solid rgba(226, 232, 240, 0.9);
-  border-radius: 24px;
-  padding: 28px;
-  box-shadow:
-    0 20px 60px rgba(15, 23, 42, 0.1),
-    0 10px 25px rgba(15, 23, 42, 0.04);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-7);
+  box-shadow: var(--shadow-md);
   display: grid;
-  gap: 20px;
+  gap: var(--space-5);
 }
 
 .main-panel__header {
@@ -228,22 +379,27 @@ function clearBadge() {
   justify-content: space-between;
   align-items: flex-start;
   flex-wrap: wrap;
-  gap: 24px;
+  gap: var(--space-6);
 }
 
 .main-panel__headline h3 {
-  margin: 0 0 8px;
-  font-size: 20px;
-  font-weight: 700;
-  color: #111827;
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-family-heading);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
+  color: var(--color-heading);
+  letter-spacing: var(--letter-spacing-tight);
   text-transform: capitalize;
 }
 
 .main-panel__headline p {
   margin: 0;
   max-width: 520px;
-  color: #4b5563;
-  line-height: 1.6;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-paragraph);
+  line-height: var(--line-height-base);
   word-wrap: break-word;
   overflow-wrap: break-word;
 }
@@ -251,34 +407,52 @@ function clearBadge() {
 .tab-group {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .btn {
-  padding: 10px 18px;
-  border: 1px solid rgba(148, 163, 184, 0.6);
-  border-radius: 999px;
-  background: #ffffff;
+  padding: var(--space-2) var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
   cursor: pointer;
-  transition: color 0.2s ease, background 0.2s ease, border 0.2s ease,
-    box-shadow 0.2s ease, transform 0.2s ease;
-  color: #1f2937;
-  font-weight: 600;
+  transition: all var(--transition-base);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.5;
+  color: var(--color-text);
   letter-spacing: 0.01em;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn:hover {
   transform: translateY(-1px);
-  border-color: rgba(79, 70, 229, 0.4);
-  color: var(--primary-main);
-  box-shadow: 0 10px 20px rgba(79, 70, 229, 0.12);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+  background: var(--color-surface-emphasis);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 
 .btn.active {
-  background: linear-gradient(135deg, var(--primary-light), var(--primary-main));
-  color: #ffffff;
-  border-color: transparent;
+  background: var(--color-primary);
+  color: var(--color-text-on-primary);
+  border-color: var(--color-primary);
   box-shadow: var(--primary-glow);
+}
+
+.btn.active:hover {
+  background: var(--color-primary-dark);
+  border-color: var(--color-primary-dark);
+  transform: translateY(-1px);
 }
 
 .btn-with-badge {
@@ -287,47 +461,90 @@ function clearBadge() {
 
 .tab-helper {
   margin: 0;
-  font-size: 14px;
-  color: #4b5563;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-base);
+  color: var(--color-text-muted);
 }
 
 .tab-helper__chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  margin-left: 12px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  background: rgba(79, 70, 229, 0.1);
-  color: var(--primary-main);
+  gap: var(--space-2);
+  margin-left: var(--space-3);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  background: rgba(102, 126, 234, 0.12);
+  color: var(--color-primary);
+  border: 1px solid rgba(102, 126, 234, 0.2);
 }
 
 .panel-body {
-  background: #f8fafc;
-  border-radius: 20px;
-  padding: 20px;
-  border: 1px solid rgba(226, 232, 240, 0.7);
+  background: var(--color-surface-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
   min-height: 320px;
+}
+
+.leaderboard-container {
+  display: grid;
+  grid-template-columns: minmax(260px, 300px) minmax(0, 1fr);
+  gap: clamp(20px, 2vw, 32px);
+  align-items: start;
+  position: relative;
+}
+
+.leaderboard-sidebar {
+  position: sticky;
+  top: var(--space-5);
+  align-self: start;
+  height: fit-content;
+  max-height: calc(100vh - var(--space-10));
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
+}
+
+.leaderboard-sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.leaderboard-sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.leaderboard-sidebar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 3px;
+  transition: background 0.2s ease;
+}
+
+.leaderboard-sidebar::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
 }
 
 .badge {
   position: absolute;
   top: -6px;
   right: -6px;
-  background: linear-gradient(135deg, #ef4444, #dc2626);
-  color: #ffffff;
-  font-size: 11px;
-  font-weight: 700;
+  background: var(--color-danger);
+  color: var(--color-text-on-primary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
   min-width: 20px;
   height: 20px;
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 6px;
+  padding: 0 var(--space-2);
   box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
   animation: pulse 2s infinite;
+  border: 2px solid var(--color-surface);
 }
 
 @keyframes pulse {
@@ -351,35 +568,35 @@ function clearBadge() {
 /* Mobile landscape and below */
 @media (max-width: 768px) {
   .leaderboards-page {
-    padding: 16px;
-    gap: 16px;
+    padding: var(--space-4);
+    gap: var(--space-4);
   }
 
   .main-panel {
-    padding: 20px;
-    border-radius: 20px;
-    gap: 16px;
+    padding: var(--space-5);
+    border-radius: var(--radius-lg);
+    gap: var(--space-4);
   }
 
   .main-panel__header {
-    gap: 16px;
+    gap: var(--space-4);
   }
 
   .main-panel__headline h3 {
-    font-size: 18px;
+    font-size: var(--font-size-lg);
   }
 
   .main-panel__headline p {
-    font-size: 14px;
+    font-size: var(--font-size-sm);
     max-width: 100%;
   }
 
   .tab-group {
-    gap: 8px;
+    gap: var(--space-2);
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
-    padding-bottom: 4px;
+    padding-bottom: var(--space-1);
   }
 
   .tab-group::-webkit-scrollbar {
@@ -387,28 +604,37 @@ function clearBadge() {
   }
 
   .btn {
-    padding: 10px 16px;
-    font-size: 14px;
+    padding: var(--space-2) var(--space-4);
+    font-size: var(--font-size-sm);
     white-space: nowrap;
     min-height: 44px;
     flex-shrink: 0;
   }
 
   .tab-helper {
-    font-size: 13px;
+    font-size: var(--font-size-xs);
   }
 
   .panel-body {
-    padding: 16px;
-    border-radius: 16px;
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
     min-height: 280px;
+  }
+
+  .leaderboard-container {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+
+  .leaderboard-sidebar {
+    position: static;
   }
 
   .badge {
     font-size: 10px;
     min-width: 18px;
     height: 18px;
-    padding: 0 5px;
+    padding: 0 var(--space-1);
     top: -4px;
     right: -4px;
   }
@@ -417,48 +643,48 @@ function clearBadge() {
 /* Small mobile */
 @media (max-width: 480px) {
   .leaderboards-page {
-    padding: 12px;
-    gap: 12px;
+    padding: var(--space-3);
+    gap: var(--space-3);
   }
 
   .main-panel {
-    padding: 16px;
-    border-radius: 16px;
-    gap: 14px;
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    gap: var(--space-3);
   }
 
   .main-panel__header {
-    gap: 12px;
+    gap: var(--space-3);
   }
 
   .main-panel__headline h3 {
-    font-size: 16px;
-    margin-bottom: 6px;
+    font-size: var(--font-size-base);
+    margin-bottom: var(--space-2);
   }
 
   .main-panel__headline p {
-    font-size: 13px;
-    line-height: 1.5;
+    font-size: var(--font-size-xs);
+    line-height: var(--line-height-base);
   }
 
   .tab-group {
-    gap: 6px;
+    gap: var(--space-2);
   }
 
   .btn {
-    padding: 10px 14px;
-    font-size: 13px;
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-xs);
     min-height: 42px;
   }
 
   .tab-helper {
-    font-size: 12px;
-    line-height: 1.5;
+    font-size: 11px;
+    line-height: var(--line-height-base);
   }
 
   .panel-body {
-    padding: 14px;
-    border-radius: 12px;
+    padding: var(--space-3);
+    border-radius: var(--radius-sm);
     min-height: 240px;
   }
 }
@@ -466,64 +692,95 @@ function clearBadge() {
 /* Extra small mobile */
 @media (max-width: 360px) {
   .leaderboards-page {
-    padding: 10px;
+    padding: var(--space-2);
   }
 
   .main-panel {
-    padding: 14px;
+    padding: var(--space-3);
   }
 
   .main-panel__headline h3 {
-    font-size: 15px;
+    font-size: var(--font-size-sm);
   }
 
   .btn {
-    padding: 8px 12px;
-    font-size: 12px;
+    padding: var(--space-2) var(--space-3);
+    font-size: 11px;
   }
 
   .panel-body {
-    padding: 12px;
+    padding: var(--space-3);
   }
 }
 
+/* Dark mode styles with improved contrast */
 body.dark .main-panel__headline h3 {
-  color: #f8fafc;
+  color: var(--color-heading);
 }
 
-body.dark .main-panel__headline p,
+body.dark .main-panel__headline p {
+  color: var(--color-paragraph);
+}
+
 body.dark .tab-helper {
-  color: #cbd5f5;
+  color: var(--color-text-muted);
 }
 
 body.dark .tab-helper__chip {
-  background: rgba(79, 70, 229, 0.25);
-  color: var(--primary-light);
+  background: rgba(102, 126, 234, 0.2);
+  color: var(--color-primary-soft);
+  border-color: rgba(102, 126, 234, 0.3);
 }
 
 body.dark .content-grid .main-panel {
-  background: #0f172a;
-  border-color: rgba(30, 41, 59, 0.8);
-  box-shadow:
-    0 24px 60px rgba(2, 6, 23, 0.7),
-    0 10px 24px rgba(2, 6, 23, 0.5);
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  box-shadow: var(--shadow-lg);
 }
 
 body.dark .panel-body {
-  background: rgba(15, 23, 42, 0.8);
-  border-color: rgba(30, 41, 59, 0.7);
+  background: var(--color-surface-subtle);
+  border-color: var(--color-border);
 }
 
 body.dark .btn {
-  background: rgba(15, 23, 42, 0.95);
-  border-color: rgba(63, 76, 107, 0.7);
-  color: #e2e8f0;
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-text);
 }
 
 body.dark .btn:hover {
-  color: #ffffff;
-  border-color: rgba(129, 140, 248, 0.6);
-  box-shadow: 0 15px 28px rgba(129, 140, 248, 0.25);
+  color: var(--color-primary-soft);
+  border-color: var(--color-primary);
+  background: var(--color-surface-emphasis);
+  box-shadow: var(--shadow-sm);
+}
+
+body.dark .btn.active {
+  background: var(--color-primary);
+  color: var(--color-text-on-primary);
+  border-color: var(--color-primary);
+}
+
+body.dark .btn.active:hover {
+  background: var(--color-primary-dark);
+  border-color: var(--color-primary-dark);
+}
+
+body.dark .badge {
+  border-color: var(--color-surface);
+}
+
+body.dark .leaderboard-sidebar {
+  scrollbar-color: rgba(148, 163, 184, 0.2) transparent;
+}
+
+body.dark .leaderboard-sidebar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.2);
+}
+
+body.dark .leaderboard-sidebar::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.4);
 }
 
 /* Touch device optimizations */
@@ -564,7 +821,7 @@ body.dark .btn:hover {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(8px) saturate(180%);
   -webkit-backdrop-filter: blur(8px) saturate(180%);
   display: flex;
@@ -581,7 +838,7 @@ body.dark .btn:hover {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: var(--space-5);
 }
 
 .loading-animation {
@@ -605,7 +862,7 @@ body.dark .btn:hover {
   }
 
   .loading-content {
-    padding: 16px;
+    padding: var(--space-4);
   }
 }
 
@@ -620,7 +877,9 @@ body.dark .btn:hover {
 
 /* Dark mode for loading overlay */
 body.dark .loading-overlay {
-  background: rgba(15, 23, 42, 0.9);
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(10px) saturate(150%);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
 }
 
 /* Fade-in transition for page content */

@@ -29,7 +29,8 @@ async function requestLogout() {
     title: 'Logout?',
     message: 'You will need to log in again to continue.',
     confirmText: 'Logout',
-    icon: 'question'
+    icon: 'question',
+    danger: true
   })
 
   if (!result?.isConfirmed) {
@@ -186,7 +187,7 @@ body.dark .mobile-menu-btn:hover {
   justify-content: space-between;
   padding: 22px 18px;
   border-right: 1px solid rgba(255, 255, 255, 0.15);
-  background: linear-gradient(145deg, #f8faff 0%, #eef2ff 100%);
+  background: #f8faff;
   backdrop-filter: blur(10px);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
   transition: all 0.3s ease;
@@ -194,7 +195,7 @@ body.dark .mobile-menu-btn:hover {
 }
 
 body.dark .sidebar {
-  background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+  background: #1e293b;
   border-right-color: rgba(31, 42, 68, 0.3);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }

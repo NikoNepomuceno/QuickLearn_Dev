@@ -383,12 +383,7 @@ class CloudStorageService {
                     });
                 }
                 
-                // Trigger background generation of full 50-question set
-                // Don't await - let it run in background
-                generateFullQuizSetInBackground(files, fileHash)
-                    .catch(err => {
-                        console.error('[Quiz] Background generation failed:', err);
-                    });
+                // Background generation will be triggered AFTER quiz is saved and returned to user
             }
 
             // Step 4: Save quiz to database
@@ -435,7 +430,8 @@ class CloudStorageService {
                 // Continue - quiz creation was successful even if extraction fails
             }
             
-            return {
+            // Prepare response
+            const response = {
                 quiz: quiz,
                 file: uploadedFiles[0] || null,
                 metadata: {
@@ -449,6 +445,20 @@ class CloudStorageService {
                     sourceFiles: uploadedFiles
                 }
             };
+
+            // Trigger background generation AFTER quiz is saved and ready to return
+            // Only trigger if it was a cache miss (new file)
+            // Use setImmediate to ensure this runs after the HTTP response is sent
+            if (!cached || !cached.questions || cached.questions.length === 0) {
+                setImmediate(() => {
+                    generateFullQuizSetInBackground(files, fileHash)
+                        .catch(err => {
+                            console.error('[Quiz] Background generation failed:', err);
+                        });
+                });
+            }
+
+            return response;
 
         } catch (error) {
             console.error('Error creating quiz with file:', error);

@@ -1,6 +1,7 @@
 const deepSeekService = require('./deepseekService');
+const fastQuizService = require('./fastQuizService');
 
-// AI-powered quiz generation using DeepSeek
+// AI-powered quiz generation using DeepSeek or Gemini (fast service)
 async function generateAIPoweredQuiz(text, options = {}) {
 	const {
 		numQuestions = 5,
@@ -9,6 +10,23 @@ async function generateAIPoweredQuiz(text, options = {}) {
 		focusAreas = []
 	} = options;
 
+	// Route to fast Gemini service for 10-25 questions
+	if (numQuestions >= 10 && numQuestions <= 25) {
+		try {
+			console.log(`[Quiz] Using Gemini fast service for ${numQuestions} questions`);
+			return await fastQuizService.generateQuizFromText(text, {
+				numQuestions,
+				difficulty,
+				questionTypes,
+				focusAreas
+			});
+		} catch (error) {
+			console.error('[Quiz] Gemini fast service failed, falling back to DeepSeek:', error);
+			// Fallback to DeepSeek if Gemini fails
+		}
+	}
+
+	// Use DeepSeek for <10, >25 questions, or if fast service unavailable
 	if (!process.env.DEEPSEEK_API_KEY) {
 		throw new Error('DeepSeek API key not configured. Please set DEEPSEEK_API_KEY environment variable.');
 	}
@@ -66,12 +84,24 @@ async function generateAdvancedQuiz(text, options = {}) {
 	}
 }
 
-// AI-powered summary generation using DeepSeek
+// AI-powered summary generation using DeepSeek or Gemini (fast service)
 async function generateAIPoweredSummary(text, options = {}) {
 	const {
 		customInstructions = '',
 		focusAreas = []
 	} = options;
+
+	// Try Gemini first for faster generation
+	try {
+		console.log('[Summary] Using Gemini fast service for summary generation');
+		return await fastQuizService.generateSummaryFromText(text, {
+			customInstructions,
+			focusAreas
+		});
+	} catch (error) {
+		console.error('[Summary] Gemini fast service failed, falling back to DeepSeek:', error);
+		// Fallback to DeepSeek if Gemini fails
+	}
 
 	if (!process.env.DEEPSEEK_API_KEY) {
 		throw new Error('DeepSeek API key not configured. Please set DEEPSEEK_API_KEY environment variable.');
@@ -88,11 +118,22 @@ async function generateAIPoweredSummary(text, options = {}) {
 	}
 }
 
-// AI-powered flashcards generation
+// AI-powered flashcards generation using DeepSeek or Gemini (fast service)
 async function generateAIPoweredFlashcards(text, options = {}) {
 	const {
 		customInstructions = ''
 	} = options;
+
+	// Try Gemini first for faster generation
+	try {
+		console.log('[Flashcards] Using Gemini fast service for flashcards generation');
+		return await fastQuizService.generateFlashcardsFromText(text, {
+			customInstructions
+		});
+	} catch (error) {
+		console.error('[Flashcards] Gemini fast service failed, falling back to DeepSeek:', error);
+		// Fallback to DeepSeek if Gemini fails
+	}
 
 	if (!process.env.DEEPSEEK_API_KEY) {
 		// Fallback without throwing

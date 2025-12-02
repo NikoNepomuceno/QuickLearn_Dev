@@ -1,5 +1,5 @@
 const { parseUploadedFile } = require('../utils/parseFile');
-const { generateAIPoweredQuiz } = require('./quizService');
+const deepSeekService = require('./deepseekService');
 const { setCachedQuestions } = require('./quizCacheService');
 const { computeFileHash, computeMultiFileHash } = require('../utils/fileHash');
 
@@ -29,10 +29,11 @@ async function generateFullQuizSetInBackground(files, fileHash) {
             fullText += `\n\n### Source: ${file.originalname || 'document'}\n\n${parseResult.text}`;
         }
         
-        // Generate full 50-question set with all types
+        // Generate full 50-question set with all types - ALWAYS use DeepSeek for background cache
         const allQuestionTypes = ['multiple_choice', 'true_false', 'identification', 'enumeration'];
         
-        const fullQuiz = await generateAIPoweredQuiz(fullText.trim(), {
+        console.log('[Background] Using DeepSeek for comprehensive 50-question cache generation');
+        const fullQuiz = await deepSeekService.generateQuizFromText(fullText.trim(), {
             numQuestions: 50,
             difficulty: 'medium',
             questionTypes: allQuestionTypes,

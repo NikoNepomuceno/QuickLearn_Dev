@@ -315,17 +315,17 @@ watch(() => props.achievement?.id, () => {
 
 /* Rarity Badge Colors */
 .rarity-legendary {
-  background: linear-gradient(to right, rgb(251, 191, 36), rgb(249, 115, 22));
+  background: rgb(251, 191, 36);
   color: black;
 }
 
 .rarity-epic {
-  background: linear-gradient(to right, rgb(168, 85, 247), rgb(236, 72, 153));
+  background: rgb(168, 85, 247);
   color: white;
 }
 
 .rarity-rare {
-  background: linear-gradient(to right, rgb(59, 130, 246), rgb(34, 211, 238));
+  background: rgb(59, 130, 246);
   color: white;
 }
 
@@ -412,7 +412,7 @@ watch(() => props.achievement?.id, () => {
 }
 
 .progress-fill.rarity--common {
-  background: linear-gradient(90deg, #64748b, #94a3b8);
+  background: #64748b;
 }
 
 .progress-fill.rarity--rare {

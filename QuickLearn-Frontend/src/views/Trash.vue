@@ -150,7 +150,8 @@ async function handlePermanentDelete(item) {
     title: item ? `Delete ${getItemTypeLabel(item)}` : 'Delete Item',
     message: item ? `Permanently delete "${item.title || getItemTypeLabel(item)}"? This cannot be undone.` : 'Permanently delete this item? This cannot be undone.',
     confirmText: 'Delete',
-    icon: 'warning'
+    icon: 'warning',
+    danger: true
   })
 
   if (!result?.isConfirmed) {
@@ -318,46 +319,41 @@ onMounted(loadTrash)
       <BaseCard
         v-for="item in filteredItems"
         :key="item.id"
-        padding="lg"
+        class="styled-trash-card"
+        :padding="'none'"
       >
-        <div class="trash-card">
-          <div class="trash-card__header">
-            <div class="trash-card__meta">
-              <h3>{{ item.title || 'Untitled item' }}</h3>
-              <p class="trash-card__subtitle">
-                Deleted {{ new Date(item.metadata?.deletedAt).toLocaleString() }}
-              </p>
+        <div class="trash-card-content">
+          <div class="trash-card-header">
+            <div class="trash-title-row">
+              <h3 :title="item.title">{{ item.title || 'Untitled item' }}</h3>
+              <span class="trash-badge">TRASHED</span>
             </div>
-            <span class="trash-card__badge">Trashed</span>
+            <p class="trash-date">
+              Deleted {{ new Date(item.metadata?.deletedAt).toLocaleDateString() }}
+            </p>
           </div>
 
-          <div class="trash-card__stats">
-            <span class="stat-chip">{{ getItemTypeLabel(item) }}</span>
+          <div class="trash-tags">
+            <span class="trash-tag">{{ getItemTypeLabel(item) }}</span>
             <template v-if="resolveItemType(item) === 'quiz'">
-              <span v-if="item.metadata?.questionCount" class="stat-chip">
-                {{ item.metadata.questionCount }} questions
-              </span>
-              <span v-if="item.metadata?.attemptsCount" class="stat-chip">
-                {{ item.metadata.attemptsCount }} attempts
+              <span v-if="item.metadata?.questionCount" class="trash-tag">
+                {{ item.metadata.questionCount }} Questions
               </span>
             </template>
             <template v-else-if="resolveItemType(item) === 'summary'">
-              <span v-if="item.metadata?.keyPointCount" class="stat-chip">
-                {{ item.metadata.keyPointCount }} key points
-              </span>
-              <span v-if="item.metadata?.sectionCount" class="stat-chip">
-                {{ item.metadata.sectionCount }} sections
+              <span v-if="item.metadata?.keyPointCount" class="trash-tag">
+                {{ item.metadata.keyPointCount }} Key Points
               </span>
             </template>
             <template v-else-if="resolveItemType(item) === 'flashcard'">
-              <span v-if="item.metadata?.cardsCount" class="stat-chip">
-                {{ item.metadata.cardsCount }} cards
+              <span v-if="item.metadata?.cardsCount" class="trash-tag">
+                {{ item.metadata.cardsCount }} Cards
               </span>
             </template>
           </div>
 
-          <div class="trash-card__actions">
-            <BaseButton variant="secondary" size="sm" @click="() => handleRestore(item)">
+          <div class="trash-card-footer">
+            <BaseButton variant="outline" size="sm" @click="() => handleRestore(item)">
               <RotateCcw :size="16" />
               Restore
             </BaseButton>
@@ -456,70 +452,112 @@ onMounted(loadTrash)
   }
 }
 
-.trash-card {
-  display: grid;
-  gap: var(--space-4);
+/* Styled Trash Card */
+.styled-trash-card {
+  height: 100%;
+  border: 1px solid var(--color-border);
+  transition: box-shadow 0.2s ease;
+  background: var(--color-surface);
 }
 
-.trash-card__header {
+.styled-trash-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+/* Force BaseCard body to fill height */
+.styled-trash-card :deep(.base-card__body) {
+  flex: 1;
+  height: 100%;
+}
+
+.trash-card-content {
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
+  height: 100%;
+  padding: var(--space-5);
+}
+
+.trash-card-header {
+  margin-bottom: var(--space-4);
+}
+
+.trash-title-row {
+  display: flex;
   justify-content: space-between;
-  gap: var(--space-4);
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
 }
 
-.trash-card__meta h3 {
+.trash-title-row h3 {
   margin: 0;
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-heading);
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
-.trash-card__subtitle {
+.trash-badge {
+  flex-shrink: 0;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: #fee2e2;
+  color: #ef4444;
+  letter-spacing: 0.05em;
+}
+
+.trash-date {
   margin: 0;
-  font-size: var(--font-size-sm);
+  font-size: 0.85rem;
   color: var(--color-text-muted);
 }
 
-.trash-card__badge {
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-pill);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  text-transform: uppercase;
-  background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
-}
-
-.trash-card__stats {
+.trash-tags {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+  margin-bottom: var(--space-6);
 }
 
-.stat-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-pill);
-  background: var(--color-surface-subtle);
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
+.trash-tag {
+  padding: 4px 12px;
+  border-radius: 12px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.75rem;
+  font-weight: 500;
 }
 
-.trash-card__actions {
+.trash-card-footer {
+  margin-top: auto;
   display: flex;
-  flex-wrap: wrap;
   gap: var(--space-3);
 }
 
-body.dark .trash-card__badge {
+.trash-card-footer > * {
+  flex: 1;
+  justify-content: center;
+}
+
+/* Dark mode adjustments */
+body.dark .styled-trash-card {
+  border-color: var(--color-border);
+}
+
+body.dark .trash-badge {
   background: rgba(239, 68, 68, 0.2);
   color: #fca5a5;
 }
 
-body.dark .stat-chip {
+body.dark .trash-tag {
   background: var(--color-surface-subtle);
   color: var(--color-text-muted);
 }

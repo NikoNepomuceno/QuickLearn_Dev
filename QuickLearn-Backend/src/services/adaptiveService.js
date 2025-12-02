@@ -429,6 +429,20 @@ async function getUserSessions(userId, limit = 20, offset = 0) {
     });
 }
 
+async function deleteSession(sessionUuid, userId) {
+    const session = await AdaptiveSession.findActiveByUuidForUser(sessionUuid, userId);
+    if (!session) {
+        return false;
+    }
+
+    const { getPool } = require('../config/db');
+    const pool = await getPool();
+
+    // Delete the session; related questions/answers should be handled by FK constraints if configured
+    await pool.execute('DELETE FROM adaptive_sessions WHERE id = ?', [session.id]);
+    return true;
+}
+
 module.exports = {
     createSessionFromFile,
     getSessionSnapshot,
@@ -437,6 +451,7 @@ module.exports = {
     setPreferences,
     finishSession,
     getUserSessions,
+    deleteSession,
     selectContentFromPagesOrText
 };
 

@@ -781,13 +781,6 @@ function handleGenerationChoiceSelect(option) {
                   browse to upload
                 </button>
               </p>
-              <input
-                id="file-input"
-                type="file"
-                hidden
-                accept=".txt,.pdf,.docx,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain"
-                @change="onFileChange"
-              />
               <div class="chip-list">
                 <span class="chip">PDF</span>
                 <span class="chip">DOCX</span>
@@ -838,6 +831,16 @@ function handleGenerationChoiceSelect(option) {
               </div>
             </div>
           </div>
+
+          <!-- Hidden file input (supports multi-select and works for both initial and subsequent uploads) -->
+          <input
+            id="file-input"
+            type="file"
+            hidden
+            multiple
+            accept=".txt,.pdf,.doc,.docx,.pptx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain"
+            @change="onFileChange"
+          />
 
           <p v-if="errorMessage" class="form-error">{{ errorMessage }}</p>
         </BaseCard>
@@ -1110,11 +1113,11 @@ function handleGenerationChoiceSelect(option) {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: #fff;
-  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+  background: var(--color-primary);
 }
 
 .outcome-badge--summary {
-  background: linear-gradient(135deg, var(--color-success), #34d399);
+  background: var(--color-success);
 }
 
 .outcome-card__body {

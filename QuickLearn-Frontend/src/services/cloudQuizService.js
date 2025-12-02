@@ -836,6 +836,28 @@ class CloudQuizService {
       throw error
     }
   }
+
+  /**
+   * Delete an adaptive session by id
+   */
+  async deleteAdaptiveSession(id) {
+    try {
+      const response = await fetch(`${API_BASE}/api/adaptive/sessions/${id}`, {
+        method: 'DELETE',
+        headers: this.getAuthHeaders(),
+        credentials: 'include'
+      })
+
+      if (!response.ok && response.status !== 204) {
+        throw new Error(`Failed to delete adaptive session: ${response.status}`)
+      }
+
+      return true
+    } catch (error) {
+      console.error('Error deleting adaptive session:', error)
+      throw error
+    }
+  }
 }
 
 export const cloudQuizService = new CloudQuizService()

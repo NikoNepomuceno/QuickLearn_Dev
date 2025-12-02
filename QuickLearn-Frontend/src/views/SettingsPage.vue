@@ -386,6 +386,7 @@ async function confirmAccountDeletion() {
     message: 'This action cannot be undone. This will permanently delete your account and remove all data from our servers.',
     confirmText: 'Delete Account',
     icon: 'warning',
+    danger: true,
     requireText: {
       value: 'DELETE',
       placeholder: 'DELETE',
@@ -1220,7 +1221,7 @@ function formatDate(dateString) {
 }
 
 .nav-item.active {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #667eea;
   color: white;
   font-weight: 600;
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.25);
@@ -1268,32 +1269,32 @@ function formatDate(dateString) {
 }
 
 .profile-icon {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #667eea;
   color: white;
 }
 
 .subscription-icon {
-  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  background: #f59e0b;
   color: white;
 }
 
 .preferences-icon {
-  background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+  background: #06b6d4;
   color: white;
 }
 
 .notifications-icon {
-  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  background: #8b5cf6;
   color: white;
 }
 
 .security-icon {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  background: #10b981;
   color: white;
 }
 
 .danger-icon {
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  background: #ef4444;
   color: white;
 }
 
@@ -1320,7 +1321,7 @@ function formatDate(dateString) {
 
 /* Profile Card Styles */
 .profile-card {
-  background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+  background: #f8fafc;
   border-radius: 16px;
   overflow: hidden;
   border: 1px solid #e5e7eb;
@@ -1359,7 +1360,7 @@ function formatDate(dateString) {
 .avatar-placeholder {
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #667eea;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1524,7 +1525,7 @@ function formatDate(dateString) {
   width: 48px;
   height: 48px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #667eea;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1553,7 +1554,7 @@ function formatDate(dateString) {
 
 /* Subscription / Plan Card */
 .plan-card {
-  background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+  background: #f8fafc;
   border-radius: 16px;
   padding: 32px;
   border: 1px solid #e5e7eb;
@@ -1579,13 +1580,13 @@ function formatDate(dateString) {
 }
 
 .plan-badge.free {
-  background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
+  background: #94a3b8;
   color: white;
 }
 
 .plan-badge.pro,
 .plan-badge.premium {
-  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  background: #f59e0b;
   color: white;
 }
 
@@ -1657,13 +1658,13 @@ function formatDate(dateString) {
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  background: #667eea;
   border-radius: 8px;
   transition: width 0.3s ease;
 }
 
 .progress-fill.warning {
-  background: linear-gradient(90deg, #f59e0b 0%, #ef4444 100%);
+  background: #f59e0b;
 }
 
 .features-section h4 {
@@ -1698,7 +1699,7 @@ function formatDate(dateString) {
 
 /* Preference Card (Theme Selector) */
 .preference-card {
-  background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+  background: #f8fafc;
   border-radius: 16px;
   padding: 28px;
   border: 1px solid #e5e7eb;
@@ -1850,7 +1851,7 @@ function formatDate(dateString) {
 
 /* Notification Card */
 .notification-card {
-  background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+  background: #f8fafc;
   border-radius: 16px;
   border: 1px solid #e5e7eb;
   overflow: hidden;
@@ -1926,7 +1927,7 @@ function formatDate(dateString) {
 }
 
 input:checked + .slider {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #667eea;
 }
 
 input:checked + .slider:before {
@@ -1941,7 +1942,7 @@ input:disabled + .slider {
 /* Security Card & Forms */
 .security-card,
 .danger-card {
-  background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+  background: #f8fafc;
   border-radius: 16px;
   padding: 28px;
   border: 1px solid #e5e7eb;
@@ -2019,7 +2020,7 @@ input:disabled + .slider {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #667eea;
   color: white;
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.25);
 }
@@ -2047,7 +2048,7 @@ input:disabled + .slider {
 }
 
 .btn-danger {
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  background: #ef4444;
   color: white;
   box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);
 }
@@ -2303,7 +2304,7 @@ body.dark .nav-item:hover {
 }
 
 body.dark .nav-item.active {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #667eea;
   color: white;
 }
 
@@ -2329,7 +2330,7 @@ body.dark .plan-card,
 body.dark .preference-card,
 body.dark .notification-card,
 body.dark .security-card {
-  background: linear-gradient(135deg, #1e293b 0%, #1e293b 100%) !important;
+  background: #1e293b !important;
   border-color: #334155;
 }
 

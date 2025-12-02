@@ -214,6 +214,20 @@ router.get('/sessions', authenticateToken, async (req, res) => {
     }
 });
 
+// Delete an adaptive session
+router.delete('/sessions/:uuid', authenticateToken, async (req, res) => {
+    try {
+        const deleted = await adaptiveService.deleteSession(req.params.uuid, req.user.id);
+        if (!deleted) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
+        return res.status(204).send();
+    } catch (err) {
+        console.error('Error deleting adaptive session:', err);
+        return res.status(500).json({ error: 'Failed to delete session' });
+    }
+});
+
 module.exports = router;
 
 

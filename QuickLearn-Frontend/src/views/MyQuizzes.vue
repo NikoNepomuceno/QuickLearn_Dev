@@ -284,7 +284,8 @@ async function handleDeleteQuiz(quiz) {
     title: 'Delete quiz',
     message,
     confirmText: 'Delete',
-    icon: 'warning'
+    icon: 'warning',
+    danger: true
   })
 
   if (!result?.isConfirmed) {
@@ -301,10 +302,46 @@ async function handleDeleteQuiz(quiz) {
   }
 }
 
+async function handleDeleteSession(session) {
+  const title = session?.title || 'Adaptive Session'
+  const message = `Are you sure you want to delete "${title}"? This action cannot be undone.`
+  const result = await confirmDialog({
+    title: 'Delete session',
+    message,
+    confirmText: 'Delete',
+    icon: 'warning',
+    danger: true
+  })
+
+  if (!result?.isConfirmed) return
+
+  try {
+    await cloudQuizService.deleteAdaptiveSession(session.id)
+    window.$toast?.success('Session deleted')
+    await loadQuizzes()
+  } catch (err) {
+    console.error('Error deleting session:', err)
+    window.$toast?.error('Failed to delete session')
+  }
+}
+
 
 
 function formatFileSize(bytes) {
   return cloudQuizService.formatFileSize(bytes)
+}
+
+function formatDate(dateString) {
+  if (!dateString) return 'Recently'
+  const date = new Date(dateString)
+  return new Intl.DateTimeFormat('en-US', { 
+    month: 'short', 
+    day: 'numeric', 
+    year: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    hour12: true
+  }).format(date)
 }
 
 function getFileIcon(fileType) {
@@ -491,18 +528,19 @@ function restoreBodyScroll() {
             <BaseCard
               v-for="quiz in filteredQuizzes"
               :key="quiz.id"
-              padding="lg"
+              class="styled-quiz-card"
+              :padding="'none'"
             >
-              <div class="quiz-card">
-                <div class="quiz-card__header">
-                  <div class="quiz-card__meta">
-                    <FileText :size="20" />
-                    <div>
-                      <h3>{{ quiz.title || 'Untitled quiz' }}</h3>
-                      <p class="quiz-card__subtitle">
-                        {{ formatUpdatedAt(quiz.updatedAt || quiz.createdAt) }}
-                      </p>
-                    </div>
+              <div class="quiz-card-content">
+                <div class="quiz-card-header">
+                  <div class="quiz-file-icon">
+                    <FileText :size="24" />
+                  </div>
+                  <div class="quiz-info">
+                    <h3 :title="quiz.title">{{ quiz.title || 'Untitled quiz' }}</h3>
+                    <p class="quiz-date">
+                      {{ formatDate(quiz.updatedAt || quiz.createdAt) }}
+                    </p>
                   </div>
                   <div class="dropdown-wrapper">
                     <button 
@@ -537,7 +575,7 @@ function restoreBodyScroll() {
                   </div>
                 </div>
 
-                <div class="quiz-card__actions">
+                <div class="quiz-card-footer">
                   <BaseButton variant="primary" size="sm" @click="openQuiz(quiz)">
                     <Play :size="16" />
                     Take quiz
@@ -574,18 +612,19 @@ function restoreBodyScroll() {
             <BaseCard
               v-for="quiz in filteredCustomQuizzes"
               :key="quiz.id"
-              padding="lg"
+              class="styled-quiz-card"
+              :padding="'none'"
             >
-              <div class="quiz-card">
-                <div class="quiz-card__header">
-                  <div class="quiz-card__meta">
-                    <FileText :size="20" />
-                    <div>
-                      <h3>{{ quiz.title || 'Untitled quiz' }}</h3>
-                      <p class="quiz-card__subtitle">
-                        {{ formatUpdatedAt(quiz.updatedAt || quiz.createdAt) }}
-                      </p>
-                    </div>
+              <div class="quiz-card-content">
+                <div class="quiz-card-header">
+                  <div class="quiz-file-icon">
+                    <FileText :size="24" />
+                  </div>
+                  <div class="quiz-info">
+                    <h3 :title="quiz.title">{{ quiz.title || 'Untitled quiz' }}</h3>
+                    <p class="quiz-date">
+                      {{ formatDate(quiz.updatedAt || quiz.createdAt) }}
+                    </p>
                   </div>
                   <div class="dropdown-wrapper">
                     <button 
@@ -620,7 +659,7 @@ function restoreBodyScroll() {
                   </div>
                 </div>
 
-                <div class="quiz-card__actions">
+                <div class="quiz-card-footer">
                   <BaseButton variant="primary" size="sm" @click="openQuiz(quiz)">
                     <Play :size="16" />
                     Take quiz
@@ -657,43 +696,63 @@ function restoreBodyScroll() {
             <BaseCard
               v-for="session in filteredAdaptiveSessions"
               :key="session.id"
-              padding="lg"
+              class="styled-quiz-card"
+              :padding="'none'"
             >
-              <div class="quiz-card">
-                <div class="quiz-card__header">
-                  <div class="quiz-card__meta">
-                    <Target :size="20" />
-                    <div>
-                      <h3>{{ session.title || 'Adaptive session' }}</h3>
-                      <p class="quiz-card__subtitle">
-                        {{ formatUpdatedAt(session.updatedAt || session.createdAt) }}
-                      </p>
+              <div class="quiz-card-content">
+                <div class="quiz-card-header">
+                  <div class="quiz-file-icon quiz-file-icon--adaptive">
+                    <Target :size="24" />
+                  </div>
+                  <div class="quiz-info">
+                    <h3 :title="session.title">{{ session.title || 'Adaptive session' }}</h3>
+                    <p class="quiz-date">
+                      {{ formatDate(session.updatedAt || session.createdAt) }}
+                    </p>
+                  </div>
+                  <div class="dropdown-wrapper">
+                    <button 
+                      class="dropdown-trigger"
+                      :aria-label="'More actions for ' + (session.title || 'Adaptive session')"
+                      @click="toggleDropdown(session.id)"
+                    >
+                      <MoreVertical :size="20" />
+                    </button>
+                    <div 
+                      v-if="isDropdownOpen(session.id)" 
+                      class="dropdown-menu"
+                      @click.stop
+                    >
+                      <button class="dropdown-item dropdown-item--danger" @click="handleDeleteSession(session); closeDropdown()">
+                        <Trash2 :size="16" />
+                        Delete
+                      </button>
                     </div>
                   </div>
                 </div>
 
-                <div class="quiz-card__stats" role="list" aria-label="Session statistics">
-                  <div class="stat-chip" role="listitem">
-                    <div class="stat-chip__icon" aria-hidden="true">
+                <div class="adaptive-stats-grid">
+                  <div class="adaptive-stat-block">
+                    <div class="adaptive-stat-icon">
                       <BarChart3 :size="18" />
                     </div>
-                    <div class="stat-chip__content">
-                      <p class="stat-chip__label">Answered</p>
-                      <p class="stat-chip__value">{{ session.questionsAnswered || 0 }}</p>
+                    <div class="adaptive-stat-info">
+                      <span class="adaptive-stat-label">ANSWERED</span>
+                      <span class="adaptive-stat-value">{{ session.questionsAnswered || 0 }}</span>
                     </div>
                   </div>
-                  <div class="stat-chip" role="listitem">
-                    <div class="stat-chip__icon" aria-hidden="true">
+                  <div class="adaptive-stat-block">
+                    <div class="adaptive-stat-icon">
                       <Share2 :size="18" />
                     </div>
-                    <div class="stat-chip__content">
-                      <p class="stat-chip__label">Difficulty</p>
-                      <p class="stat-chip__value">{{ session.currentDifficulty || 'N/A' }}</p>
+                    <div class="adaptive-stat-info">
+                      <span class="adaptive-stat-label">DIFFICULTY</span>
+                      <span class="adaptive-stat-value">{{ session.currentDifficulty || 'N/A' }}</span>
                     </div>
                   </div>
                 </div>
 
-                <div class="quiz-card__actions">
+                <div class="quiz-card-footer">
                   <BaseButton variant="primary" size="sm" @click="openAdaptiveSession(session)">
                     <Play :size="16" />
                     Resume
@@ -913,6 +972,7 @@ function restoreBodyScroll() {
   line-height: 1.4;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1161,7 +1221,7 @@ body.dark .stat-chip__icon {
   gap: var(--space-4);
   padding: var(--space-5);
   border-bottom: 1px solid rgba(148, 163, 184, 0.35);
-  background: linear-gradient(135deg, rgba(226, 232, 255, 0.9), rgba(237, 233, 254, 0.9));
+  background: rgba(226, 232, 255, 0.9);
 }
 
 .details-modal__badge {
@@ -1288,7 +1348,7 @@ body.dark .details-modal {
 }
 
 body.dark .details-modal__header {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.18), rgba(76, 29, 149, 0.28));
+  background: rgba(99, 102, 241, 0.18);
 }
 
 body.dark .details-modal__header h3 {
@@ -1344,4 +1404,156 @@ body.dark .details-value {
     transform: translateY(0) scale(1);
   }
 }
+
+/* New Quiz Card Styles */
+.styled-quiz-card {
+  height: 100%;
+  border: 1px solid var(--color-border);
+  transition: box-shadow 0.2s ease;
+}
+
+.styled-quiz-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+/* Force BaseCard body to fill height */
+.styled-quiz-card :deep(.base-card__body) {
+  flex: 1;
+  height: 100%;
+}
+
+.quiz-card-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: var(--space-5);
+}
+
+.quiz-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.quiz-file-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-md);
+  background: rgba(99, 102, 241, 0.1);
+  color: #6366f1;
+  flex-shrink: 0;
+}
+
+.quiz-info {
+  flex: 1;
+  min-width: 0; /* For truncation */
+}
+
+.quiz-info h3 {
+  margin: 0 0 4px 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-heading);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.quiz-date {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.quiz-card-footer {
+  margin-top: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* Dark mode adjustments */
+body.dark .styled-quiz-card {
+  border-color: var(--color-border);
+}
+
+body.dark .quiz-file-icon {
+  background: rgba(99, 102, 241, 0.2);
+  color: #818cf8;
+}
+
+.quiz-file-icon--adaptive {
+  background: rgba(124, 58, 237, 0.1);
+  color: #7c3aed;
+}
+
+body.dark .quiz-file-icon--adaptive {
+  background: rgba(124, 58, 237, 0.2);
+  color: #a78bfa;
+}
+
+.adaptive-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.adaptive-stat-block {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-surface-subtle);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+}
+
+.adaptive-stat-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: rgba(99, 102, 241, 0.1);
+  color: #6366f1;
+}
+
+.adaptive-stat-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.adaptive-stat-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-text-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.adaptive-stat-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-heading);
+  line-height: 1.2;
+}
+
+body.dark .adaptive-stat-block {
+  background: rgba(30, 41, 59, 0.5);
+}
+
+body.dark .adaptive-stat-icon {
+  background: rgba(99, 102, 241, 0.2);
+  color: #818cf8;
+}
+
 </style>

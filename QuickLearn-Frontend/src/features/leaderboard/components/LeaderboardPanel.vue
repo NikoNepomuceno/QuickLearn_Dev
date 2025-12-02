@@ -13,33 +13,6 @@
       </div>
     </template>
 
-    <div class="leaderboard-panel__categories">
-      <span class="leaderboard-panel__categories-label">Focus:</span>
-      <button
-        class="leaderboard-panel__category-pill"
-        :class="{ active: !selectedCategoryKey }"
-        type="button"
-        @click="selectCategory(null)"
-      >
-        Overall
-      </button>
-      <template v-if="hasCategories">
-        <button
-          v-for="category in topCategories"
-          :key="category.categoryKey"
-          class="leaderboard-panel__category-pill"
-          :class="{ active: selectedCategoryKey === category.categoryKey }"
-          type="button"
-          @click="selectCategory(category.categoryKey)"
-        >
-          <span>{{ category.categoryLabel }}</span>
-          <small>{{ (category.totalPoints || 0).toLocaleString() }} pts</small>
-        </button>
-      </template>
-      <span v-else class="leaderboard-panel__categories-empty">
-        No specialty categories yet. Keep taking categorized quizzes to unlock comparisons.
-      </span>
-    </div>
 
     <div class="leaderboard-panel__podium-shell">
       <div class="leaderboard-panel__podium">
@@ -129,7 +102,6 @@ const REFRESH_INTERVAL_MS = 60_000
 const leaderboardStore = useLeaderboardStore()
 const {
   leadersWithFallback,
-  availableCategories,
   activeCategoryKey,
   activeCategory,
   isLoading
@@ -144,8 +116,6 @@ const podiumSlots = ['second', 'first', 'third']
 const podiumTitles = ['2nd place', 'Champion', '3rd place']
 const podiumLabels = ['2nd', '1st', '3rd']
 
-const hasCategories = computed(() => (availableCategories.value || []).length > 0)
-const topCategories = computed(() => (availableCategories.value || []).slice(0, 5))
 const selectedCategoryKey = computed(() => activeCategoryKey.value)
 const selectedCategoryLabel = computed(() => activeCategory.value?.categoryLabel || null)
 const lastUpdatedDisplay = computed(() => {
@@ -161,10 +131,6 @@ function formatPoints(member) {
     ? member?.categoryScore ?? 0
     : member?.points ?? 0
   return Number(raw) || 0
-}
-
-function selectCategory(categoryKey) {
-  leaderboardStore.setCategory(categoryKey)
 }
 
 let closeSocket
@@ -209,52 +175,6 @@ onBeforeUnmount(() => {
   color: var(--color-muted);
 }
 
-.leaderboard-panel__categories {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  margin-bottom: var(--space-4);
-}
-
-.leaderboard-panel__categories-label {
-  font-size: 0.85rem;
-  color: var(--color-muted);
-}
-
-.leaderboard-panel__category-pill {
-  border: 1px solid rgba(148, 163, 184, 0.5);
-  border-radius: 999px;
-  padding: 6px 14px;
-  background: rgba(255, 255, 255, 0.95);
-  cursor: pointer;
-  display: flex;
-  gap: 6px;
-  align-items: baseline;
-  font-weight: 600;
-  font-size: 0.85rem;
-  transition: all 0.2s ease;
-}
-
-.leaderboard-panel__category-pill small {
-  font-weight: 500;
-  color: var(--color-muted);
-  font-size: 0.7rem;
-}
-
-.leaderboard-panel__category-pill.active {
-  background: linear-gradient(135deg, var(--primary-light), var(--primary-main));
-  color: #fff;
-  border-color: transparent;
-  box-shadow: var(--primary-glow);
-}
-
-.leaderboard-panel__categories-empty {
-  font-size: 0.85rem;
-  color: var(--color-muted);
-  margin-left: 12px;
-  padding: 6px 0;
-}
 
 .leaderboard-panel__podium-shell {
   position: relative;
@@ -359,14 +279,77 @@ onBeforeUnmount(() => {
   width: 100%;
   height: var(--pedestal-height);
   border-radius: 14px 14px 0 0;
-  background: linear-gradient(135deg, rgba(226, 232, 240, 0.9), rgba(203, 213, 225, 0.95));
   display: flex;
   align-items: flex-end;
   justify-content: center;
   padding-bottom: var(--space-2);
   font-weight: var(--font-weight-semibold);
-  color: #1f2937;
-  border: 1px solid rgba(203, 213, 225, 0.8);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+/* 1st Place - Gold */
+.leaderboard-panel__podium-slot--first .leaderboard-panel__pedestal {
+  background: linear-gradient(135deg, #ffd700 0%, #ffed4e 50%, #ffd700 100%);
+  color: #1a1a1a;
+  box-shadow: 
+    0 4px 12px rgba(255, 215, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 215, 0, 0.5);
+}
+
+.leaderboard-panel__podium-slot--first .leaderboard-panel__pedestal::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 30%;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.4), transparent);
+  pointer-events: none;
+}
+
+/* 2nd Place - Silver */
+.leaderboard-panel__podium-slot--second .leaderboard-panel__pedestal {
+  background: linear-gradient(135deg, #c0c0c0 0%, #e8e8e8 50%, #c0c0c0 100%);
+  color: #1a1a1a;
+  box-shadow: 
+    0 4px 12px rgba(192, 192, 192, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  border-color: rgba(192, 192, 192, 0.5);
+}
+
+.leaderboard-panel__podium-slot--second .leaderboard-panel__pedestal::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 30%;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.4), transparent);
+  pointer-events: none;
+}
+
+/* 3rd Place - Bronze */
+.leaderboard-panel__podium-slot--third .leaderboard-panel__pedestal {
+  background: linear-gradient(135deg, #cd7f32 0%, #e6a857 50%, #cd7f32 100%);
+  color: #ffffff;
+  box-shadow: 
+    0 4px 12px rgba(205, 127, 50, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  border-color: rgba(205, 127, 50, 0.5);
+}
+
+.leaderboard-panel__podium-slot--third .leaderboard-panel__pedestal::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 30%;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.3), transparent);
+  pointer-events: none;
 }
 
 .leaderboard-panel__pedestal span {
@@ -462,9 +445,7 @@ body.dark .leaderboard-panel__item {
 }
 
 body.dark .leaderboard-panel__podium-shell {
-  background:
-    linear-gradient(135deg, rgba(37, 56, 88, 0.65), rgba(30, 41, 59, 0.8)),
-    rgba(15, 23, 42, 0.92);
+  background: rgba(37, 56, 88, 0.65);
   border-color: rgba(51, 65, 85, 0.6);
 }
 
@@ -486,22 +467,34 @@ body.dark .leaderboard-panel__avatar {
   box-shadow: 0 15px 35px rgba(30, 41, 59, 0.55);
 }
 
-body.dark .leaderboard-panel__pedestal {
-  background: linear-gradient(135deg, rgba(30, 41, 59, 0.96), rgba(15, 23, 42, 0.96));
-  color: #cbd5f5;
-  border: 1px solid rgba(51, 65, 85, 0.7);
+/* Dark mode podium colors - maintain medal colors but adjust for dark theme */
+body.dark .leaderboard-panel__podium-slot--first .leaderboard-panel__pedestal {
+  background: linear-gradient(135deg, #ffd700 0%, #ffed4e 50%, #ffd700 100%);
+  color: #1a1a1a;
+  box-shadow: 
+    0 4px 16px rgba(255, 215, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 215, 0, 0.6);
 }
 
-body.dark .leaderboard-panel__category-pill {
-  background: rgba(15, 23, 42, 0.95);
-  border-color: rgba(63, 76, 107, 0.7);
-  color: #e2e8f0;
+body.dark .leaderboard-panel__podium-slot--second .leaderboard-panel__pedestal {
+  background: linear-gradient(135deg, #c0c0c0 0%, #e8e8e8 50%, #c0c0c0 100%);
+  color: #1a1a1a;
+  box-shadow: 
+    0 4px 16px rgba(192, 192, 192, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  border-color: rgba(192, 192, 192, 0.6);
 }
 
-body.dark .leaderboard-panel__category-pill.active {
-  background: linear-gradient(135deg, var(--primary-light), var(--primary-main));
-  color: #fff;
+body.dark .leaderboard-panel__podium-slot--third .leaderboard-panel__pedestal {
+  background: linear-gradient(135deg, #cd7f32 0%, #e6a857 50%, #cd7f32 100%);
+  color: #ffffff;
+  box-shadow: 
+    0 4px 16px rgba(205, 127, 50, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  border-color: rgba(205, 127, 50, 0.6);
 }
+
 
 body.dark .leaderboard-panel__category-tag,
 body.dark .leaderboard-panel__category-chip {

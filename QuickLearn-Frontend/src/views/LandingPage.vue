@@ -40,7 +40,6 @@ function smoothScrollTo(event, sectionId) {
       behavior: 'smooth',
       block: 'start'
     })
-    // Close mobile menu after navigation
     isMenuOpen.value = false
   }
 }
@@ -57,10 +56,8 @@ function smoothScrollTo(event, sectionId) {
         </div>
         <div class="nav-menu" :class="{ active: isMenuOpen }">
           <a href="#features" class="nav-link" @click="smoothScrollTo($event, '#features')">Features</a>
-          <a href="#how-it-works" class="nav-link" @click="smoothScrollTo($event, '#how-it-works')">How it Works</a>
           <a href="#pricing" class="nav-link" @click="smoothScrollTo($event, '#pricing')">Pricing</a>
           <a href="#testimonials" class="nav-link" @click="smoothScrollTo($event, '#testimonials')">Testimonials</a>
-          <!-- <button class="nav-ghost" @click="goLogin">Log in</button> -->
           <button class="nav-cta" @click="goRegister">Get Started</button>
         </div>
         <div class="nav-toggle" @click="toggleMenu">
@@ -211,43 +208,6 @@ function smoothScrollTo(event, sectionId) {
       </div>
     </section>
 
-    <!-- How It Works Section -->
-    <section id="how-it-works" class="how-it-works">
-      <div class="container">
-        <div class="section-header">
-          <h2>How QuickLearn Works</h2>
-          <p>Get started in three simple steps</p>
-        </div>
-        <div class="steps">
-          <div class="step">
-            <div class="step-number">1</div>
-            <div class="step-content">
-              <h3>Upload Your Content</h3>
-              <p>Upload any PDF, Word document, or text file containing your study material.</p>
-            </div>
-          </div>
-          <div class="step">
-            <div class="step-number">2</div>
-            <div class="step-content">
-              <h3>AI Analysis</h3>
-              <p>
-                Our AI analyzes your content and identifies key concepts, facts, and learning
-                objectives.
-              </p>
-            </div>
-          </div>
-          <div class="step">
-            <div class="step-number">3</div>
-            <div class="step-content">
-              <h3>Study & Learn</h3>
-              <p>
-                Get instant access to quizzes, flashcards, and summaries tailored to your content.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
 
     <!-- Plans and Pricing Section -->
     <section id="pricing" class="pricing">
@@ -502,10 +462,7 @@ body.dark .navbar {
 }
 
 .nav-logo h2 {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #667eea;
   font-size: 24px;
   font-weight: 700;
   margin: 0;
@@ -544,7 +501,7 @@ body.dark .nav-link:hover {
 }
 
 .nav-cta {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #667eea;
   color: white;
   border: none;
   padding: 10px 20px;
@@ -580,7 +537,7 @@ body.dark .bar {
 /* Hero Section */
 .hero {
   padding: 120px 0 80px;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  background: #f5f7fa;
   min-height: 100vh;
   display: flex;
   align-items: center;
@@ -588,7 +545,7 @@ body.dark .bar {
 
 /* Dark mode hero */
 body.dark .hero {
-  background: linear-gradient(135deg, #0b1222 0%, #1f2a44 100%);
+  background: #0b1222;
 }
 
 .hero-container {
@@ -614,10 +571,7 @@ body.dark .hero-title {
 }
 
 .gradient-text {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #667eea;
 }
 
 .hero-subtitle {
@@ -639,7 +593,7 @@ body.dark .hero-subtitle {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #667eea;
   color: white;
   border: none;
   padding: 16px 32px;
@@ -1032,7 +986,7 @@ body.dark .feature-card p {
 /* How It Works Section */
 .how-it-works {
   padding: 100px 0;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #667eea;
   color: white;
 }
 
@@ -1147,7 +1101,7 @@ body.dark .pricing-card.featured {
   top: -15px;
   left: 50%;
   transform: translateX(-50%);
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #667eea;
   color: white;
   padding: 8px 20px;
   border-radius: 20px;
@@ -1273,7 +1227,7 @@ body.dark .features-list li {
 }
 
 .pricing-btn.primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #667eea;
   color: white;
   border: none;
 }
@@ -1366,7 +1320,7 @@ body.dark .testimonial-content p {
 .author-avatar {
   width: 50px;
   height: 50px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #667eea;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -1397,7 +1351,7 @@ body.dark .author-info span {
 /* CTA Section */
 .cta {
   padding: 100px 0;
-  background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
+  background: #2d3748;
   color: white;
   text-align: center;
 }
@@ -1434,10 +1388,7 @@ body.dark .author-info span {
   font-size: 1.5rem;
   font-weight: 700;
   margin-bottom: 16px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #667eea;
 }
 
 .footer-section h4 {
