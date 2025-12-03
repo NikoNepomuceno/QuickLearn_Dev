@@ -6,7 +6,7 @@ const { parseUploadedFile } = require('../utils/parseFile');
 const { generateAIPoweredQuiz, generateAdvancedQuiz, generateAIPoweredSummary, generateAIPoweredFlashcards } = require('./quizService');
 const questionBankService = require('./questionBankService');
 const { computeHashFromFiles } = require('./backgroundQuizService');
-const { getCachedQuestions, filterQuestionsFromCache } = require('./quizCacheService');
+const { getCachedQuestions, filterQuestionsFromCache, setCachedQuestions } = require('./quizCacheService');
 const { generateFullQuizSetInBackground } = require('./backgroundQuizService');
 
 // ----- Scoring helpers -----
@@ -292,15 +292,6 @@ class CloudStorageService {
         );
 
         try {
-            const prepared = await this.prepareFilesForGeneration(files, resolvedUserId);
-            const {
-                uploadedFiles,
-                combinedText,
-                pages,
-                pageCount,
-                totalTextLength
-            } = prepared;
-
             const {
                 numQuestions = 5,
                 difficulty = 'medium',
@@ -312,60 +303,246 @@ class CloudStorageService {
                 selectedPages = []
             } = options;
 
-            // Compute file hash for caching
+            // OPTIMIZATION: Compute file hash FIRST (fast, no upload needed)
             const fileHash = computeHashFromFiles(files);
             console.log(`[Quiz] File hash: ${fileHash.substring(0, 8)}...`);
 
-            // Check cache first
+            // OPTIMIZATION: Check cache BEFORE expensive file uploads
             const cached = await getCachedQuestions(fileHash);
             let generatedQuiz;
 
             if (cached && cached.questions && cached.questions.length > 0) {
                 console.log(`[Quiz] Cache hit! Found ${cached.questions.length} cached questions`);
-                
-                // Filter cached questions based on user config
+
+                // For cache filtering, we need minimal page info if selectedPages is provided
+                // Parse files minimally (just for page structure) without Cloudinary upload
+                let pages = [];
+                let pageCount = 0;
+                let totalTextLength = 0;
+                const originalNames = files.map(f => f.originalname || f.name || 'document');
+
+                if (selectedPages && selectedPages.length > 0) {
+                    // Need page info for filtering - do minimal parsing
+                    try {
+                        for (const file of files) {
+                            const parseResult = await parseUploadedFile({
+                                originalname: file.originalname || 'document',
+                                mimetype: file.mimetype,
+                                buffer: file.buffer
+                            });
+                            const parsedPages = parseResult.pages || [parseResult.text];
+                            pages.push(...parsedPages);
+                            totalTextLength += (parseResult.text || '').length;
+                        }
+                        pageCount = pages.length;
+                    } catch (parseError) {
+                        console.warn('[Quiz] Error parsing for page filtering, continuing without page filter:', parseError);
+                        // Continue without page filtering
+                    }
+                }
+
+                // Try to satisfy from cache only
                 const filteredQuestions = filterQuestionsFromCache(cached.questions, {
                     count: numQuestions,
                     questionTypes,
                     selectedPages,
                     pages: pages
                 });
-                
+
                 if (filteredQuestions.length >= numQuestions) {
-                    // Use cached questions
+                    // FULL CACHE HIT - Return immediately, defer expensive operations
                     generatedQuiz = {
-                        title: `Quiz from ${uploadedFiles[0]?.originalName || 'document'}`,
+                        title: `Quiz from ${originalNames[0] || 'document'}`,
                         description: 'Quiz generated from cached questions',
                         questions: filteredQuestions
                     };
-                    console.log(`[Quiz] Using ${filteredQuestions.length} questions from cache`);
+                    console.log(`[Quiz] FULL CACHE HIT - Using ${filteredQuestions.length} questions from cache, returning immediately`);
+
+                    // Save quiz to DB immediately (needed for response) but with minimal metadata
+                    const quizData = {
+                        userId: resolvedUserId,
+                        title: generatedQuiz.title,
+                        description: generatedQuiz.description,
+                        questions: generatedQuiz.questions,
+                        sourceFileId: null, // Will be updated async
+                        sourceFileName: originalNames[0] || null,
+                        sourceFileType: null, // Will be updated async
+                        sourceFileSize: null, // Will be updated async
+                        textLength: totalTextLength,
+                        difficulty: difficulty,
+                        generatedWithAi: true,
+                        processingTime: new Date(),
+                        metadata: {
+                            generatedWithAI: true,
+                            textLength: totalTextLength,
+                            processingTime: new Date().toISOString(),
+                            cloudinaryPublicId: null, // Will be updated async
+                            cloudinaryUrl: null, // Will be updated async
+                            options: options,
+                            pages: pages,
+                            pageCount: pageCount,
+                            sourceFiles: [], // Will be updated async
+                            fromCache: true // Flag to indicate this was a cache hit
+                        }
+                    };
+
+                    const quiz = await Quiz.create(quizData);
+
+                    // Prepare immediate response
+                    const response = {
+                        quiz: quiz,
+                        file: null, // Will be updated async
+                        metadata: {
+                            generatedWithAI: true,
+                            textLength: totalTextLength,
+                            processingTime: new Date().toISOString(),
+                            fileUploaded: false, // Will be updated async
+                            cloudinaryUrl: null, // Will be updated async
+                            pages: pages,
+                            pageCount: pageCount,
+                            sourceFiles: [],
+                            fromCache: true
+                        }
+                    };
+
+                    // Defer expensive operations to background (file uploads, DB updates, question bank)
+                    setImmediate(async () => {
+                        try {
+                            console.log(`[Quiz] Background: Starting file uploads and metadata updates for cache hit quiz ${quiz.id}`);
+                            
+                            // Now do the expensive file uploads
+                            const prepared = await CloudStorageService.prepareFilesForGeneration(files, resolvedUserId);
+                            const { uploadedFiles, pages: fullPages, pageCount: fullPageCount, totalTextLength: fullTextLength } = prepared;
+
+                            // Update quiz with file metadata
+                            await quiz.update({
+                                sourceFileId: uploadedFiles[0]?.id || null,
+                                sourceFileName: uploadedFiles[0]?.originalName || null,
+                                sourceFileType: uploadedFiles[0]?.format || null,
+                                sourceFileSize: uploadedFiles[0]?.bytes || null,
+                                textLength: fullTextLength,
+                                metadata: {
+                                    ...quizData.metadata,
+                                    cloudinaryPublicId: uploadedFiles[0]?.cloudinaryPublicId || null,
+                                    cloudinaryUrl: uploadedFiles[0]?.url || null,
+                                    pages: fullPages,
+                                    pageCount: fullPageCount,
+                                    sourceFiles: uploadedFiles,
+                                    fromCache: true
+                                }
+                            });
+
+                            // Extract questions to question bank
+                            try {
+                                await questionBankService.clearAllQuestions(resolvedUserId);
+                                await questionBankService.extractQuestionsFromQuiz(quiz, resolvedUserId);
+                                console.log(`[Quiz] Background: Updated question bank for cache hit quiz ${quiz.id}`);
+                            } catch (extractionError) {
+                                console.error('[Quiz] Background: Error extracting questions to question bank:', extractionError);
+                            }
+
+                            console.log(`[Quiz] Background: Completed file uploads and metadata updates for cache hit quiz ${quiz.id}`);
+                        } catch (bgError) {
+                            console.error('[Quiz] Background: Error updating cache hit quiz metadata:', bgError);
+                            // Don't throw - quiz was already returned to user
+                        }
+                    });
+
+                    return response;
                 } else {
-                    // Not enough cached questions match config, generate on-demand
-                    console.log(`[Quiz] Cache has questions but not enough match config, generating on-demand`);
+                    // PARTIAL CACHE HIT - Need to generate more questions, continue with normal flow
+                    console.log(`[Quiz] PARTIAL CACHE HIT - Cache has ${filteredQuestions.length} matching questions, will generate more`);
+                }
+            }
+
+            // Continue with normal flow for partial cache hits or cache misses
+            // This includes file uploads, generation, etc.
+            const prepared = await this.prepareFilesForGeneration(files, resolvedUserId);
+            const {
+                uploadedFiles,
+                combinedText,
+                pages,
+                pageCount,
+                totalTextLength
+            } = prepared;
+
+            // If we had a partial cache hit, use the filtered questions we already found
+            if (cached && cached.questions && cached.questions.length > 0) {
+                // Re-filter with full page info now that we have it
+                const filteredQuestions = filterQuestionsFromCache(cached.questions, {
+                    count: numQuestions,
+                    questionTypes,
+                    selectedPages,
+                    pages: pages
+                });
+
+                if (filteredQuestions.length < numQuestions) {
+                    // Not enough in cache → top-up with fresh generation
+                    const missingCount = numQuestions - filteredQuestions.length;
+                    console.log(`[Quiz] Cache has ${filteredQuestions.length} matching questions, generating ${missingCount} more`);
+
                     const contentToUse = this.getContentFromSelection(combinedText, selectedPages);
-                    
+
+                    // Generate ONLY the missing questions
+                    let freshQuiz;
                     if (isAdvanced) {
-                        generatedQuiz = await generateAdvancedQuiz(contentToUse, {
-                            numQuestions,
+                        freshQuiz = await generateAdvancedQuiz(contentToUse, {
+                            numQuestions: missingCount,
                             difficulty,
                             includeReasoning,
                             customInstructions
                         });
                     } else {
-                        generatedQuiz = await generateAIPoweredQuiz(contentToUse, {
-                            numQuestions,
+                        freshQuiz = await generateAIPoweredQuiz(contentToUse, {
+                            numQuestions: missingCount,
                             difficulty,
                             questionTypes,
                             focusAreas,
                             customInstructions
                         });
                     }
+
+                    const freshQuestions = Array.isArray(freshQuiz?.questions)
+                        ? freshQuiz.questions
+                        : [];
+
+                    // Merge fresh questions into cache for this file
+                    const updatedCachedQuestions = [
+                        ...cached.questions,
+                        ...freshQuestions
+                    ];
+
+                    // Cap cache size to avoid unbounded growth
+                    const MAX_CACHED = 50;
+                    const trimmedCachedQuestions = updatedCachedQuestions.slice(0, MAX_CACHED);
+
+                    await setCachedQuestions(fileHash, trimmedCachedQuestions);
+                    console.log(`[Quiz] Updated cache size for file hash ${fileHash.substring(0, 8)}...: ${trimmedCachedQuestions.length} questions`);
+
+                    // Build quiz from cached + fresh
+                    const combinedQuestions = [...filteredQuestions, ...freshQuestions].slice(0, numQuestions);
+
+                    generatedQuiz = {
+                        title: `Quiz from ${uploadedFiles[0]?.originalName || 'document'}`,
+                        description: 'Quiz generated from cache + fresh questions',
+                        questions: combinedQuestions
+                    };
+
+                    console.log(`[Quiz] Returning ${combinedQuestions.length} questions (${filteredQuestions.length} cached, ${freshQuestions.length} fresh)`);
+                } else {
+                    // Actually had enough after re-filtering with full pages
+                    generatedQuiz = {
+                        title: `Quiz from ${uploadedFiles[0]?.originalName || 'document'}`,
+                        description: 'Quiz generated from cached questions',
+                        questions: filteredQuestions
+                    };
+                    console.log(`[Quiz] Using ${filteredQuestions.length} questions from cache`);
                 }
             } else {
                 // Cache miss - generate on-demand for user
                 console.log(`[Quiz] Cache miss, generating on-demand`);
                 const contentToUse = this.getContentFromSelection(combinedText, selectedPages);
-                
+
                 if (isAdvanced) {
                     generatedQuiz = await generateAdvancedQuiz(contentToUse, {
                         numQuestions,
@@ -382,7 +559,7 @@ class CloudStorageService {
                         customInstructions
                     });
                 }
-                
+
                 // Background generation will be triggered AFTER quiz is saved and returned to user
             }
 
@@ -483,8 +660,14 @@ class CloudStorageService {
                 })
             );
 
-            // Exclude trashed quizzes
-            const filtered = enhancedQuizzes.filter(q => !q.metadata?.deletedAt);
+            // Exclude trashed quizzes, summaries, and flashcards
+            // (summaries should be fetched via getUserSummaries, flashcards via getUserFlashcards)
+            const filtered = enhancedQuizzes.filter(q => {
+                const isDeleted = q.metadata?.deletedAt;
+                const isSummary = q.metadata?.type === 'summary';
+                const isFlashcards = q.metadata?.type === 'flashcards';
+                return !isDeleted && !isSummary && !isFlashcards;
+            });
             return filtered;
         } catch (error) {
             console.error('Error getting user quizzes:', error);

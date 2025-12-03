@@ -160,6 +160,8 @@ async function submitAnswer(sessionUuid, userId, { questionId, answer }) {
 
     // Determine correctness
     let isCorrect = false;
+    const questionText = question.question || '';
+    
     if (question.type === 'multiple_choice' || question.type === 'true_false') {
         const choice = Array.isArray(answer) ? answer[0] : answer;
         isCorrect = Array.isArray(question.correctAnswer) && question.correctAnswer.includes(choice);
@@ -178,14 +180,87 @@ async function submitAnswer(sessionUuid, userId, { questionId, answer }) {
                 .map(item => String(item).trim().toLowerCase())
                 .filter(item => item.length > 0);
             
-            // Check that ALL correct items are present in user's answer (order doesn't matter)
-            isCorrect = normalizedCorrect.every(correctItem => normalizedUser.includes(correctItem));
+            // Check if question asks for "one" or "any" - accept if user provides any valid answer
+            const questionLower = questionText.toLowerCase();
+            const asksForOne = /\b(one|any|a single|a)\b/.test(questionLower);
+            
+            if (asksForOne && normalizedUser.length > 0) {
+                // Check if any user answer matches any correct answer
+                isCorrect = normalizedUser.some(userItem => {
+                    if (normalizedCorrect.includes(userItem)) return true;
+                    // Check substring match
+                    return normalizedCorrect.some(correctItem => 
+                        correctItem.includes(userItem) || userItem.includes(correctItem)
+                    );
+                });
+            } else {
+                // Check if question asks for a specific number
+                const numberWords = {
+                    'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+                    'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+                    'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14, 'fifteen': 15
+                };
+                
+                let requiredCount = null;
+                for (const [word, num] of Object.entries(numberWords)) {
+                    const regex = new RegExp(`\\b${word}\\b`, 'i');
+                    if (regex.test(questionLower)) {
+                        requiredCount = num;
+                        break;
+                    }
+                }
+                
+                if (!requiredCount) {
+                    const numericMatch = questionLower.match(/\b(\d+)\b/);
+                    if (numericMatch) {
+                        const num = parseInt(numericMatch[1], 10);
+                        if (num > 0 && num <= 15) {
+                            requiredCount = num;
+                        }
+                    }
+                }
+                
+                if (requiredCount && requiredCount > 0 && requiredCount < normalizedCorrect.length) {
+                    // Question asks for N items, but correct answer has more
+                    // Accept if user provides at least N correct items
+                    let correctCount = 0;
+                    normalizedUser.forEach(userItem => {
+                        if (normalizedCorrect.includes(userItem)) {
+                            correctCount++;
+                        } else {
+                            // Check substring match
+                            if (normalizedCorrect.some(correctItem => 
+                                correctItem.includes(userItem) || userItem.includes(correctItem)
+                            )) {
+                                correctCount++;
+                            }
+                        }
+                    });
+                    isCorrect = correctCount >= requiredCount;
+                } else {
+                    // Default: check that ALL correct items are present
+                    isCorrect = normalizedCorrect.every(correctItem => normalizedUser.includes(correctItem));
+                }
+            }
         }
     } else {
         // identification - string compare (case-insensitive trimmed)
         const a = String(answer || '').trim().toLowerCase();
         const b = String(question.correctAnswer || '').trim().toLowerCase();
-        isCorrect = a.length > 0 && a === b;
+        
+        // Direct match
+        if (a === b) {
+            isCorrect = a.length > 0;
+        } else {
+            // Substring matching: check if user answer is contained in correct answer or vice versa
+            // This handles cases like "toyota" matching "Toyota manufacturing"
+            if (b.includes(a) || a.includes(b)) {
+                // Only accept if the match is significant (at least 3 characters to avoid false positives)
+                isCorrect = (a.length >= 3 || b.length >= 3) && a.length > 0;
+            } else {
+                isCorrect = false;
+            }
+        }
     }
 
     // Save answer

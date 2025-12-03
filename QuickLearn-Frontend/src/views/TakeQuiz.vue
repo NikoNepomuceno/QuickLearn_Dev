@@ -134,7 +134,7 @@ const retakeCandidateIndices = computed(() => {
   return questions.reduce((acc, question, index) => {
     const answer = answers.value?.[index]
     const answered = hasMeaningfulAnswer(answer, question.type)
-    const correct = answered && isAnswerCorrect(answer, question.answer, question.type)
+    const correct = answered && isAnswerCorrect(answer, question.answer, question.type, question.question || '')
     if (!answered || !correct) {
       acc.push(index)
     }
@@ -149,7 +149,7 @@ const isOnLastQuestion = computed(
   () => totalQuestions.value > 0 && currentQuestionIndex.value === totalQuestions.value - 1
 )
 
-function isAnswerCorrect(userAnswer, correctAnswer, questionType) {
+function isAnswerCorrect(userAnswer, correctAnswer, questionType, questionText = '') {
   if (!userAnswer || !correctAnswer) return false
 
   if (questionType === 'enumeration') {
@@ -162,6 +162,76 @@ function isAnswerCorrect(userAnswer, correctAnswer, questionType) {
       .map((item) => item.toString().trim().toLowerCase())
       .filter((item) => item)
 
+    // Check if question asks for "one" or "any" - accept if user provides any valid answer
+    const questionLower = questionText.toLowerCase()
+    const asksForOne = /\b(one|any|a single|a)\b/.test(questionLower)
+
+    if (asksForOne && normalizedUser.length > 0) {
+      // Check if any user answer matches any correct answer
+      return normalizedUser.some((userItem) => {
+        // Direct match
+        if (normalizedCorrect.includes(userItem)) return true
+
+        // Check variations
+        const itemVariations = {
+          javascript: ['js', 'javascript', 'ecmascript'],
+          js: ['javascript', 'js', 'ecmascript'],
+          html: ['hypertext markup language', 'html'],
+          css: ['cascading style sheets', 'css'],
+          dom: ['document object model', 'dom'],
+          api: ['application programming interface', 'api'],
+          'no time boxing': ['no time-boxing', 'no time boxing', 'time boxing', 'time-boxing'],
+          'no time-boxing': ['no time boxing', 'no time-boxing', 'time boxing', 'time-boxing'],
+          'less prescriptive': ['less prescriptive', 'not prescriptive'],
+        }
+
+        // Check if user item matches any correct item or its variations
+        return normalizedCorrect.some((correctItem) => {
+          if (correctItem === userItem) return true
+          if (itemVariations[correctItem]?.includes(userItem)) return true
+          if (itemVariations[userItem]?.some((variation) => normalizedCorrect.includes(variation))) return true
+          // Check substring match (e.g., "no time boxing" contains "time boxing")
+          if (correctItem.includes(userItem) || userItem.includes(correctItem)) return true
+          return false
+        })
+      })
+    }
+
+    // Check if question asks for a specific number
+    const requiredCount = extractNumberFromQuestion(questionText)
+    if (requiredCount && requiredCount > 0 && requiredCount < normalizedCorrect.length) {
+      // Question asks for N items, but correct answer has more
+      // Accept if user provides at least N correct items
+      let correctCount = 0
+      normalizedUser.forEach((userItem) => {
+        if (normalizedCorrect.includes(userItem)) {
+          correctCount++
+          return
+        }
+
+        // Check variations
+        const itemVariations = {
+          javascript: ['js', 'javascript', 'ecmascript'],
+          js: ['javascript', 'js', 'ecmascript'],
+          html: ['hypertext markup language', 'html'],
+          css: ['cascading style sheets', 'css'],
+          dom: ['document object model', 'dom'],
+          api: ['application programming interface', 'api'],
+        }
+
+        if (normalizedCorrect.some((correctItem) => {
+          if (itemVariations[correctItem]?.includes(userItem)) return true
+          if (itemVariations[userItem]?.some((variation) => normalizedCorrect.includes(variation))) return true
+          return false
+        })) {
+          correctCount++
+        }
+      })
+
+      return correctCount >= requiredCount
+    }
+
+    // Default: check that ALL correct items are present
     return normalizedCorrect.every((correctItem) => {
       if (normalizedUser.includes(correctItem)) return true
 
@@ -193,7 +263,17 @@ function isAnswerCorrect(userAnswer, correctAnswer, questionType) {
     const normalizedUser = cleanedUserAnswer.toLowerCase()
     const normalizedCorrect = correctAnswer.toString().trim().toLowerCase()
 
+    // Direct match
     if (normalizedUser === normalizedCorrect) return true
+
+    // Substring matching: check if user answer is contained in correct answer or vice versa
+    // This handles cases like "toyota" matching "Toyota manufacturing"
+    if (normalizedCorrect.includes(normalizedUser) || normalizedUser.includes(normalizedCorrect)) {
+      // Only accept if the match is significant (at least 3 characters to avoid false positives)
+      if (normalizedUser.length >= 3 || normalizedCorrect.length >= 3) {
+        return true
+      }
+    }
 
     const variations = {
       dom: ['document object model', 'dom'],
@@ -221,6 +301,8 @@ function isAnswerCorrect(userAnswer, correctAnswer, questionType) {
       'structured query language': ['sql', 'structured query language'],
       true: ['yes', 'correct', 'true', '1'],
       false: ['no', 'incorrect', 'false', '0'],
+      toyota: ['toyota', 'toyota manufacturing', 'toyota production system'],
+      'toyota manufacturing': ['toyota', 'toyota manufacturing', 'toyota production system'],
     }
 
     if (variations[normalizedCorrect]) {
@@ -239,7 +321,7 @@ const score = computed(() => {
   if (!quiz.value?.questions) return 0
   let correct = 0
   quiz.value.questions.forEach((question, index) => {
-    if (isAnswerCorrect(answers.value[index], question.answer, question.type)) {
+    if (isAnswerCorrect(answers.value[index], question.answer, question.type, question.question || '')) {
       correct++
     }
   })
@@ -560,7 +642,7 @@ function maybeAwardRetakePoint({ index, question, elapsedMsOverride }) {
 
   const answer = answers.value?.[index]
   if (!hasMeaningfulAnswer(answer, question.type)) return false
-  if (!isAnswerCorrect(answer, question.answer, question.type)) return false
+  if (!isAnswerCorrect(answer, question.answer, question.type, question.question || '')) return false
 
   const elapsedMs =
     typeof elapsedMsOverride === 'number'
@@ -2234,9 +2316,9 @@ body.dark .stat-label {
 }
 
 /* Countdown Overlay */
-body.dark .countdown-overlay {
+/* body.dark .countdown-overlay {
   background: rgba(15, 23, 42, 0.9) !important;
-}
+} */
 
 /* Results Section (if visible) */
 body.dark .results-section {
@@ -2452,9 +2534,9 @@ body.dark .detailed-results {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.4);
+  /* background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(8px) saturate(180%);
-  -webkit-backdrop-filter: blur(8px) saturate(180%);
+  -webkit-backdrop-filter: blur(8px) saturate(180%); */
   display: flex;
   align-items: center;
   justify-content: center;

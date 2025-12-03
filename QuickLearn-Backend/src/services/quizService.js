@@ -10,8 +10,9 @@ async function generateAIPoweredQuiz(text, options = {}) {
 		focusAreas = []
 	} = options;
 
-	// Route to fast Gemini service for 10-25 questions
-	if (numQuestions >= 10 && numQuestions <= 25) {
+	// Route to fast Gemini service for 1-25 questions
+	// (used both for direct requests and cache top-ups where missingCount can be small)
+	if (numQuestions > 0 && numQuestions <= 25) {
 		try {
 			console.log(`[Quiz] Using Gemini fast service for ${numQuestions} questions`);
 			return await fastQuizService.generateQuizFromText(text, {

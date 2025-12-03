@@ -1,9 +1,9 @@
 -> Multiple File Quiz Generation (DONE)
--> Timer per question (DONE)
--> Points per type of question (DONE)
--> When user answers a question in less than 3 seconds, the user gets a chance to retake a question the user got incorrect. Max of 2 times. (DONE)
+-> Full background generation and caching for faster generation of the same file. (DONE)
 -> Leaderboard quiz category filter (DONE)
 
 
+-> Timer per question (DONE)
+-> Points per type of question (DONE)
+-> When user answers a question in less than 3 seconds, the user gets a chance to retake a question the user got incorrect. Max of 2 times. (DONE)
 
--> Full background generation and caching for faster generation of the same file.

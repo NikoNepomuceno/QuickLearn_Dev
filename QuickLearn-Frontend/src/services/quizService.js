@@ -329,12 +329,27 @@ function generateQuizHTML(quiz) {
       </div>
 
       <div class="questions-container">
-        ${quiz.questions.map((question, index) => `
+        ${quiz.questions.map((question, index) => {
+          const questionType = question.type || 'multiple_choice';
+          const hasChoices = question.choices && Array.isArray(question.choices) && question.choices.length > 0;
+          
+          // Format answer based on question type
+          let formattedAnswer = '';
+          if (questionType === 'enumeration' && Array.isArray(question.answer)) {
+            formattedAnswer = question.answer.join(', ');
+          } else if (question.answer !== null && question.answer !== undefined) {
+            formattedAnswer = String(question.answer);
+          } else {
+            formattedAnswer = 'No answer provided';
+          }
+          
+          return `
           <div class="question">
             <div class="question-header">
               <div class="question-number">Question ${index + 1}</div>
             </div>
             <div class="question-text">${question.question || ''}</div>
+            ${hasChoices ? `
             <div class="choices">
               ${question.choices.map((choice, choiceIndex) => `
                 <div class="choice">
@@ -343,9 +358,10 @@ function generateQuizHTML(quiz) {
                 </div>
               `).join('')}
             </div>
+            ` : ''}
             <div class="answer">
               <div class="answer-label">Correct Answer:</div>
-              <div class="answer-value">${question.answer}</div>
+              <div class="answer-value">${formattedAnswer}</div>
               ${question.explanation ? `
                 <div class="explanation">
                   <div class="explanation-label">Explanation:</div>
@@ -354,7 +370,8 @@ function generateQuizHTML(quiz) {
               ` : ''}
             </div>
           </div>
-        `).join('')}
+        `;
+        }).join('')}
       </div>
 
       <div class="footer">
@@ -501,8 +518,37 @@ export function copyToClipboard(text) {
   }
 }
 
+function extractNumberFromQuestion(questionText) {
+  if (!questionText) return null
+
+  const text = questionText.toLowerCase()
+
+  const numberWords = {
+    'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+    'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+    'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14, 'fifteen': 15
+  }
+
+  for (const [word, num] of Object.entries(numberWords)) {
+    const regex = new RegExp(`\\b${word}\\b`, 'i')
+    if (regex.test(text)) {
+      return num
+    }
+  }
+
+  const numericMatch = text.match(/\b(\d+)\b/)
+  if (numericMatch) {
+    const num = parseInt(numericMatch[1], 10)
+    if (num > 0 && num <= 15) {
+      return num
+    }
+  }
+
+  return null
+}
+
 // Answer validation function (same as in TakeQuiz.vue)
-function isAnswerCorrect(userAnswer, correctAnswer, questionType) {
+function isAnswerCorrect(userAnswer, correctAnswer, questionType, questionText = '') {
   if (!userAnswer || !correctAnswer) return false
   
   // Default to identification if type is missing
@@ -518,6 +564,76 @@ function isAnswerCorrect(userAnswer, correctAnswer, questionType) {
       .map((item) => item.toString().trim().toLowerCase())
       .filter((item) => item)
 
+    // Check if question asks for "one" or "any" - accept if user provides any valid answer
+    const questionLower = questionText.toLowerCase()
+    const asksForOne = /\b(one|any|a single|a)\b/.test(questionLower)
+    
+    if (asksForOne && normalizedUser.length > 0) {
+      // Check if any user answer matches any correct answer
+      return normalizedUser.some((userItem) => {
+        // Direct match
+        if (normalizedCorrect.includes(userItem)) return true
+        
+        // Check variations
+        const itemVariations = {
+          javascript: ['js', 'javascript', 'ecmascript'],
+          js: ['javascript', 'js', 'ecmascript'],
+          html: ['hypertext markup language', 'html'],
+          css: ['cascading style sheets', 'css'],
+          dom: ['document object model', 'dom'],
+          api: ['application programming interface', 'api'],
+          'no time boxing': ['no time-boxing', 'no time boxing', 'time boxing', 'time-boxing'],
+          'no time-boxing': ['no time boxing', 'no time-boxing', 'time boxing', 'time-boxing'],
+          'less prescriptive': ['less prescriptive', 'not prescriptive'],
+        }
+        
+        // Check if user item matches any correct item or its variations
+        return normalizedCorrect.some((correctItem) => {
+          if (correctItem === userItem) return true
+          if (itemVariations[correctItem]?.includes(userItem)) return true
+          if (itemVariations[userItem]?.some((variation) => normalizedCorrect.includes(variation))) return true
+          // Check substring match (e.g., "no time boxing" contains "time boxing")
+          if (correctItem.includes(userItem) || userItem.includes(correctItem)) return true
+          return false
+        })
+      })
+    }
+
+    // Check if question asks for a specific number
+    const requiredCount = extractNumberFromQuestion(questionText)
+    if (requiredCount && requiredCount > 0 && requiredCount < normalizedCorrect.length) {
+      // Question asks for N items, but correct answer has more
+      // Accept if user provides at least N correct items
+      let correctCount = 0
+      normalizedUser.forEach((userItem) => {
+        if (normalizedCorrect.includes(userItem)) {
+          correctCount++
+          return
+        }
+        
+        // Check variations
+        const itemVariations = {
+          javascript: ['js', 'javascript', 'ecmascript'],
+          js: ['javascript', 'js', 'ecmascript'],
+          html: ['hypertext markup language', 'html'],
+          css: ['cascading style sheets', 'css'],
+          dom: ['document object model', 'dom'],
+          api: ['application programming interface', 'api'],
+        }
+        
+        if (normalizedCorrect.some((correctItem) => {
+          if (itemVariations[correctItem]?.includes(userItem)) return true
+          if (itemVariations[userItem]?.some((variation) => normalizedCorrect.includes(variation))) return true
+          return false
+        })) {
+          correctCount++
+        }
+      })
+      
+      return correctCount >= requiredCount
+    }
+
+    // Default: check that ALL correct items are present
     return normalizedCorrect.every((correctItem) => {
       if (normalizedUser.includes(correctItem)) return true
 
@@ -554,6 +670,15 @@ function isAnswerCorrect(userAnswer, correctAnswer, questionType) {
     // Direct match
     if (normalizedUser === normalizedCorrect) return true
 
+    // Substring matching: check if user answer is contained in correct answer or vice versa
+    // This handles cases like "toyota" matching "Toyota manufacturing"
+    if (normalizedCorrect.includes(normalizedUser) || normalizedUser.includes(normalizedCorrect)) {
+      // Only accept if the match is significant (at least 3 characters to avoid false positives)
+      if (normalizedUser.length >= 3 || normalizedCorrect.length >= 3) {
+        return true
+      }
+    }
+
     // Handle common variations
     const variations = {
       dom: ['document object model', 'dom'],
@@ -581,6 +706,8 @@ function isAnswerCorrect(userAnswer, correctAnswer, questionType) {
       'structured query language': ['sql', 'structured query language'],
       true: ['yes', 'correct', 'true', '1'],
       false: ['no', 'incorrect', 'false', '0'],
+      toyota: ['toyota', 'toyota manufacturing', 'toyota production system'],
+      'toyota manufacturing': ['toyota', 'toyota manufacturing', 'toyota production system'],
     }
 
     // Check if user answer matches any variation of correct answer
@@ -851,7 +978,7 @@ function generateResultsHTML(quiz, attempt) {
         <div class="section-title">Question Review</div>
         ${quiz.questions.map((q, i) => {
           const ua = (attempt && Array.isArray(attempt.userAnswers)) ? (attempt.userAnswers[i] ?? 'Not answered') : 'Not answered'
-          const correct = isAnswerCorrect(ua === 'Not answered' ? null : ua, q.answer, q.type || 'identification')
+          const correct = isAnswerCorrect(ua === 'Not answered' ? null : ua, q.answer, q.type || 'identification', q.question || '')
           return `
           <div class="question ${correct ? 'correct' : 'incorrect'}">
             <div class="question-header">
